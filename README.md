@@ -1,73 +1,53 @@
-# React + TypeScript + Vite
+# 🌌 Nex - Web Operating System
+**Powered by Salvador**
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Nex** es un entorno de escritorio de alto rendimiento desarrollado íntegramente en **React 18**, **TypeScript** y **Vite**. Este proyecto no es solo una interfaz visual; es un sistema de gestión de aplicaciones (Web OS) que recrea la experiencia de un sistema operativo nativo dentro del navegador, con un enfoque obsesivo en el *Pixel Perfect* y la fluidez del usuario.
 
-Currently, two official plugins are available:
+> **🌐 Live Demo:** [https://windows-seven-rose.vercel.app/](https://windows-seven-rose.vercel.app/)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+### 🚀 Características de Ingeniería
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+* **🖥️ Virtual Desktops (Multitarea):** Gestión dinámica de hasta 5 escritorios independientes con persistencia de estado y swtiching fluido.
+* **📂 File Explorer Engine:** Sistema de archivos simulado con reconocimiento de extensiones, navegación por directorios y visor de imágenes interactivo (`.png`, `.jpg`).
+* **🌐 Integrated Web Browser:** Navegador funcional dentro del ecosistema que permite navegar la red real sin salir de la aplicación.
+* **📅 System UI & Widgets:** Calendario dinámico en tiempo real, barra de tareas (Taskbar) con lógica de Z-Index para ventanas y bandeja de sistema (System Tray).
+* **🎨 Glassmorphism Design:** Interfaz moderna con efectos de desenfoque (blur), esquinas redondeadas y animaciones suaves para una experiencia inmersiva.
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 🛠️ Stack Tecnológico
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+* **Core:** [React 18](https://reactjs.org/) & [TypeScript](https://www.typescriptlang.org/) (Strict Mode).
+* **Bundler:** [Vite](https://vitejs.dev/) para un desarrollo y compilación ultra rápidos.
+* **Styling:** Tailwind CSS + Custom CSS para efectos de transparencia y sombreado.
+* **Deployment:** [Vercel CI/CD](https://vercel.com/) con optimización de build.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### 🏛️ Arquitectura del Sistema
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+El proyecto sigue una estructura de **Componentes Atómicos** para garantizar la escalabilidad:
+* `src/components/apps`: Lógica aislada para aplicaciones (Cmd, VsCode, File Explorer).
+* `src/components/Window`: HOC (Higher Order Component) que gestiona el ciclo de vida de las ventanas (foco, maximizado, cierre).
+* `src/components/Taskbar`: Orquestador de procesos activos y cambio de entornos.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+---
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### 🔧 Instalación y Ejecución
+
+Si querés explorar el "corazón" de este proyecto localmente:
+
+```bash
+# 1. Clonar el repositorio
+git clone [https://github.com/tu-usuario/souls.git](https://github.com/tu-usuario/souls.git)
+
+# 2. Instalar las dependencias (el combustible)
+npm install
+
+# 3. Lanzar el entorno de desarrollo
+npm run dev
+
+# 4. Compilar para producción
+npm run build

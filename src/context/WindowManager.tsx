@@ -1,6 +1,6 @@
 import React, { type ReactNode, createContext, useState, useContext } from 'react';
 import { Delete24Regular } from '@fluentui/react-icons';
-import { ChromeIcon } from '../components/apps/BrowserApp';
+import { BrowserApp, ChromeIcon } from "../components/apps/BrowserApp";
 import { IEIcon } from '../components/apps/IEApp';
 import { CounterIcon } from '../components/apps/counter';
 
@@ -97,6 +97,7 @@ const WindowManagerProviderComponent: React.FC<{ children: ReactNode }> = ({ chi
       title: 'Google Chrome',
       icon: <ChromeIcon />, 
       type: 'system',
+      content: <BrowserApp />,
       x: 20,
       y: 220,
     },

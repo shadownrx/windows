@@ -27,7 +27,7 @@ export const BrowserApp: React.FC = () => {
   // 1. Estado con Persistencia (LocalStorage)
   const [tabs, setTabs] = useState<Tab[]>(() => {
     const saved = localStorage.getItem('nex_browser_tabs');
-    return saved ? JSON.parse(saved) : [{ id: '1', title: 'Nueva pestaña', url: '' }];
+    return saved ? JSON.parse(saved) : [{ id: 'tab-1', title: 'Nueva pestaña', url: '' }];
   });
   
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => {
@@ -38,10 +38,13 @@ export const BrowserApp: React.FC = () => {
     ];
   });
 
-  const [activeTab, setActiveTab] = useState(tabs[0]?.id || '1');
+  const [activeTab, setActiveTab] = useState(tabs[0]?.id || 'tab-1');
   const [addressVal, setAddressVal] = useState('');
   const [editing, setEditing] = useState(false);
-  const nextId = useRef(Date.now());
+  
+  // CORRECCIÓN DE PUREZA: Inicializamos con un valor estático
+  // El ID se genera de forma incremental en las funciones de evento
+  const nextIdCounter = useRef(100); 
 
   const currentTab = tabs.find(t => t.id === activeTab);
   const isNewTab = !currentTab?.url;
@@ -54,7 +57,7 @@ export const BrowserApp: React.FC = () => {
 
   // 3. Lógica de Navegación y Pestañas
   const addTab = () => {
-    const id = String(nextId.current++);
+    const id = `tab-${nextIdCounter.current++}`;
     const newTab = { id, title: 'Nueva pestaña', url: '' };
     setTabs(prev => [...prev, newTab]);
     setActiveTab(id);
@@ -65,9 +68,10 @@ export const BrowserApp: React.FC = () => {
     e.stopPropagation();
     const newTabs = tabs.filter(t => t.id !== id);
     if (newTabs.length === 0) {
-      const defaultTab = { id: String(nextId.current++), title: 'Nueva pestaña', url: '' };
+      const fallbackId = `tab-${nextIdCounter.current++}`;
+      const defaultTab = { id: fallbackId, title: 'Nueva pestaña', url: '' };
       setTabs([defaultTab]);
-      setActiveTab(defaultTab.id);
+      setActiveTab(fallbackId);
     } else {
       setTabs(newTabs);
       if (activeTab === id) setActiveTab(newTabs[newTabs.length - 1].id);
@@ -75,29 +79,44 @@ export const BrowserApp: React.FC = () => {
   };
 
   const navigate = useCallback((raw: string) => {
-  let url = raw.trim();
-  if (!url) return;
-  
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    // Agregamos '&igu=1', que es un parámetro interno de Google 
-    // que a veces permite que se renderice en marcos (iframes)
-    url = url.includes('.') 
-      ? `https://${url}` 
-      : `https://www.google.com/search?q=${encodeURIComponent(url)}&igu=1`;
-  }
-
-  setTabs(prev => prev.map(t => {
-    if (t.id !== activeTab) return t;
-    try {
-      const host = new URL(url).hostname.replace('www.', '');
-      return { ...t, url, title: host, favicon: getFavicon(url) || '' };
-    } catch {
-      return { ...t, url, title: 'Cargando...', favicon: '' };
-    }
-  }));
-  setEditing(false);
-}, [activeTab]);
+    let url = raw.trim();
+    if (!url) return;
     
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      // &igu=1 permite que Google Search cargue en algunos entornos de iframe
+      url = url.includes('.') 
+        ? `https://${url}` 
+        : `https://www.google.com/search?q=${encodeURIComponent(url)}&igu=1`;
+    }
+
+    setTabs(prev => prev.map(t => {
+      if (t.id !== activeTab) return t;
+      try {
+        const host = new URL(url).hostname.replace('www.', '');
+        return { ...t, url, title: host, favicon: getFavicon(url) || '' };
+      } catch {
+        return { ...t, url, title: 'Cargando...', favicon: '' };
+      }
+    }));
+    setEditing(false);
+  }, [activeTab]);
+
+  const toggleBookmark = () => {
+    if (!currentTab?.url || isNewTab) return;
+    
+    const exists = bookmarks.find(b => b.url === currentTab.url);
+    if (exists) {
+      setBookmarks(prev => prev.filter(b => b.url !== currentTab.url));
+    } else {
+      setBookmarks(prev => [...prev, { 
+        label: currentTab.title, 
+        url: currentTab.url, 
+        favicon: currentTab.favicon || '' 
+      }]);
+    }
+  };
+
+  const isBookmarked = bookmarks.some(b => b.url === currentTab?.url);
 
   return (
     <div className="nex-browser-container">
@@ -137,7 +156,9 @@ export const BrowserApp: React.FC = () => {
             onKeyDown={e => e.key === 'Enter' && navigate(addressVal)}
             placeholder="Busca o escribe una URL"
           />
-          <button className="star-btn">★</button>
+          <button className="star-btn" onClick={toggleBookmark}>
+            {isBookmarked ? '★' : '☆'}
+          </button>
         </div>
       </div>
 
@@ -160,7 +181,7 @@ export const BrowserApp: React.FC = () => {
               <input 
                 type="text" 
                 placeholder="¿A dónde vamos hoy, Salvador?" 
-                onKeyDown={(e) => e.key === 'Enter' && navigate((e.target as any).value)}
+                onKeyDown={(e) => e.key === 'Enter' && navigate((e.target as HTMLInputElement).value)}
               />
             </div>
           </div>
@@ -191,13 +212,14 @@ export const BrowserApp: React.FC = () => {
           border-bottom: 1px solid #1a1a1e;
         }
         
-        .tabs-scroll-area { display: flex; gap: 4px; overflow: hidden; }
+        .tabs-scroll-area { display: flex; gap: 4px; overflow-x: auto; flex: 1; }
+        .tabs-scroll-area::-webkit-scrollbar { display: none; }
 
         .nex-tab {
           background: #1a1a1e;
           padding: 6px 14px;
           border-radius: 8px 8px 0 0;
-          min-width: 150px;
+          min-width: 140px;
           max-width: 200px;
           display: flex;
           align-items: center;
@@ -206,10 +228,10 @@ export const BrowserApp: React.FC = () => {
           border: 1px solid #2a2a2e;
           border-bottom: none;
           cursor: pointer;
-          transition: 0.2s;
+          transition: background 0.2s;
         }
 
-        .nex-tab.active { background: #1a1a1e; border-color: #3a3a3e; color: #fff; box-shadow: 0 -2px 10px rgba(0,0,0,0.5); }
+        .nex-tab.active { background: #1a1a1e; border-color: #3a3a3e; color: #fff; }
         .tab-icon { width: 14px; height: 14px; }
         .tab-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .tab-close { background: none; border: none; color: #555; cursor: pointer; font-size: 14px; }
@@ -242,6 +264,8 @@ export const BrowserApp: React.FC = () => {
         .nex-address-bar.focused { border-color: #0078d4; }
         .nex-address-bar input { background: transparent; border: none; color: #fff; width: 100%; outline: none; font-size: 13px; }
 
+        .star-btn { background: none; border: none; color: #555; cursor: pointer; margin-left: 8px; }
+
         .nex-bookmarks { display: flex; gap: 8px; padding: 6px 12px; background: #1a1a1e; border-bottom: 1px solid #2a2a2e; }
         .bookmark { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #999; cursor: pointer; padding: 4px 8px; border-radius: 4px; }
         .bookmark:hover { background: #2a2a2e; color: #fff; }
@@ -259,5 +283,26 @@ export const BrowserApp: React.FC = () => {
     </div>
   );
 };
+
+// Exportación del icono para el escritorio/dock de NEX OS
+export const ChromeIcon: React.FC<{ size?: number; className?: string }> = ({ size = 24, className }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    className={className}
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="4" />
+    <line x1="21.17" y1="8" x2="12" y2="8" />
+    <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
+    <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
+  </svg>
+);
 
 export default BrowserApp;

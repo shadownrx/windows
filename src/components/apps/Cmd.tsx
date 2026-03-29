@@ -67,7 +67,7 @@ const Cmd: React.FC = () => {
         break;
       case "help":
         output.push(
-          "Comandos disponibles: cls, dir, echo, help, date, time, whoami, bitflow, ipconfig",
+          "Comandos disponibles: cls, dir, echo, help, date, time, whoami, next, ipconfig",
         );
         break;
       case "date":
@@ -77,10 +77,10 @@ const Cmd: React.FC = () => {
         output.push(new Date().toLocaleTimeString());
         break;
       case "whoami":
-        output.push("bitflow\\ceo_salvador");
+        output.push("bienvenido");
         break;
-      case "bitflow":
-        output.push("Bitflow OS - Next Generation Systems");
+      case "next":
+        output.push("next OS - Next Generation Systems");
         output.push("Status: Active Development");
         break;
       case "ipconfig":

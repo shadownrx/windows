@@ -1,217 +1,25 @@
 import React, { useState, useRef } from 'react';
 
+// --- Helpers de Lógica de Navegación ---
 const YOUTUBE_REGEX = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
 
-function resolveUrl(raw: string): { url: string; isYouTubeEmbed: boolean; videoId?: string } {
-  let url = raw.trim();
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = url.includes('.') ? `https://${url}` : `https://www.bing.com/search?q=${encodeURIComponent(url)}`;
+function resolveUrl(raw: string): string {
+  const input = raw.trim();
+  if (!input) return 'https://www.google.com/webhp?igu=1';
+
+  const ytMatch = input.match(YOUTUBE_REGEX);
+  if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1`;
+
+  const isUrl = /^(?!-)[A-Za-z0-9-]+(\.[a-z0-9]+)+\.[A-Za-z]{2,6}(:[0-9]{1,5})?(\/.*)?$/.test(input);
+  
+  if (isUrl) {
+    return input.startsWith('http') ? input : `https://${input}`;
   }
-  const ytMatch = url.match(YOUTUBE_REGEX);
-  if (ytMatch) {
-    return { url: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1`, isYouTubeEmbed: true, videoId: ytMatch[1] };
-  }
-  return { url, isYouTubeEmbed: false };
+
+  return `https://www.bing.com/search?q=${encodeURIComponent(input)}`;
 }
 
-const IEApp: React.FC = () => {
-  const [url, setUrl] = useState('https://www.google.com/webhp?igu=1');
-  const [addressVal, setAddressVal] = useState('https://www.google.com');
-  const [loading, setLoading] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  const navigate = () => {
-    if (!addressVal.trim()) return;
-    setLoading(true);
-    const resolved = resolveUrl(addressVal);
-    setUrl(resolved.url);
-  };
-
-  const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') navigate();
-  };
-
-  return (
-    <div className="ie-root">
-      {/* Toolbar Area */}
-      <div className="ie-toolbar">
-         <div className="ie-top-row">
-            <div className="ie-nav-buttons">
-              <button className="ie-btn" onClick={() => iframeRef.current?.contentWindow?.history.back()}>
-                <svg viewBox="0 0 24 24" width="24" height="24"><path fill="#fff" d="M12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2H7.83l5.58-5.59L12 4z"/></svg>
-              </button>
-              <button className="ie-btn" onClick={() => iframeRef.current?.contentWindow?.history.forward()}>
-                 <svg viewBox="0 0 24 24" width="24" height="24"><path fill="#fff" d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8-8-8z"/></svg>
-              </button>
-            </div>
-            <div className="ie-address-container">
-               <input 
-                 className="ie-address" 
-                 value={addressVal}
-                 onChange={e => setAddressVal(e.target.value)}
-                 onKeyDown={handleKey}
-               />
-               <button className="ie-go-btn" onClick={navigate}>
-                 <svg viewBox="0 0 24 24" width="16" height="16"><path fill="#333" d="M2 12l18-9-9 18-2-6-6-2z"/></svg>
-               </button>
-            </div>
-            <div className="ie-search-container">
-               <input className="ie-search" placeholder="Bing" onKeyDown={(e) => {
-                 if (e.key === 'Enter') {
-                   setAddressVal(`https://www.bing.com/search?q=${encodeURIComponent(e.currentTarget.value)}`);
-                   navigate();
-                 }
-               }}/>
-            </div>
-         </div>
-         <div className="ie-bottom-row">
-           <div className="ie-menu-bar">
-             <span>Archivo</span>
-             <span>Edición</span>
-             <span>Ver</span>
-             <span>Favoritos</span>
-             <span>Herramientas</span>
-             <span>Ayuda</span>
-           </div>
-         </div>
-      </div>
-      
-      {/* Content */}
-      <div className="ie-content">
-         {loading && <div className="ie-loading">Cargando...</div>}
-         <iframe
-            ref={iframeRef}
-            src={url}
-            className="ie-iframe"
-            title="Internet Explorer"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
-            onLoad={() => setLoading(false)}
-         />
-      </div>
-
-      <style>{`
-        .ie-root {
-          display: flex;
-          flex-direction: column;
-          height: 100%;
-          background: #d4d0c8;
-          font-family: 'Segoe UI', Tahoma, sans-serif;
-        }
-        .ie-toolbar {
-          background: linear-gradient(to bottom, #eff3fc 0%, #d6e2f5 100%);
-          border-bottom: 1px solid #99a8c7;
-          display: flex;
-          flex-direction: column;
-        }
-        .ie-top-row {
-          display: flex;
-          align-items: center;
-          padding: 8px 4px 4px 4px;
-          gap: 6px;
-        }
-        .ie-nav-buttons {
-          display: flex;
-          gap: 2px;
-        }
-        .ie-btn {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          border: 1px solid transparent;
-          background: #4A8CD2;
-          border: 1px solid #235A9C;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-        }
-        .ie-btn:active { background: #356eaa; }
-        .ie-btn:nth-child(2) { background: transparent; border-color: transparent; }
-        .ie-btn:nth-child(2) svg path { fill: #999; }
-        .ie-address-container {
-          flex: 1;
-          display: flex;
-          background: #fff;
-          border: 1px solid #7f9db9;
-          height: 24px;
-          align-items: center;
-        }
-        .ie-address {
-          flex: 1;
-          border: none;
-          outline: none;
-          padding: 0 4px;
-          font-size: 13px;
-        }
-        .ie-go-btn {
-          background: transparent;
-          border: none;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0 4px;
-          cursor: pointer;
-          border-left: 1px solid #ddd;
-        }
-        .ie-search-container {
-          width: 150px;
-          display: flex;
-          background: #fff;
-          border: 1px solid #7f9db9;
-          height: 24px;
-        }
-        .ie-search {
-          flex: 1;
-          border: none;
-          outline: none;
-          padding: 0 4px;
-          font-size: 13px;
-        }
-        .ie-bottom-row {
-           border-top: 1px solid #fff;
-           background: #eff3fc;
-           padding: 2px 8px;
-        }
-        .ie-menu-bar {
-          display: flex;
-          gap: 12px;
-          font-size: 12px;
-          color: #000;
-        }
-        .ie-menu-bar span {
-          padding: 2px 4px;
-          cursor: pointer;
-        }
-        .ie-menu-bar span:hover {
-          background: #c1d2ee;
-          border-radius: 2px;
-          box-shadow: inset 0 0 1px #fff;
-        }
-        .ie-content {
-          flex: 1;
-          background: #fff;
-        }
-        .ie-iframe {
-          width: 100%;
-          height: 100%;
-          border: none;
-        }
-        .ie-loading {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          background: rgba(255, 255, 255, 0.9);
-          padding: 10px 20px;
-          border: 1px solid #7f9db9;
-          font-size: 14px;
-          z-index: 10;
-        }
-      `}</style>
-    </div>
-  );
-};
-
+// --- ICONO EXPORTADO (FUERA DEL COMPONENTE) ---
 export const IEIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24">
     <path fill="#2c89db" d="M12 3a9 9 0 00-6.73 14.99c2.02-3.4 5.2-5.71 8.94-6.38a7.03 7.03 0 01-4.21-3.61c-2.36.93-4.32 2.89-5.25 5.25A9 9 0 1112 3z" />
@@ -220,5 +28,175 @@ export const IEIcon = () => (
   </svg>
 );
 
-export default IEApp;
+const IEApp: React.FC = () => {
+  const [history, setHistory] = useState<string[]>(['https://www.google.com/webhp?igu=1']);
+  const [pointer, setPointer] = useState(0);
+  const [addressVal, setAddressVal] = useState('https://www.google.com');
+  const [loading, setLoading] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  const currentUrl = history[pointer];
+
+  const navigateTo = (raw: string) => {
+    setLoading(true);
+    const resolved = resolveUrl(raw);
+    const newHistory = history.slice(0, pointer + 1);
+    setHistory([...newHistory, resolved]);
+    setPointer(newHistory.length);
+    setAddressVal(resolved);
+  };
+
+  const goBack = () => { if (pointer > 0) { setPointer(p => p - 1); setAddressVal(history[pointer - 1]); } };
+  const goForward = () => { if (pointer < history.length - 1) { setPointer(p => p + 1); setAddressVal(history[pointer + 1]); } };
+  const goHome = () => navigateTo('https://www.google.com/webhp?igu=1');
+
+  const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') navigateTo(addressVal);
+  };
+
+  return (
+    <div className="ie-root">
+      <div className="ie-toolbar">
+        <div className="ie-top-row">
+          <div className="ie-nav-buttons">
+            <button className="ie-btn" onClick={goBack} disabled={pointer === 0} title="Atrás">
+              <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            </button>
+            <button className="ie-btn" onClick={goForward} disabled={pointer === history.length - 1} title="Adelante">
+              <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            </button>
+            <button className="ie-btn ie-home" onClick={goHome} title="Página principal">
+               <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            </button>
+          </div>
+
+          <div className="ie-address-container">
+            <div className="ie-world-icon">🌐</div>
+            <input 
+              className="ie-address" 
+              value={addressVal}
+              onChange={e => setAddressVal(e.target.value)}
+              onKeyDown={handleKey}
+              onFocus={(e) => e.target.select()}
+            />
+            <button className="ie-refresh-btn" onClick={() => navigateTo(currentUrl)}>
+               <svg viewBox="0 0 24 24" width="14" height="14"><path fill="#666" d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            </button>
+          </div>
+
+          <div className="ie-search-container">
+            <input 
+              className="ie-search" 
+              placeholder="Buscar con Bing..." 
+              onKeyDown={(e) => e.key === 'Enter' && navigateTo(e.currentTarget.value)}
+            />
+            <span className="ie-search-icon">🔍</span>
+          </div>
+        </div>
+
+        <div className="ie-bottom-row">
+          <div className="ie-menu-bar">
+            <span>Archivo</span>
+            <span>Edición</span>
+            <span>Ver</span>
+            <span>Favoritos</span>
+            <span>Herramientas</span>
+            <span>Ayuda</span>
+          </div>
+        </div>
+      </div>
+      
+      <div className="ie-content">
+        {loading && (
+          <div className="ie-loading-bar">
+            <div className="ie-progress-animation"></div>
+          </div>
+        )}
+        <iframe
+          ref={iframeRef}
+          src={currentUrl}
+          className="ie-iframe"
+          title="Nex Browser"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          onLoad={() => setLoading(false)}
+        />
+      </div>
+
+      <style>{`
+        .ie-root { display: flex; flex-direction: column; height: 100%; background: #f0f0f0; }
+        .ie-toolbar { background: #f5f6f7; border-bottom: 1px solid #ccc; display: flex; flex-direction: column; }
+        .ie-top-row { display: flex; align-items: center; padding: 6px; gap: 8px; }
+        .ie-nav-buttons { display: flex; gap: 4px; align-items: center; }
+        
+        .ie-btn { 
+          width: 28px; height: 28px; border: 1px solid transparent; 
+          background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;
+          border-radius: 4px; color: black;
+        }
+        .ie-btn:hover:not(:disabled) { background: #e0e0e0; border-color: #bbb; }
+        .ie-btn:disabled { color: #ccc; cursor: default; }
+        .ie-home { color: #2c89db; }
+
+        .ie-address-container { 
+          flex: 1; display: flex; background: #ffffff !important; 
+          border: 1px solid #abadb3; height: 28px; align-items: center; 
+          border-radius: 2px; padding: 0 4px;
+        }
+
+        .ie-address { 
+          flex: 1; width: 100%; border: none; outline: none; font-size: 13px; 
+          color: #333 !important; background: transparent !important; padding: 0 8px;
+        }
+
+        .ie-address:-webkit-autofill {
+          -webkit-text-fill-color: #333;
+          -webkit-box-shadow: 0 0 0px 1000px #fff inset;
+        }
+
+        .ie-world-icon { margin-right: 4px; font-size: 14px; }
+        .ie-refresh-btn { background: transparent; border: none; cursor: pointer; padding: 4px; display: flex; }
+
+        .ie-search-container { 
+          width: 180px; display: flex; background: #ffffff !important; 
+          border: 1px solid #abadb3; height: 28px; align-items: center; 
+          padding: 0 4px; border-radius: 2px;
+        }
+
+        .ie-search { 
+          flex: 1; border: none; outline: none; font-size: 13px; 
+          color: #333 !important; background: transparent !important; padding: 0 4px;
+        }
+
+        .ie-search:-webkit-autofill {
+          -webkit-text-fill-color: #333;
+          -webkit-box-shadow: 0 0 0px 1000px #fff inset;
+        }
+
+        .ie-search-icon { padding: 0 4px; font-size: 14px; color: #888; }
+
+        .ie-bottom-row { background: #f5f6f7; padding: 2px 10px; border-top: 1px solid #fff; }
+        .ie-menu-bar { display: flex; gap: 14px; font-size: 12px; color: black; }
+        .ie-menu-bar span { cursor: pointer; padding: 2px 4px; border-radius: 2px; }
+        .ie-menu-bar span:hover { background: #e5f1fb; outline: 1px solid #a5d1f5; }
+
+        .ie-content { flex: 1; background: #fff; position: relative; overflow: hidden; }
+        .ie-iframe { width: 100%; height: 100%; border: none; background: #fff; }
+        
+        .ie-loading-bar { 
+          position: absolute; top: 0; left: 0; width: 100%; height: 2px; 
+          background: #e0e0e0; z-index: 20; 
+        }
+        .ie-progress-animation {
+          height: 100%; width: 30%; background: #2c89db;
+          animation: ie-load 1.5s infinite ease-in-out;
+        }
+        @keyframes ie-load {
+          0% { margin-left: -30%; }
+          100% { margin-left: 100%; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default IEApp;

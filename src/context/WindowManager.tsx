@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import React, { type ReactNode, createContext, useState, useContext } from 'react';
 import { Delete24Regular } from '@fluentui/react-icons';
 import { ChromeIcon } from '../components/apps/BrowserApp';
 import { IEIcon } from '../components/apps/IEApp';
+import { CounterIcon } from '../components/apps/counter';
 
 export interface AppWindow {
   id: string;
@@ -62,7 +63,7 @@ interface WindowManagerContextType {
 
 const WindowManagerContext = createContext<WindowManagerContextType | undefined>(undefined);
 
-export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+const WindowManagerProviderComponent: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [windows, setWindows] = useState<AppWindow[]>([]);
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [isWidgetsOpen, setIsWidgetsOpen] = useState(false);
@@ -98,7 +99,15 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
       type: 'system',
       x: 20,
       y: 220,
-    }
+    },
+    { 
+    id: 'counter-strike', 
+    title: 'Counter-Strike 1.6', 
+    icon: <CounterIcon />, // El que exportamos en Counter.tsx
+    type: 'system',
+    x: 20, 
+    y: 320 // Ajustá la posición Y para que no se encime
+  }
   ]);
 
   const toggleStart = () => setIsStartOpen((prev) => !prev);
@@ -232,8 +241,13 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
   );
 };
 
-export const useWindowManager = () => {
+export const WindowManagerProvider = WindowManagerProviderComponent;
+export { WindowManagerContext };
+
+export const useWindowManager = (): WindowManagerContextType => {
   const context = useContext(WindowManagerContext);
-  if (!context) throw new Error('useWindowManager must be used within a WindowManagerProvider');
+  if (!context) {
+    throw new Error('useWindowManager must be used within a WindowManagerProvider');
+  }
   return context;
 };

@@ -28,6 +28,7 @@ import Notepad from './apps/Notepad';
 import Cmd from './apps/Cmd';
 import BrowserApp, { ChromeIcon } from './apps/BrowserApp';
 import IEApp, { IEIcon } from './apps/IEApp';
+import CounterStrikeApp, { CounterIcon } from './apps/counter';
 
 
 interface DesktopProps {
@@ -143,17 +144,19 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
   };
 
   const onIconDoubleClick = (icon: DesktopIcon) => {
-    if (icon.id === 'recycle-bin') {
-      openWindow('recycle-bin', 'Papelera de reciclaje', icon.icon, <RecycleBin />);
-    } else if (icon.id === 'chrome') {
-      openWindow('chrome', 'Google Chrome', <ChromeIcon />, <BrowserApp />);
-    } else if (icon.id === 'ie') {
-      openWindow('ie', 'Internet Explorer', <IEIcon />, <IEApp />);
-    } else {
-      openWindow(icon.id, icon.title, icon.icon, icon.content || <div className="p-4">Archivo vacío</div>);
-    }
-  };
-
+  if (icon.id === 'recycle-bin') {
+    openWindow('recycle-bin', 'Papelera de reciclaje', icon.icon, <RecycleBin />);
+  } else if (icon.id === 'chrome') {
+    openWindow('chrome', 'Google Chrome', <ChromeIcon />, <BrowserApp />);
+  } else if (icon.id === 'ie') {
+    openWindow('ie', 'Internet Explorer', <IEIcon />, <IEApp />);
+  } else if (icon.id === 'counter-strike') {
+    // IMPORTANTE: Pasarlo como <CounterStrikeApp /> (o como lo hayas importado)
+    openWindow('counter-strike', 'Counter-Strike 1.6 Online', <CounterIcon />, <CounterStrikeApp />);
+  } else {
+    openWindow(icon.id, icon.title, icon.icon, icon.content || <div className="p-4">Archivo vacío</div>);
+  }
+};
   const handleIconMouseDown = (e: React.MouseEvent, icon: DesktopIcon) => {
     e.stopPropagation();
     if (e.button !== 0) return;
@@ -437,125 +440,152 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
       )}
 
       <style>{`
-        .desktop-icons {
-          position: relative;
-          width: 100%;
-          height: calc(100% - var(--taskbar-height));
-          overflow: hidden;
-        }
-        .desktop-icon {
-          width: 80px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 8px;
-          border-radius: 4px;
-          cursor: grab;
-          transition: background 0.2s, transform 0.2s;
-          color: white;
-          text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-        }
-        .desktop-icon.dragging {
-          cursor: grabbing;
-          transform: scale(1.02);
-          z-index: 20;
-        }
-        .desktop-icon:hover {
-          background: rgba(255, 255, 255, 0.1);
-        }
-        .icon-wrapper {
-          font-size: 32px;
-          margin-bottom: 4px;
-        }
-        .icon-label {
-          font-size: 11px;
-          text-align: center;
-          word-break: break-all;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
+  .desktop-icons {
+    position: relative;
+    width: 100%;
+    height: calc(100% - var(--taskbar-height));
+    overflow: hidden;
+    padding: 10px; /* Un poco de margen para que no toquen el borde */
+  }
 
-        .widgets-panel {
-          position: fixed;
-          top: 80px;
-          right: 24px;
-          width: 360px;
-          max-height: calc(100vh - 120px);
-          background: rgba(24, 24, 24, 0.88);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 14px;
-          padding: 16px;
-          overflow: auto;
-          z-index: 1500;
-          box-shadow: 0 8px 36px rgba(0,0,0,0.45);
-        }
+  .desktop-icon {
+    width: 90px; /* Aumentamos un poco el ancho para que el texto respire */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 5px;
+    border-radius: 6px;
+    cursor: grab;
+    transition: background 0.2s, transform 0.1s;
+    color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9); /* Sombra más definida para leer sobre cualquier fondo */
+  }
 
-        .widgets-panel h3 {
-          margin: 0 0 12px 0;
-          font-size: 16px;
-          font-weight: 700;
-        }
+  .desktop-icon.dragging {
+    cursor: grabbing;
+    transform: scale(1.05);
+    z-index: 20;
+    background: rgba(255, 255, 255, 0.15);
+  }
 
-        .widget-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-        }
+  .desktop-icon:hover {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(4px); /* Sutil toque de desenfoque al pasar el mouse */
+  }
 
-        .widget-card {
-          background: rgba(255,255,255,0.08);
-          padding: 10px;
-          border-radius: 10px;
-          min-height: 68px;
-          color: white;
-          font-size: 12px;
-        }
+  .icon-wrapper {
+    font-size: 32px;
+    margin-bottom: 6px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); /* Sombra al icono para que resalte */
+  }
 
-        .virtual-desktop-strip {
-          position: fixed;
-          bottom: calc(var(--taskbar-height) + 60px);
-          left: 50%;
-          transform: translateX(-50%);
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 6px 10px;
-          border-radius: 999px;
-          background: rgba(25, 25, 25, 0.75);
-          border: 1px solid rgba(255,255,255,0.14);
-          backdrop-filter: blur(10px);
-          z-index: 1100;
-        }
+  .icon-label {
+    font-size: 11px;
+    text-align: center;
+    line-height: 1.2;
+    max-width: 100%;
+    /* CORRECCIÓN DE TEXTO: */
+    word-break: normal; /* Cambiado de break-all para no romper palabras */
+    overflow-wrap: break-word; /* Permite saltos de línea naturales */
+    display: -webkit-box;
+    -webkit-line-clamp: 2; /* Máximo 2 líneas de texto */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    padding: 0 2px;
+  }
 
-        .desktop-switch {
-          background: transparent;
-          border: none;
-          color: rgba(255,255,255,0.8);
-          padding: 4px 10px;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 12px;
-        }
+  /* --- PANELES Y WIDGETS (MANTENIENDO TU ESTILO) --- */
+  .widgets-panel {
+    position: fixed;
+    top: 80px;
+    right: 24px;
+    width: 360px;
+    max-height: calc(100vh - 120px);
+    background: rgba(24, 24, 24, 0.88);
+    backdrop-filter: blur(12px); /* Reforzamos el desenfoque */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    padding: 16px;
+    overflow: auto;
+    z-index: 1500;
+    box-shadow: 0 8px 36px rgba(0,0,0,0.45);
+  }
 
-        .desktop-switch.active {
-          background: rgba(255,255,255,0.18);
-          color: white;
-        }
+  .widgets-panel h3 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 700;
+  }
 
-        .desktop-add {
-          background: rgba(255,255,255,0.15);
-          border: 1px solid rgba(255,255,255,0.25);
-          color: white;
-          width: 26px;
-          height: 26px;
-          border-radius: 50%;
-          cursor: pointer;
-          font-size: 16px;
-          line-height: 1;
-        }
-      `}</style>
+  .widget-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .widget-card {
+    background: rgba(255,255,255,0.08);
+    padding: 10px;
+    border-radius: 10px;
+    min-height: 68px;
+    color: white;
+    font-size: 12px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .virtual-desktop-strip {
+    position: fixed;
+    bottom: calc(var(--taskbar-height) + 60px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(25, 25, 25, 0.75);
+    border: 1px solid rgba(255,255,255,0.14);
+    backdrop-filter: blur(10px);
+    z-index: 1100;
+  }
+
+  .desktop-switch {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.6);
+    padding: 4px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+  }
+
+  .desktop-switch.active {
+    background: rgba(255,255,255,0.18);
+    color: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  .desktop-add {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+  
+  .desktop-add:hover {
+    background: rgba(255,255,255,0.2);
+  }
+`}</style>
 
     </div>
   );

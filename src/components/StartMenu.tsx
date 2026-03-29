@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search24Regular, 
   Globe24Regular, 
@@ -76,16 +75,11 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ y: '20px', opacity: 0, scale: 0.95 }}
-          animate={{ y: 0, opacity: 1, scale: 1 }}
-          exit={{ y: '20px', opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.2, ease: [0.1, 0.9, 0.2, 1] }}
-          className="start-menu mica premium-shadow"
-          onClick={(e) => e.stopPropagation()}
-        >
+    isOpen && (
+      <div
+        className="start-menu mica premium-shadow"
+        onClick={(e) => e.stopPropagation()}
+      >
           <div className="start-menu-inner">
             <div className="search-container">
               <div className="search-box">
@@ -159,11 +153,15 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
               left: 50%;
               transform: translateX(-50%);
               width: 600px;
-              height: 700px;
+              height: 500px;
               border-radius: 8px;
-              z-index: 999;
+              z-index: 1001;
               display: flex;
               flex-direction: column;
+              background: rgba(32, 32, 32, 0.95);
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
             }
 
             .start-menu-inner {
@@ -355,9 +353,8 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
               background: var(--hover-bg);
             }
           `}</style>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        </div>
+      )
   );
 };
 

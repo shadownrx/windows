@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
-import { Checkmark20Regular } from '@fluentui/react-icons';
+import { 
+  Wifi124Regular, 
+  Bluetooth24Regular, 
+  Airplane24Regular, 
+  WeatherMoon24Regular, 
+  Settings24Regular,
+  Speaker224Regular,
+  BrightnessHigh24Regular
+} from '@fluentui/react-icons';
 
 interface NotificationsMenuProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const NotificationsMenu: React.FC<NotificationsMenuProps> = ({ isOpen, onClose }) => {
+const NotificationsMenu: React.FC<NotificationsMenuProps> = ({ isOpen }) => {
   const [toggles, setToggles] = useState({ wifi: true, bluetooth: true, airplane: false, nightLight: false, focusAssist: false });
   const [volume, setVolume] = useState(48);
   const [brightness, setBrightness] = useState(62);
@@ -17,267 +25,166 @@ const NotificationsMenu: React.FC<NotificationsMenuProps> = ({ isOpen, onClose }
   
   if (!isOpen) return null;
 
-
   return (
-    <div className="notifications-menu mica premium-shadow" onClick={(e) => e.stopPropagation()}>
-      <div className="media-card">
+    <div className="win11-notif-panel premium-shadow" onClick={(e) => e.stopPropagation()}>
+      {/* SECCIÓN DE MEDIOS (Estilo Floating Card) */}
+      <div className="media-section">
         <div className="media-info">
-          <strong>Google Chrome</strong>
-          <span>MATISSE & SADKO LIVE SET</span>
+          <span className="source-app">Google Chrome</span>
+          <strong className="track-name">MATISSE & SADKO LIVE SET</strong>
         </div>
         <div className="media-controls">
-          <button>&lt;&lt;</button>
-          <button>||</button>
-          <button>&gt;&gt;</button>
+          <button className="media-btn">⏮</button>
+          <button className="media-btn play">II</button>
+          <button className="media-btn">⏭</button>
         </div>
       </div>
 
-      <div className="quick-actions">
-        <button className={toggles.wifi ? 'active' : ''} onClick={() => toggleSetting('wifi')}>Wi-Fi</button>
-        <button className={toggles.bluetooth ? 'active' : ''} onClick={() => toggleSetting('bluetooth')}>Bluetooth</button>
-        <button className={toggles.airplane ? 'active' : ''} onClick={() => toggleSetting('airplane')}>Avión</button>
-        <button className={toggles.nightLight ? 'active' : ''} onClick={() => toggleSetting('nightLight')}>Luz nocturna</button>
-        <button className={toggles.focusAssist ? 'active' : ''} onClick={() => toggleSetting('focusAssist')}>Asistente</button>
+      {/* ACCIONES RÁPIDAS (Grid de Win11) */}
+      <div className="quick-settings-grid">
+        {[
+          { key: 'wifi', label: 'Wi-Fi', icon: <Wifi124Regular /> },
+          { key: 'bluetooth', label: 'Bluetooth', icon: <Bluetooth24Regular /> },
+          { key: 'airplane', label: 'Avión', icon: <Airplane24Regular /> },
+          { key: 'nightLight', label: 'Luz nocturna', icon: <WeatherMoon24Regular /> },
+        ].map((item) => (
+          <div key={item.key} className="qs-item-container">
+            <button 
+              className={`qs-button ${toggles[item.key as keyof typeof toggles] ? 'active' : ''}`}
+              onClick={() => toggleSetting(item.key as keyof typeof toggles)}
+            >
+              <span className="qs-icon">{item.icon}</span>
+            </button>
+            <span className="qs-label">{item.label}</span>
+          </div>
+        ))}
       </div>
 
-      <div className="slider-group">
-        <label>Brillo</label>
-        <input type="range" min="0" max="100" value={brightness} onChange={(e) => setBrightness(Number(e.target.value))} />
-        <span>{brightness}%</span>
+      <hr className="win-divider" />
+
+      {/* SLIDERS REFINADOS */}
+      <div className="sliders-section">
+        <div className="slider-row">
+          <BrightnessHigh24Regular className="slider-icon" />
+          <input type="range" className="win-range" min="0" max="100" value={brightness} onChange={(e) => setBrightness(Number(e.target.value))} />
+        </div>
+        <div className="slider-row">
+          <Speaker224Regular className="slider-icon" />
+          <input type="range" className="win-range" min="0" max="100" value={volume} onChange={(e) => setVolume(Number(e.target.value))} />
+        </div>
       </div>
 
-      <div className="slider-group">
-        <label>Volumen</label>
-        <input type="range" min="0" max="100" value={volume} onChange={(e) => setVolume(Number(e.target.value))} />
-        <span>{volume}%</span>
-      </div>
-
-      <div className="notifications-footer">
-        <span>100%</span>
-        <button onClick={() => window.alert('Abrir configuración de energía')}>⚙</button>
+      {/* FOOTER DE ESTADO */}
+      <div className="panel-footer">
+        <div className="battery-status">
+          <span className="battery-icon">🔋</span>
+          <span>100%</span>
+        </div>
+        <div className="footer-actions">
+          <button className="footer-btn" onClick={() => window.alert('Settings')}><Settings24Regular /></button>
+        </div>
       </div>
 
       <style>{`
-        .notifications-menu {
+        .win11-notif-panel {
           position: fixed;
           bottom: calc(var(--taskbar-height) + 12px);
           right: 12px;
           width: 360px;
-          height: 640px;
-          border-radius: var(--win-radius);
+          background: rgba(28, 28, 28, 0.75);
+          backdrop-filter: blur(25px) saturate(1.8);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
           display: flex;
           flex-direction: column;
-          z-index: 1101;
-          animation: slideUp 0.3s cubic-bezier(0.2, 0, 0, 1);
+          z-index: 1500;
           color: white;
-          overflow: hidden;
+          padding: 16px;
+          animation: slideUp 0.25s cubic-bezier(0, 0, 0, 1);
         }
 
-        .media-card {
-          padding: 14px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-bottom: 1px solid rgba(255,255,255,0.13);
-        }
-
-        .media-info {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-
-        .media-info strong {
-          color: white;
-          font-size: 13px;
-        }
-
-        .media-info span {
-          font-size: 11px;
-          color: rgba(255,255,255,0.75);
-        }
-
-        .media-controls button {
-          background: rgba(255,255,255,0.08);
-          color: white;
-          border: 1px solid rgba(255,255,255,0.2);
-          border-radius: 6px;
-          width: 28px;
-          height: 28px;
-          margin-left: 4px;
-          cursor: pointer;
-        }
-
-        .quick-actions {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(90px, 1fr));
-          gap: 8px;
+        /* Medios */
+        .media-section {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 8px;
           padding: 12px;
-          border-bottom: 1px solid rgba(255,255,255,0.13);
-        }
-
-        .quick-actions button {
-          padding: 10px;
-          border: 1px solid rgba(255,255,255,0.2);
-          background: rgba(255,255,255,0.08);
-          border-radius: 10px;
-          color: white;
-          font-size: 11px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .quick-actions button.active {
-          background: rgba(0, 120, 215, 0.85);
-          border-color: rgba(0, 120, 215, 0.95);
-          color: white;
-        }
-
-        .slider-group {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 10px 16px;
-        }
-
-        .slider-group label {
-          width: 60px;
-          color: rgba(255,255,255,0.82);
-          font-size: 12px;
-        }
-
-        .slider-group input[type='range'] {
-          flex: 1;
-          accent-color: #0078d4;
-        }
-
-        .slider-group span {
-          width: 36px;
-          text-align: right;
-          color: rgba(255,255,255,0.85);
-          font-size: 11px;
-        }
-
-        .notifications-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 16px;
-          border-top: 1px solid rgba(255,255,255,0.13);
-          font-size: 12px;
-          color: rgba(255,255,255,0.8);
-        }
-
-        .notifications-footer button {
-          background: transparent;
-          border: none;
-          color: rgba(255,255,255,0.9);
-          font-size: 16px;
-          cursor: pointer;
-        }
-
-        .empty-notifications {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          opacity: 0.6;
-          font-size: 14px;
-        }
-
-        .calendar-section {
-          height: 340px;
-          padding: 20px;
-          background: rgba(0, 0, 0, 0.1);
-        }
-
-        .calendar-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
           margin-bottom: 16px;
-        }
-
-        .calendar-month {
-          font-size: 14px;
-          font-weight: 600;
-        }
-
-        .calendar-nav {
           display: flex;
-          gap: 4px;
-        }
-
-        .calendar-nav button {
-          background: transparent;
-          border: none;
-          color: white;
-          width: 28px;
-          height: 28px;
-          border-radius: 4px;
-          display: flex;
+          justify-content: space-between;
           align-items: center;
-          justify-content: center;
-          cursor: pointer;
         }
+        .source-app { font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+        .track-name { display: block; font-size: 12px; margin-top: 2px; }
+        .media-btn { background: transparent; border: none; color: white; cursor: pointer; padding: 4px 8px; font-size: 14px; }
+        .media-btn.play { font-weight: bold; font-size: 16px; }
 
-        .calendar-nav button:hover {
-          background: var(--hover-bg);
-        }
-
-        .calendar-grid {
+        /* Grid Quick Settings */
+        .quick-settings-grid {
           display: grid;
-          grid-template-columns: repeat(7, 1fr);
-          gap: 2px;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
+          padding: 8px 0;
         }
-
-        .calendar-weekday {
-          text-align: center;
-          font-size: 12px;
-          font-weight: 600;
-          margin-bottom: 8px;
-          opacity: 0.9;
-        }
-
-        .calendar-day {
-          aspect-ratio: 1;
+        .qs-item-container { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .qs-button {
+          width: 100%;
+          height: 48px;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 4px;
+          color: white;
           display: flex;
-          align-items: center;
           justify-content: center;
-          font-size: 12px;
-        }
-
-        .calendar-day.empty {
-          visibility: hidden;
-        }
-
-        .day-number {
-          width: 32px;
-          height: 32px;
-          display: flex;
           align-items: center;
-          justify-content: center;
+          transition: 0.1s;
+        }
+        .qs-button.active { 
+          background: #0078d4; 
+          border-color: #0078d4; 
+        }
+        .qs-icon { font-size: 20px; }
+        .qs-label { font-size: 11px; color: #ccc; }
+
+        .win-divider { border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 16px 0; }
+
+        /* Sliders */
+        .sliders-section { display: flex; flex-direction: column; gap: 20px; }
+        .slider-row { display: flex; align-items: center; gap: 12px; }
+        .slider-icon { font-size: 18px; color: #ddd; }
+        
+        .win-range {
+          flex: 1;
+          height: 4px;
+          appearance: none;
+          background: rgba(255,255,255,0.2);
+          border-radius: 2px;
+          outline: none;
+        }
+        .win-range::-webkit-slider-thumb {
+          appearance: none;
+          width: 16px;
+          height: 16px;
+          background: #0078d4;
+          border: 3px solid #333;
           border-radius: 50%;
           cursor: pointer;
-          border: 1px solid transparent;
         }
 
-        .calendar-day:not(.empty) .day-number:hover {
-          background: var(--hover-bg);
+        /* Footer */
+        .panel-footer {
+          margin-top: 20px;
+          padding-top: 12px;
+          border-top: 1px solid rgba(255,255,255,0.1);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
         }
-
-        .calendar-day.today .day-number {
-          background: var(--win-blue);
-          color: white;
-          font-weight: 600;
-        }
-        
-        .calendar-day.today .day-number:hover {
-          background: #006abc;
-        }
+        .footer-btn { background: transparent; border: none; color: white; font-size: 18px; cursor: pointer; padding: 4px; }
+        .battery-status { font-size: 12px; display: flex; gap: 6px; align-items: center; }
 
         @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: translateY(30px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
     </div>

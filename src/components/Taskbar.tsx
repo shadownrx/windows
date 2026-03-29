@@ -20,6 +20,8 @@ interface TaskbarProps {
   onNotificationsClick?: () => void;
   onClockClick?: () => void;
   isNotificationsOpen?: boolean;
+  onShutdown?: () => void;
+  onRestart?: () => void;
 }
 
 interface AppItem {
@@ -34,7 +36,9 @@ const Taskbar: React.FC<TaskbarProps> = ({
   isStartOpen, 
   onNotificationsClick, 
   onClockClick,
-  isNotificationsOpen 
+  isNotificationsOpen,
+  onShutdown,
+  onRestart,
 }) => {
   const { openWindow, windows, minimizeWindow, minimizeAllWindows, isWidgetsOpen, toggleWidgets, isDesktopSwitcherOpen, toggleDesktopSwitcher } = useWindowManager();
   const [startContextMenu, setStartContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
@@ -120,8 +124,8 @@ const Taskbar: React.FC<TaskbarProps> = ({
       submenu: [
         { label: 'Cerrar sesión', onClick: () => {}, disabled: true },
         { label: 'Suspender', onClick: () => {}, disabled: true },
-        { label: 'Apagar', onClick: () => window.location.reload() },
-        { label: 'Reiniciar', onClick: () => window.location.reload() }
+        { label: 'Apagar', onClick: () => onShutdown?.() },
+        { label: 'Reiniciar', onClick: () => onRestart?.() }
       ],
       divider: true
     },

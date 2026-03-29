@@ -39,18 +39,23 @@ const ContextMenuItem: React.FC<{
     if (option.submenu) setSubmenuOpen(false);
   };
 
+  const handleClick = () => {
+    if (option.disabled) return;
+    if (option.submenu) {
+      setSubmenuOpen((prev) => !prev);
+      return;
+    }
+    option.onClick();
+    onClose();
+  };
+
   return (
     <div
       ref={itemRef}
       className={`ctx-item ${option.disabled ? 'ctx-disabled' : ''}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onClick={() => {
-        if (!option.disabled && !option.submenu) {
-          option.onClick();
-          onClose();
-        }
-      }}
+      onClick={handleClick}
     >
       <span className="ctx-icon">{option.icon}</span>
       <span className="ctx-label">{option.label}</span>

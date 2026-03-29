@@ -14,7 +14,8 @@ import {
   Person24Regular, 
   WeatherCloudy24Regular,
   Calculator24Regular,
-  Folder24Regular
+  Folder24Regular,
+  ArrowClockwise24Regular
 } from '@fluentui/react-icons';
 import { useWindowManager } from '../context/WindowManager';
 import FileExplorer from './apps/FileExplorer';
@@ -22,16 +23,27 @@ import Notepad from './apps/Notepad';
 import Calculator from './apps/Calculator';
 import Cmd from './apps/Cmd';
 import Settings from './apps/Settings';
+import MediaPlayerApp from './apps/mediaplayer';
 
 interface StartMenuProps {
   isOpen: boolean;
   onClose: () => void;
   onWallpaperChange: (url: string) => void;
   onShutdown: () => void;
+  onRestart: () => void;
 }
 
-const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChange, onShutdown }) => {
+interface App {
+  id: string;
+  icon: React.ReactNode;
+  name: string;
+  color: string;
+  component?: React.ReactNode;
+}
+
+const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChange, onShutdown, onRestart }) => {
   const { openWindow } = useWindowManager();
+  const [showPowerMenu, setShowPowerMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const pinnedApps = [
@@ -41,11 +53,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
     { id: 'calculator', icon: <Calculator24Regular />, name: 'Calc', color: '#D32F2F', component: <Calculator /> },
     { id: 'cmd', icon: <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, name: 'Terminal', color: '#64b5f6', component: <Cmd /> },
     { id: 'settings', icon: <Settings24Regular />, name: 'Settings', color: '#757575', component: <Settings onWallpaperChange={onWallpaperChange} /> },
-    { id: 'mail', icon: <Mail24Regular />, name: 'Mail', color: '#EA4335' },
-    { id: 'calendar', icon: <Calendar24Regular />, name: 'Calendar', color: '#34A853' },
-    { id: 'photos', icon: <Image24Regular />, name: 'Photos', color: '#9C27B0' },
-    { id: 'weather', icon: <WeatherCloudy24Regular />, name: 'Weather', color: '#FBBC05' },
-    { id: 'desktop', icon: <Desktop24Regular />, name: 'Desktop', color: '#0078d4' },
+    { id: 'music', icon: <Speaker224Regular />, name: 'Media Player', color: '#9c27b0', component: <MediaPlayerApp /> },
   ];
 
   const recommended = [
@@ -59,7 +67,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
     app.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleAppClick = (app: any) => {
+  const handleAppClick = (app: App) => {
     openWindow(
       app.id, 
       app.name, 
@@ -140,9 +148,71 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
                 </div>
                 <span className="user-name">Martín</span>
               </div>
-              <button className="power-btn" onClick={onShutdown}>
-                <Power24Regular />
-              </button>
+
+              <div className="power-container">
+                <button
+                  className="power-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowPowerMenu((prev) => !prev);
+                  }}
+                  title="Opciones de energía"
+                >
+                  <Power24Regular />
+                </button>
+
+                {showPowerMenu && (
+                  <div
+                    className="power-options"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      className="power-option"
+                      onClick={() => {
+                        // Lock no implementado en la demo
+                        setShowPowerMenu(false);
+                        onClose();
+                      }}
+                    >
+                      <span style={{ marginRight: 8 }}>🔒</span>
+                      Bloquear
+                    </button>
+                    <button
+                      className="power-option"
+                      onClick={() => {
+                        // Sleep no implementado en la demo
+                        setShowPowerMenu(false);
+                        onClose();
+                      }}
+                    >
+                      <span style={{ marginRight: 8 }}>🌙</span>
+                      Suspender
+                    </button>
+                    <button
+                      className="power-option"
+                      onClick={() => {
+                        onRestart();
+                        setShowPowerMenu(false);
+                        onClose();
+                      }}
+                    >
+                      <ArrowClockwise24Regular style={{ marginRight: 8 }} />
+                      Reiniciar
+                    </button>
+                    <button
+                      className="power-option"
+                      onClick={() => {
+                        onShutdown();
+                        setShowPowerMenu(false);
+                        onClose();
+                      }}
+                    >
+                      <Power24Regular style={{ marginRight: 8 }} />
+                      Apagar
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -338,6 +408,38 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
               display: flex;
               align-items: center;
               justify-content: center;
+            }
+
+            .power-container {
+              position: relative;
+            }
+
+            .power-options {
+              position: absolute;
+              right: 0;
+              bottom: 48px;
+              background: rgba(24, 24, 24, 0.95);
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              backdrop-filter: blur(14px);
+              border-radius: 8px;
+              box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+              display: flex;
+              flex-direction: column;
+              z-index: 1002;
+            }
+
+            .power-option {
+              background: transparent;
+              border: none;
+              color: white;
+              padding: 8px 16px;
+              text-align: left;
+              cursor: pointer;
+              width: 170px;
+            }
+
+            .power-option:hover {
+              background: rgba(255, 255, 255, 0.1);
             }
 
             .power-btn {

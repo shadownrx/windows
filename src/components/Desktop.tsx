@@ -35,9 +35,10 @@ interface DesktopProps {
   wallpaper: string;
   onWallpaperChange: (url: string) => void;
   onShutdown: () => void;
+  onRestart: () => void;
 }
 
-const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutdown }) => {
+const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutdown, onRestart }) => {
   const { 
     isStartOpen, 
     toggleStart, 
@@ -304,7 +305,7 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
 
         <div onClick={(e) => e.stopPropagation()}>
           {windows.filter((win) => win.desktopId === currentDesktopId).map((win) => win.isOpen && <Window key={win.id} window={win} />)}
-          {isStartOpen && <StartMenu isOpen={isStartOpen} onClose={closeStart} onWallpaperChange={onWallpaperChange} onShutdown={onShutdown} />}
+          {isStartOpen && <StartMenu isOpen={isStartOpen} onClose={closeStart} onWallpaperChange={onWallpaperChange} onShutdown={onShutdown} onRestart={onRestart} />}
           {runDialogOpen && (
             <div className="run-overlay" onClick={() => setRunDialogOpen(false)}>
               <div className="run-dialog" onClick={(e) => e.stopPropagation()}>
@@ -358,6 +359,8 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
           onNotificationsClick={() => toggleNotifications()}
           onClockClick={() => toggleCalendar()}
           isNotificationsOpen={isNotificationsOpen}
+          onShutdown={onShutdown}
+          onRestart={onRestart}
         />
 
         <CalendarMenu isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} />

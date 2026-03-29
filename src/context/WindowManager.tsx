@@ -1,4 +1,4 @@
-import React, { type ReactNode, createContext, useState, useContext } from 'react';
+import React, { type ReactNode, createContext, useContext, useState } from 'react';
 import { Delete24Regular } from '@fluentui/react-icons';
 import { BrowserApp, ChromeIcon } from "../components/apps/BrowserApp";
 import { IEIcon } from '../components/apps/IEApp';
@@ -243,12 +243,12 @@ const WindowManagerProviderComponent: React.FC<{ children: ReactNode }> = ({ chi
 };
 
 export const WindowManagerProvider = WindowManagerProviderComponent;
-export { WindowManagerContext };
-
-export const useWindowManager = (): WindowManagerContextType => {
+export const useWindowManager = () => {
   const context = useContext(WindowManagerContext);
   if (!context) {
-    throw new Error('useWindowManager must be used within a WindowManagerProvider');
+    throw new Error('useWindowManager debe usarse dentro de WindowManagerProvider');
   }
   return context;
 };
+export { WindowManagerContext };
+

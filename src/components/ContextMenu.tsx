@@ -10,12 +10,21 @@ export interface ContextMenuOption {
   submenu?: ContextMenuOption[];
 }
 
+export interface ActionIcon {
+  icon: React.ReactNode;
+  onClick: () => void;
+  title: string;
+}
+
 interface ContextMenuProps {
   x: number;
   y: number;
   onClose: () => void;
   options: ContextMenuOption[];
+  actionIcons?: ActionIcon[];
 }
+
+import { createPortal } from 'react-dom';
 
 const ContextMenuItem: React.FC<{
   option: ContextMenuOption;
@@ -79,7 +88,7 @@ const ContextMenuItem: React.FC<{
   );
 };
 
-const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options }) => {
+const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options, actionIcons }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjustedPos, setAdjustedPos] = useState({ x, y });
 
@@ -96,7 +105,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options }) => 
     }
   }, [x, y]);
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
@@ -117,6 +126,22 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options }) => 
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {actionIcons && actionIcons.length > 0 && (
+          <div className="ctx-action-row">
+            {actionIcons.map((action, i) => (
+               <button 
+                key={i} 
+                className="ctx-action-btn" 
+                onClick={() => { action.onClick(); onClose(); }}
+                title={action.title}
+               >
+                 {action.icon}
+               </button>
+            ))}
+          </div>
+        )}
+        {actionIcons && actionIcons.length > 0 && <div className="ctx-divider" />}
+        
         {options.map((option, index) => (
           <React.Fragment key={index}>
             <ContextMenuItem option={option} onClose={onClose} />
@@ -211,11 +236,42 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options }) => 
           margin: 3px 8px;
         }
 
+        .ctx-action-row {
+          display: flex;
+          justify-content: space-around;
+          padding: 4px;
+          gap: 2px;
+        }
+
+        .ctx-action-btn {
+          background: transparent;
+          border: none;
+          color: rgba(255,255,255,0.8);
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background 0.1s;
+        }
+
+        .ctx-action-btn:hover {
+          background: rgba(255,255,255,0.1);
+          color: white;
+        }
+
+        .ctx-action-btn svg {
+          width: 18px;
+          height: 18px;
+        }
+
         .ctx-submenu {
           position: absolute;
           z-index: 10000;
           min-width: 200px;
-          background: rgba(36, 36, 36, 0.92);
+          background: rgba(36, 36, 36, 0.95);
           backdrop-filter: blur(60px) saturate(200%);
           border: 1px solid rgba(255,255,255,0.12);
           border-radius: 8px;
@@ -226,7 +282,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options }) => 
           animation: ctx-in 0.1s cubic-bezier(0.2, 0, 0, 1);
         }
       `}</style>
-    </>
+    </>,
+    document.body
   );
 };
 

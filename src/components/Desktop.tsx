@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useSettings } from '../context/SettingsContext';
 import Taskbar from './Taskbar';
 import StartMenu from './StartMenu';
 import NotificationsMenu from './NotificationsMenu';
 import CalendarMenu from './CalendarMenu';
+import SearchPane from './SearchPane';
+import WidgetsPanel from './system/WidgetsPanel';
+import TaskView from './system/TaskView';
 import Window from './Window';
 import ContextMenu from './ContextMenu';
 import { useWindowManager, type DesktopIcon } from '../context/WindowManager';
@@ -22,6 +27,11 @@ import {
   ImageArrowBack24Regular,
   Settings24Regular,
   Calculator24Regular,
+  Cut20Regular,
+  Copy20Regular,
+  Rename20Regular,
+  Delete20Regular,
+  ShieldCheckmark24Regular,
 } from '@fluentui/react-icons';
 import RecycleBin from './apps/RecycleBin';
 import Notepad from './apps/Notepad';
@@ -29,6 +39,7 @@ import Cmd from './apps/Cmd';
 import BrowserApp, { ChromeIcon } from './apps/BrowserApp';
 import IEApp, { IEIcon } from './apps/IEApp';
 import CounterStrikeApp, { CounterIcon } from './apps/counter';
+import WindowsDefender from './apps/WindowsDefender';
 
 
 interface DesktopProps {
@@ -62,8 +73,11 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
     isDesktopSwitcherOpen,
   } = useWindowManager();
 
+  const { isTaskViewOpen, setIsTaskViewOpen, addNotification, userName } = useSettings();
+
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [selectedIconId, setSelectedIconId] = useState<string | null>(null);
   const [draggingIconId, setDraggingIconId] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState<{ mouseX: number, mouseY: number, iconX: number, iconY: number } | null>(null);
   const [iconSize, setIconSize] = useState<'small' | 'medium' | 'large'>('medium');
@@ -71,6 +85,7 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
   const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [runCommand, setRunCommand] = useState('');
   const [runError, setRunError] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -97,6 +112,8 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
       openWindow('taskmanager', 'Administrador de tareas', <Settings24Regular />, <div className="p-4" style={{ color: 'white' }}><h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', fontWeight: 'bold' }}>Administrador de tareas</h2><p>Esta es una simulación del Administrador de tareas.</p></div>);
     } else if (normalized === 'calc' || normalized === 'calculator') {
       openWindow('calculator', 'Calculadora', <Calculator24Regular />, <div className="p-4" style={{ color: 'white' }}><h2>Calculadora simulada</h2></div>);
+    } else if (normalized === 'defender' || normalized === 'ms-settings:windowsdefender') {
+      openWindow('defender', 'Seguridad de Windows', <ShieldCheckmark24Regular />, <WindowsDefender />);
     } else if (normalized === 'shutdown') {
       onShutdown();
     } else {
@@ -185,6 +202,8 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
     closeWidgets();
     setContextMenu(null);
     setIsNotificationsOpen(false);
+    setIsSearchOpen(false);
+    setSelectedIconId(null);
   };
 
   React.useEffect(() => {
@@ -207,6 +226,13 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
         setRunCommand('');
         setRunError('');
       }
+      if (e.metaKey && e.key.toLowerCase() === 'tab') {
+        e.preventDefault();
+        setIsTaskViewOpen(!isTaskViewOpen);
+      }
+      if (e.key === 'Escape' && isTaskViewOpen) {
+        setIsTaskViewOpen(false);
+      }
       if (e.metaKey && e.ctrlKey && e.key.toLowerCase() === 'arrowleft') {
         e.preventDefault();
         const currentIndex = virtualDesktops.findIndex((d) => d.id === currentDesktopId);
@@ -226,7 +252,7 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeFocusedWindow, minimizeAllWindows, openWindow, runDialogOpen, currentDesktopId, switchDesktop, virtualDesktops]);
+  }, [closeFocusedWindow, minimizeAllWindows, openWindow, runDialogOpen, currentDesktopId, switchDesktop, virtualDesktops, isTaskViewOpen, setIsTaskViewOpen]);
 
   const toggleNotifications = () => {
     setIsNotificationsOpen(!isNotificationsOpen);
@@ -237,7 +263,7 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
   };
 
   const toggleCalendar = () => {
-    setIsCalendarOpen((prev) => !prev);
+    setIsCalendarOpen((prev: boolean) => !prev);
     if (!isCalendarOpen) {
       setIsNotificationsOpen(false);
       closeStart();
@@ -277,12 +303,16 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
             return (
             <div
               key={icon.id}
-              className={`desktop-icon ${draggingIconId === icon.id ? 'dragging' : ''}`}
+              className={`desktop-icon ${draggingIconId === icon.id ? 'dragging' : ''} ${selectedIconId === icon.id ? 'selected' : ''}`}
               onDoubleClick={() => onIconDoubleClick(icon)}
-              onMouseDown={(e) => handleIconMouseDown(e, icon)}
+              onMouseDown={(e) => {
+                setSelectedIconId(icon.id);
+                handleIconMouseDown(e, icon);
+              }}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                setSelectedIconId(icon.id);
                 setIconContextTarget(icon.id);
                 setContextMenu({ x: e.clientX, y: e.clientY });
               }}
@@ -304,7 +334,9 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
         </div>
 
         <div onClick={(e) => e.stopPropagation()}>
-          {windows.filter((win) => win.desktopId === currentDesktopId).map((win) => win.isOpen && <Window key={win.id} window={win} />)}
+          <AnimatePresence mode="popLayout">
+            {windows.filter((win) => win.desktopId === currentDesktopId && win.isOpen).map((win) => <Window key={win.id} window={win} />)}
+          </AnimatePresence>
           {isStartOpen && <StartMenu isOpen={isStartOpen} onClose={closeStart} onWallpaperChange={onWallpaperChange} onShutdown={onShutdown} onRestart={onRestart} />}
           {runDialogOpen && (
             <div className="run-overlay" onClick={() => setRunDialogOpen(false)}>
@@ -325,17 +357,14 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
               </div>
             </div>
           )}
-          {isWidgetsOpen && (
-            <div className="widgets-panel" onClick={(e) => e.stopPropagation()}>
-              <h3>Widgets</h3>
-              <div className="widget-grid">
-                <div className="widget-card"><strong>Clima</strong><p>nublado, 17°C</p></div>
-                <div className="widget-card"><strong>Noticias</strong><p>Tu sistema Windows 11 está casi listo.</p></div>
-                <div className="widget-card"><strong>Agenda</strong><p>Reunión a las 4:00 PM</p></div>
-                <div className="widget-card"><strong>Rendimiento</strong><p>CPU 27%, Memoria 48%</p></div>
-              </div>
-            </div>
-          )}
+          <AnimatePresence>
+            {isWidgetsOpen && (
+              <WidgetsPanel 
+                isOpen={isWidgetsOpen} 
+                onClose={closeWidgets} 
+              />
+            )}
+          </AnimatePresence>
         </div>
 
         {isDesktopSwitcherOpen && (
@@ -361,10 +390,21 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
           isNotificationsOpen={isNotificationsOpen}
           onShutdown={onShutdown}
           onRestart={onRestart}
+          onWallpaperChange={onWallpaperChange}
+          onSearchClick={() => setIsSearchOpen(!isSearchOpen)}
         />
+
+        <AnimatePresence>
+          {isSearchOpen && (
+            <SearchPane isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+          )}
+        </AnimatePresence>
 
         <CalendarMenu isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} />
         <NotificationsMenu isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
+        <AnimatePresence>
+           {isTaskViewOpen && <TaskView />}
+        </AnimatePresence>
       </div>
 
       {contextMenu && (
@@ -382,15 +422,6 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
               onClick: () => {
                 const icon = desktopIcons.find((i) => i.id === iconContextTarget);
                 if (icon) onIconDoubleClick(icon);
-                setContextMenu(null);
-                setIconContextTarget(null);
-              }
-            },
-            {
-              label: 'Eliminar',
-              icon: <Delete24Regular />,
-              onClick: () => {
-                if (iconContextTarget) handleDeleteIcon(iconContextTarget);
                 setContextMenu(null);
                 setIconContextTarget(null);
               }
@@ -476,6 +507,11 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
     backdrop-filter: blur(4px); /* Sutil toque de desenfoque al pasar el mouse */
   }
 
+  .desktop-icon.selected {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px dotted rgba(255, 255, 255, 0.2);
+  }
+
   .icon-wrapper {
     font-size: 32px;
     margin-bottom: 6px;
@@ -500,18 +536,39 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
   /* --- PANELES Y WIDGETS (MANTENIENDO TU ESTILO) --- */
   .widgets-panel {
     position: fixed;
-    top: 80px;
-    right: 24px;
-    width: 360px;
-    max-height: calc(100vh - 120px);
-    background: rgba(24, 24, 24, 0.88);
-    backdrop-filter: blur(12px); /* Reforzamos el desenfoque */
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 14px;
-    padding: 16px;
-    overflow: auto;
+    top: 0;
+    left: 0;
+    width: 400px;
+    height: 100vh;
+    background: rgba(24, 24, 24, 0.6);
+    backdrop-filter: blur(60px) saturate(200%);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 40px 24px;
     z-index: 1500;
-    box-shadow: 0 8px 36px rgba(0,0,0,0.45);
+    box-shadow: 20px 0 50px rgba(0,0,0,0.3);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .widgets-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .widgets-user-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--win-accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: black;
   }
 
   .widgets-panel h3 {

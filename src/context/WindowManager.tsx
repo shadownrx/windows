@@ -1,8 +1,22 @@
 import React, { type ReactNode, createContext, useContext, useState } from 'react';
-import { Delete24Regular } from '@fluentui/react-icons';
+import { 
+  Delete24Regular,
+  Edit24Regular,
+  Document24Regular,
+  CheckmarkCircle24Regular,
+  Settings24Regular,
+  Calendar24Regular,
+  Search24Regular,
+} from '@fluentui/react-icons';
 import { BrowserApp, ChromeIcon } from "../components/apps/BrowserApp";
 import { IEIcon } from '../components/apps/IEApp';
 import { CounterIcon } from '../components/apps/counter';
+import Paint from '../components/apps/Paint';
+import WordPad from '../components/apps/WordPad';
+import TaskManager from '../components/apps/TaskManager';
+import ControlPanel from '../components/apps/ControlPanel';
+import Calendar from '../components/apps/Calendar';
+import SearchApp from '../components/apps/SearchApp';
 
 export interface AppWindow {
   id: string;
@@ -13,7 +27,7 @@ export interface AppWindow {
   isOpen: boolean;
   isMinimized: boolean;
   isMaximized: boolean;
-  snap?: 'left' | 'right' | 'none';
+  snap?: 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'none';
   zIndex: number;
 }
 
@@ -44,7 +58,7 @@ interface WindowManagerContextType {
   minimizeAllWindows: () => void;
   closeFocusedWindow: () => void;
   maximizeWindow: (id: string) => void;
-  snapWindow: (id: string, direction: 'left' | 'right' | 'none') => void;
+  snapWindow: (id: string, direction: 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'none') => void;
   focusWindow: (id: string) => void;
   currentDesktopId: string;
   virtualDesktops: VirtualDesktop[];
@@ -102,13 +116,67 @@ const WindowManagerProviderComponent: React.FC<{ children: ReactNode }> = ({ chi
       y: 220,
     },
     { 
-    id: 'counter-strike', 
-    title: 'Counter-Strike 1.6', 
-    icon: <CounterIcon />, // El que exportamos en Counter.tsx
-    type: 'system',
-    x: 20, 
-    y: 320 // Ajustá la posición Y para que no se encime
-  }
+      id: 'counter-strike', 
+      title: 'Counter-Strike 1.6', 
+      icon: <CounterIcon />,
+      type: 'system',
+      x: 20, 
+      y: 320
+    },
+    {
+      id: 'paint',
+      title: 'Paint',
+      icon: <Edit24Regular primaryFill="#FF6E40" />,
+      type: 'system',
+      content: <Paint />,
+      x: 120,
+      y: 20,
+    },
+    {
+      id: 'wordpad',
+      title: 'WordPad',
+      icon: <Document24Regular primaryFill="#4CAF50" />,
+      type: 'system',
+      content: <WordPad />,
+      x: 120,
+      y: 120,
+    },
+    {
+      id: 'task-manager',
+      title: 'Administrador de tareas',
+      icon: <CheckmarkCircle24Regular primaryFill="#2196F3" />,
+      type: 'system',
+      content: <TaskManager />,
+      x: 120,
+      y: 220,
+    },
+    {
+      id: 'control-panel',
+      title: 'Panel de Control',
+      icon: <Settings24Regular primaryFill="#757575" />,
+      type: 'system',
+      content: <ControlPanel onWallpaperChange={() => {}} />,
+      x: 120,
+      y: 320,
+    },
+    {
+      id: 'calendar',
+      title: 'Calendario',
+      icon: <Calendar24Regular primaryFill="#E91E63" />,
+      type: 'system',
+      content: <Calendar />,
+      x: 220,
+      y: 20,
+    },
+    {
+      id: 'search',
+      title: 'Buscar',
+      icon: <Search24Regular primaryFill="#FF9800" />,
+      type: 'system',
+      content: <SearchApp />,
+      x: 220,
+      y: 120,
+    },
   ]);
 
   const toggleStart = () => setIsStartOpen((prev) => !prev);
@@ -159,9 +227,9 @@ const WindowManagerProviderComponent: React.FC<{ children: ReactNode }> = ({ chi
     setNextZIndex((z) => z + 1);
   };
 
-  const snapWindow = (id: string, direction: 'left' | 'right' | 'none') => {
+  const snapWindow = (id: string, direction: 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'none') => {
     setWindows((prev) => prev.map((w) => 
-      w.id === id ? { ...w, isMaximized: false, snap: direction } : w
+      w.id === id ? { ...w, isMaximized: false, isMinimized: false, snap: direction } : w
     ));
   };
 

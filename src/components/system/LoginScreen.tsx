@@ -6,7 +6,10 @@ interface LoginScreenProps {
   wallpaper: string;
 }
 
+import { useSettings } from '../../context/SettingsContext';
+
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, wallpaper }) => {
+  const { userName } = useSettings();
   const [showLogin, setShowLogin] = useState(false);
   const [time, setTime] = useState(new Date());
   const [pin, setPin] = useState('');
@@ -142,7 +145,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, wallpaper }) => {
           textShadow: '0 2px 4px rgba(0,0,0,0.3)',
           letterSpacing: '-0.01em'
         }}>
-          Martín
+          {userName}
         </h1>
         
         {/* Password/PIN Form */}

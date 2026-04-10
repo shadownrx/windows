@@ -1,29 +1,33 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search24Regular, 
   Globe24Regular, 
-  Mail24Regular, 
   Calendar24Regular, 
-  Desktop24Regular, 
   Settings24Regular, 
-  Image24Regular, 
-  Video24Regular, 
   Document24Regular, 
   Speaker224Regular, 
   Power24Regular, 
-  Person24Regular, 
-  WeatherCloudy24Regular,
-  Calculator24Regular,
+  ArrowClockwise24Regular,
+  Edit24Regular,
+  Apps24Regular,
   Folder24Regular,
-  ArrowClockwise24Regular
+  Calculator24Regular,
+  ShieldCheckmark24Regular,
 } from '@fluentui/react-icons';
 import { useWindowManager } from '../context/WindowManager';
+import { useSettings } from '../context/SettingsContext';
 import FileExplorer from './apps/FileExplorer';
 import Notepad from './apps/Notepad';
 import Calculator from './apps/Calculator';
 import Cmd from './apps/Cmd';
-import Settings from './apps/Settings';
-import MediaPlayerApp from './apps/mediaplayer';
+import Paint from './apps/Paint';
+import WordPad from './apps/WordPad';
+import TaskManager from './apps/TaskManager';
+import ControlPanel from './apps/ControlPanel';
+import Calendar from './apps/Calendar';
+import SearchApp from './apps/SearchApp';
+import WindowsDefender from './apps/WindowsDefender';
 
 interface StartMenuProps {
   isOpen: boolean;
@@ -43,6 +47,7 @@ interface App {
 
 const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChange, onShutdown, onRestart }) => {
   const { openWindow } = useWindowManager();
+  const { userName, lockSystem } = useSettings();
   const [showPowerMenu, setShowPowerMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -52,8 +57,13 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
     { id: 'notepad', icon: <Document24Regular />, name: 'Notepad', color: '#4CAF50', component: <Notepad /> },
     { id: 'calculator', icon: <Calculator24Regular />, name: 'Calc', color: '#D32F2F', component: <Calculator /> },
     { id: 'cmd', icon: <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, name: 'Terminal', color: '#64b5f6', component: <Cmd /> },
-    { id: 'settings', icon: <Settings24Regular />, name: 'Settings', color: '#757575', component: <Settings onWallpaperChange={onWallpaperChange} /> },
-    { id: 'music', icon: <Speaker224Regular />, name: 'Media Player', color: '#9c27b0', component: <MediaPlayerApp /> },
+    { id: 'paint', icon: <Edit24Regular />, name: 'Paint', color: '#FF6E40', component: <Paint /> },
+    { id: 'wordpad', icon: <Document24Regular />, name: 'WordPad', color: '#4CAF50', component: <WordPad /> },
+    { id: 'task-manager', icon: <Apps24Regular />, name: 'Task Manager', color: '#2196F3', component: <TaskManager /> },
+    { id: 'control-panel', icon: <Settings24Regular />, name: 'Settings', color: '#757575', component: <ControlPanel onWallpaperChange={onWallpaperChange} /> },
+    { id: 'calendar', icon: <Calendar24Regular />, name: 'Calendar', color: '#E91E63', component: <Calendar /> },
+    { id: 'search', icon: <Search24Regular />, name: 'Search', color: '#FF9800', component: <SearchApp /> },
+    { id: 'defender', icon: <ShieldCheckmark24Regular />, name: 'Seguridad', color: '#008a17', component: <WindowsDefender /> },
   ];
 
   const recommended = [
@@ -83,11 +93,16 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
   };
 
   return (
-    isOpen && (
-      <div
-        className="start-menu mica premium-shadow"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ y: 50, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 50, opacity: 0 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+          className="start-menu mica premium-shadow"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="start-menu-inner">
             <div className="search-container">
               <div className="search-box">
@@ -143,10 +158,10 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
 
             <div className="start-footer">
               <div className="user-area">
-                <div className="user-avatar">
-                  <Person24Regular />
+                <div className="user-avatar" style={{ background: 'var(--win-accent)', color: 'black', fontWeight: 'bold' }}>
+                   {userName.charAt(0).toUpperCase()}
                 </div>
-                <span className="user-name">Martín</span>
+                <span className="user-name">{userName}</span>
               </div>
 
               <div className="power-container">
@@ -169,7 +184,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
                     <button
                       className="power-option"
                       onClick={() => {
-                        // Lock no implementado en la demo
+                        lockSystem();
                         setShowPowerMenu(false);
                         onClose();
                       }}
@@ -455,8 +470,9 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
               background: var(--hover-bg);
             }
           `}</style>
-        </div>
-      )
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 

@@ -1,10 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+
 :root {
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: dark;
-  color: rgba(255, 255, 255, 0.95);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -12,14 +15,39 @@
   -moz-osx-font-smoothing: grayscale;
 
   --taskbar-height: 48px;
+  --win-radius: 8px;
+  --win-brightness: 1;
+  --win-accent: #60cdff;
+  --win-blue: #0078d4;
+  
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  color: rgba(255, 255, 255, 0.95);
   --acrylic-bg: rgba(28, 28, 28, 0.7);
   --acrylic-blur: blur(40px) saturate(210%);
-  --mica-bg: rgba(32, 32, 32, 0.8);
-  --win-blue: #0078d4;
+  --mica-bg: rgba(32, 32, 32, 0.82);
   --hover-bg: rgba(255, 255, 255, 0.08);
   --active-bg: rgba(255, 255, 255, 0.12);
-  --border-color: rgba(255, 255, 255, 0.1);
-  --win-radius: 8px;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --card-bg: rgba(45, 45, 45, 0.6);
+  --win-bg: #1c1c1c;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  color: rgba(0, 0, 0, 0.9);
+  --acrylic-bg: rgba(255, 255, 255, 0.7);
+  --acrylic-blur: blur(40px) saturate(210%);
+  --mica-bg: rgba(243, 243, 243, 0.85);
+  --hover-bg: rgba(0, 0, 0, 0.05);
+  --active-bg: rgba(0, 0, 0, 0.08);
+  --border-color: rgba(0, 0, 0, 0.1);
+  --card-bg: rgba(255, 255, 255, 0.8);
+  --win-bg: #f3f3f3;
+  --win-accent: #0067c0;
 }
 
 body {
@@ -97,19 +125,114 @@ button:active {
 }
 
 /* Utility Classes */
-.w-full { width: 100%; }
-.h-full { height: 100%; }
-.w-screen { width: 100vw; }
-.h-screen { height: 100vh; }
-.relative { position: relative; }
-.absolute { position: absolute; }
-.fixed { position: fixed; }
-.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
-.overflow-hidden { overflow: hidden; }
-.bg-cover { background-size: cover; }
-.bg-center { background-position: center; }
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.items-center { align-items: center; }
-.justify-center { justify-content: center; }
-.hidden { display: none; }
+.w-full {
+  width: 100%;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.w-screen {
+  width: 100vw;
+}
+
+.h-screen {
+  height: 100vh;
+}
+
+.relative {
+  position: relative;
+}
+
+.absolute {
+  position: absolute;
+}
+
+.fixed {
+  position: fixed;
+}
+
+.inset-0 {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}
+
+.bg-cover {
+  background-size: cover;
+}
+
+.bg-center {
+  background-position: center;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.win-accent-bg {
+  background-color: var(--win-accent);
+}
+
+.win-accent-text {
+  color: var(--win-accent);
+}
+
+.win-accent-border {
+  border-color: var(--win-accent);
+}
+
+.brightness-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: black;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: calc(1 - var(--win-brightness));
+  transition: opacity 0.2s ease;
+}
+
+.glass-morphism {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.hidden {
+  display: none;
+}

@@ -123,7 +123,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ onWallpaperChange }) => {
                     }}
                   >
                      <span style={{ color: activeTab === item.id ? 'var(--win-accent)' : 'inherit', display: 'flex' }}>
-                        {React.cloneElement(item.icon as React.ReactElement, { style: { width: 18, height: 18 } })}
+                        {React.cloneElement(item.icon as React.ReactElement<any>, { style: { width: 18, height: 18 } })}
                      </span>
                      <span style={{ fontSize: '13.5px', fontWeight: activeTab === item.id ? 500 : 400 }}>{item.label}</span>
                   </button>
@@ -225,7 +225,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ onWallpaperChange }) => {
                  {apps.filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase())).map(app => (
                     <div key={app.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '12px 16px', background: BG_CARD, border: `1px solid ${BORDER_CARD}`, borderRadius: '8px' }}>
                        <div style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
-                          {React.cloneElement(app.icon as React.ReactElement, { style: { width: 20 } })}
+                          {React.cloneElement(app.icon as React.ReactElement<any>, { style: { width: 20 } })}
                        </div>
                        <div style={{ flex: 1 }}>
                           <p style={{ fontSize: '14px', fontWeight: 500, margin: 0 }}>{app.name}</p>
@@ -354,7 +354,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ onWallpaperChange }) => {
 
 const MiniStausIcon = ({ icon, label }: { icon: any, label: string }) => (
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', width: '84px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${BORDER_CARD}`, borderRadius: '10px', padding: '12px 4px' }}>
-     <div style={{ color: 'var(--win-accent)' }}>{React.cloneElement(icon as React.ReactElement, { style: { width: 18, height: 18 } })}</div>
+     <div style={{ color: 'var(--win-accent)' }}>{React.cloneElement(icon as React.ReactElement<any>, { style: { width: 18, height: 18 } })}</div>
      <span style={{ fontSize: '10px', color: TEXT_SECONDARY, textAlign: 'center' }}>{label}</span>
   </div>
 );
@@ -370,7 +370,7 @@ const SettingsCard = ({ icon, title, desc, onClick }: { icon: React.ReactNode, t
      onMouseLeave={(e) => e.currentTarget.style.background = BG_CARD}
   >
      <div style={{ color: 'var(--win-accent)', display: 'flex' }}>
-        {React.cloneElement(icon as React.ReactElement, { style: { width: 22, height: 22 } })}
+        {React.cloneElement(icon as React.ReactElement<any>, { style: { width: 22, height: 22 } })}
      </div>
      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
         <span style={{ fontSize: '13px', fontWeight: 500 }}>{title}</span>

@@ -40,6 +40,9 @@ import BrowserApp, { ChromeIcon } from './apps/BrowserApp';
 import IEApp, { IEIcon } from './apps/IEApp';
 import CounterStrikeApp, { CounterIcon } from './apps/counter';
 import WindowsDefender from './apps/WindowsDefender';
+import DevCpp2026 from './apps/DevCpp2026';
+import { Play24Filled } from '@fluentui/react-icons';
+
 
 
 interface DesktopProps {
@@ -114,7 +117,10 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
       openWindow('calculator', 'Calculadora', <Calculator24Regular />, <div className="p-4" style={{ color: 'white' }}><h2>Calculadora simulada</h2></div>);
     } else if (normalized === 'defender' || normalized === 'ms-settings:windowsdefender') {
       openWindow('defender', 'Seguridad de Windows', <ShieldCheckmark24Regular />, <WindowsDefender />);
+    } else if (normalized === 'devcpp' || normalized === 'dev-cpp') {
+      openWindow('devcpp-2026', 'Dev-C++ 2026', <Play24Filled />, <DevCpp2026 />);
     } else if (normalized === 'shutdown') {
+
       onShutdown();
     } else {
       setRunError(`'${command}' no se reconoce como un comando interno o externo.`);

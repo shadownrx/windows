@@ -14,8 +14,11 @@ import {
   Folder24Regular,
   Calculator24Regular,
   ShieldCheckmark24Regular,
+  Play24Filled,
+  Book24Regular,
 } from '@fluentui/react-icons';
 import { useWindowManager } from '../context/WindowManager';
+
 import { useSettings } from '../context/SettingsContext';
 import FileExplorer from './apps/FileExplorer';
 import Notepad from './apps/Notepad';
@@ -28,6 +31,9 @@ import ControlPanel from './apps/ControlPanel';
 import Calendar from './apps/Calendar';
 import SearchApp from './apps/SearchApp';
 import WindowsDefender from './apps/WindowsDefender';
+import DevCpp2026 from './apps/DevCpp2026';
+import ManualApp from './apps/ManualApp';
+
 
 interface StartMenuProps {
   isOpen: boolean;
@@ -64,7 +70,10 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
     { id: 'calendar', icon: <Calendar24Regular />, name: 'Calendar', color: '#E91E63', component: <Calendar /> },
     { id: 'search', icon: <Search24Regular />, name: 'Search', color: '#FF9800', component: <SearchApp /> },
     { id: 'defender', icon: <ShieldCheckmark24Regular />, name: 'Seguridad', color: '#008a17', component: <WindowsDefender /> },
+    { id: 'devcpp-2026', icon: <Play24Filled />, name: 'Dev-C++ 2026', color: '#3b82f6', component: <DevCpp2026 /> },
+    { id: 'manual', icon: <Book24Regular />, name: 'Manual', color: '#3b82f6', component: <ManualApp /> },
   ];
+
 
   const recommended = [
     { name: 'Financial Report', date: 'Recently added' },

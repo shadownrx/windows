@@ -7,6 +7,8 @@ import {
   Settings24Regular,
   Calendar24Regular,
   Search24Regular,
+  Play24Filled,
+  Book24Regular,
 } from '@fluentui/react-icons';
 import { BrowserApp, ChromeIcon } from "../components/apps/BrowserApp";
 import { IEIcon } from '../components/apps/IEApp';
@@ -17,6 +19,9 @@ import TaskManager from '../components/apps/TaskManager';
 import ControlPanel from '../components/apps/ControlPanel';
 import Calendar from '../components/apps/Calendar';
 import SearchApp from '../components/apps/SearchApp';
+import DevCpp2026 from '../components/apps/DevCpp2026';
+import ManualApp from '../components/apps/ManualApp';
+
 
 export interface AppWindow {
   id: string;
@@ -177,7 +182,39 @@ const WindowManagerProviderComponent: React.FC<{ children: ReactNode }> = ({ chi
       x: 220,
       y: 120,
     },
+    {
+      id: 'devcpp-2026',
+      title: 'Dev-C++ 2026',
+      icon: (
+        <div style={{ 
+          width: 32, 
+          height: 32, 
+          background: 'white', 
+          borderRadius: 6, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)'
+        }}>
+          <Play24Filled primaryFill="#3b82f6" style={{ transform: 'rotate(-45deg)', fontSize: 18 }} />
+        </div>
+      ),
+      type: 'system',
+      content: <DevCpp2026 />,
+      x: 320,
+      y: 20,
+    },
+    {
+      id: 'manual',
+      title: 'Manual de NEX',
+      icon: <Book24Regular primaryFill="#3b82f6" />,
+      type: 'system',
+      content: <ManualApp />,
+      x: 320,
+      y: 120,
+    },
   ]);
+
 
   const toggleStart = () => setIsStartOpen((prev) => !prev);
   const closeStart = () => setIsStartOpen(false);

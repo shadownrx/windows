@@ -1,0 +1,193 @@
+import React, { useState } from 'react';
+import { 
+  Book24Regular, 
+  Keyboard24Regular, 
+  Info24Regular,
+  Flash24Regular,
+  Lightbulb24Regular,
+  Wrench24Regular
+} from '@fluentui/react-icons';
+
+const ManualApp: React.FC = () => {
+  const [activeTab, setActiveTab] = useState('welcome');
+
+  const shortcuts = [
+    { keys: 'Win + S', action: 'Abrir Menú de Inicio / Buscar' },
+    { keys: 'Win + D', action: 'Minimizar todas las ventanas' },
+    { keys: 'Alt + F4', action: 'Cerrar ventana activa' },
+    { keys: 'Win + Flechas', action: 'Anclar ventana (Snap)' },
+    { keys: 'Win + V', action: 'Cambiar de escritorio virtual' },
+  ];
+
+  const features = [
+    { title: 'WebAssembly (WASM)', description: 'NEX utiliza binarios WASM para cálculos de alto rendimiento, como en el Administrador de Tareas.', icon: <Flash24Regular /> },
+    { title: 'Escritorios Virtuales', description: 'Organiza tu trabajo en múltiples espacios independientes accesibles desde la barra de tareas.', icon: <Book24Regular /> },
+    { title: 'Sistema de Archivos', description: 'Navega y gestiona archivos simulados con el Explorador de Archivos integrado.', icon: <Wrench24Regular /> },
+  ];
+
+  return (
+    <div className="nex-manual">
+      <aside className="manual-sidebar">
+        <div className="manual-header">
+          <Book24Regular className="header-icon" />
+          <div className="header-text">
+            <h2>Manual de NEX</h2>
+            <span>Versión 2026.1</span>
+          </div>
+        </div>
+        
+        <nav className="manual-nav">
+          <button className={`nav-item ${activeTab === 'welcome' ? 'active' : ''}`} onClick={() => setActiveTab('welcome')}>
+            <Lightbulb24Regular /> Guía de Inicio
+          </button>
+          <button className={`nav-item ${activeTab === 'shortcuts' ? 'active' : ''}`} onClick={() => setActiveTab('shortcuts')}>
+            <Keyboard24Regular /> Atajos de Teclado
+          </button>
+          <button className={`nav-item ${activeTab === 'tech' ? 'active' : ''}`} onClick={() => setActiveTab('tech')}>
+            <Flash24Regular /> Tecnología NEX
+          </button>
+          <button className={`nav-item ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>
+            <Info24Regular /> Acerca de
+          </button>
+        </nav>
+      </aside>
+
+      <main className="manual-main">
+        {activeTab === 'welcome' && (
+          <section className="manual-content animate-in">
+            <h1>Bienvenido a NEX OS</h1>
+            <p className="lead">El sistema operativo web más avanzado, diseñado para la fluidez y el rendimiento.</p>
+            
+            <div className="feature-grid">
+              {features.map((f, i) => (
+                <div key={i} className="feature-card">
+                  <div className="feature-icon">{f.icon}</div>
+                  <h3>{f.title}</h3>
+                  <p>{f.description}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="tip-box">
+              <Lightbulb24Regular className="tip-icon" />
+              <div>
+                <h4>Pro-Tip:</h4>
+                <p>Puedes arrastrar las ventanas hacia los bordes de la pantalla para anclarlas automáticamente en divisiones perfectas.</p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'shortcuts' && (
+          <section className="manual-content animate-in">
+            <h1>Atajos de Teclado</h1>
+            <p>Domina NEX como un profesional con estas combinaciones de teclas:</p>
+            
+            <div className="shortcut-table">
+              {shortcuts.map((s, i) => (
+                <div key={i} className="shortcut-row">
+                  <span className="shortcut-action">{s.action}</span>
+                  <kbd className="shortcut-keys">{s.keys}</kbd>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'tech' && (
+          <section className="manual-content animate-in">
+            <h1>Ingeniería de NEX</h1>
+            <p>NEX no es solo CSS. Debajo del capó corre un motor de última generación:</p>
+            
+            <div className="tech-stack">
+              <div className="tech-item">
+                <span className="tech-badge">WASM</span>
+                <p>Los cálculos del Administrador de Tareas corren a velocidad nativa gracias a AssemblyScript.</p>
+              </div>
+              <div className="tech-item">
+                <span className="tech-badge">TypeScript</span>
+                <p>Código 100% tipado para una estabilidad comparable a un SO real.</p>
+              </div>
+              <div className="tech-item">
+                <span className="tech-badge">GPU</span>
+                <p>Visualizaciones aceleradas por hardware para telemetría instantánea.</p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'about' && (
+          <section className="manual-content animate-in">
+            <h1>Acerca de NEX</h1>
+            <div className="about-branding">
+              <div className="logo-placeholder">NEX</div>
+              <p>NEX Web Operating System</p>
+              <p className="sub">Build 2026.04.12</p>
+            </div>
+            
+            <div className="credits">
+              <p>Desarrollado con ❤️ por el equipo de ingeniería de NEX.</p>
+              <p>Este proyecto es una demostración técnica de capacidades frontend avanzadas.</p>
+            </div>
+          </section>
+        )}
+      </main>
+
+      <style>{`
+        .nex-manual { display: flex; height: 100%; background: #0f1115; color: #e1e4e8; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+        
+        .manual-sidebar { width: 260px; background: rgba(255, 255, 255, 0.02); padding: 30px 15px; border-right: 1px solid rgba(255,255,255,0.05); }
+        .manual-header { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; padding: 0 10px; }
+        .header-icon { font-size: 32px; color: #3b82f6; }
+        .header-text h2 { margin: 0; font-size: 16px; font-weight: 600; }
+        .header-text span { font-size: 11px; opacity: 0.5; }
+
+        .manual-nav { display: flex; flex-direction: column; gap: 6px; }
+        .nav-item { 
+          display: flex; align-items: center; gap: 12px; padding: 12px 14px; 
+          background: transparent; border: none; color: #a1a1aa; border-radius: 8px; 
+          cursor: pointer; text-align: left; font-size: 14px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: white; transform: translateX(4px); }
+        .nav-item.active { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border-left: 3px solid #3b82f6; font-weight: 500; }
+
+        .manual-main { flex: 1; padding: 50px 70px; overflow-y: auto; background: linear-gradient(180deg, #111827 0%, #0f172a 100%); position: relative; }
+        .manual-content h1 { font-size: 36px; font-weight: 700; margin-bottom: 10px; background: linear-gradient(90deg, #fff 0%, #94a3b8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .lead { font-size: 18px; color: #94a3b8; margin-bottom: 40px; }
+
+        .feature-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 40px; }
+        .feature-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 25px; border-radius: 16px; transition: 0.3s; }
+        .feature-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(59, 130, 246, 0.3); transform: translateY(-5px); }
+        .feature-icon { font-size: 24px; color: #3b82f6; margin-bottom: 15px; }
+        .feature-card h3 { margin: 0 0 10px 0; font-size: 16px; font-weight: 600; }
+        .feature-card p { margin: 0; font-size: 13px; color: #94a3b8; line-height: 1.5; }
+
+        .tip-box { display: flex; align-items: flex-start; gap: 15px; background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6; padding: 20px; border-radius: 8px; }
+        .tip-icon { font-size: 20px; color: #3b82f6; margin-top: 2px; }
+        .tip-box h4 { margin: 0; font-size: 14px; font-weight: 600; color: #60a5fa; }
+        .tip-box p { margin: 5px 0 0 0; font-size: 13px; color: #94a3b8; }
+
+        .shortcut-table { background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; }
+        .shortcut-row { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .shortcut-row:last-child { border-bottom: none; }
+        .shortcut-action { font-size: 14px; color: #e1e4e8; }
+        .shortcut-keys { background: #334155; color: white; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-family: monospace; border-bottom: 2px solid #1e293b; }
+
+        .tech-stack { display: flex; flex-direction: column; gap: 15px; }
+        .tech-item { display: flex; align-items: center; gap: 20px; background: rgba(255,255,255,0.02); padding: 15px 20px; border-radius: 12px; }
+        .tech-badge { background: #3b82f6; color: white; font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 4px; min-width: 50px; text-align: center; }
+        .tech-item p { margin: 0; font-size: 13px; color: #94a3b8; }
+
+        .about-branding { text-align: center; padding: 40px 0; }
+        .logo-placeholder { font-size: 48px; font-weight: 900; letter-spacing: -2px; color: #3b82f6; margin-bottom: 10px; }
+        .sub { font-size: 12px; opacity: 0.5; }
+        .credits { margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); text-align: center; font-size: 13px; color: #94a3b8; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-in { animation: fadeIn 0.4s ease-out forwards; }
+      `}</style>
+    </div>
+  );
+};
+
+export default ManualApp;

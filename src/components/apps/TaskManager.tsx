@@ -13,7 +13,7 @@ interface Process {
   icon: string;
 }
 
-type Tab = "processes" | "perf";
+type Tab = "processes" | "perf" | "services" | "startup" | "details";
 
 // ─── Initial data ─────────────────────────────────────────────────────────────
 
@@ -93,13 +93,37 @@ interface StatBoxProps {
   value: string;
   sub: string;
   color: string;
+  active?: boolean;
+  onClick?: () => void;
 }
 
-function StatBox({ label, value, sub, color }: StatBoxProps) {
+function StatBox({ label, value, sub, color, active, onClick }: StatBoxProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</span>
-      <span style={{ fontSize: 22, fontWeight: 600, lineHeight: 1, color }}>{value}</span>
+    <div 
+      onClick={onClick}
+      style={{ 
+        display: "flex", 
+        flexDirection: "column", 
+        gap: 2,
+        padding: "8px 12px",
+        borderRadius: 4,
+        border: active ? "1px solid rgba(255,255,255,0.4)" : "1px solid transparent",
+        background: active ? "rgba(255,255,255,0.04)" : "transparent",
+        cursor: "pointer",
+        position: "relative",
+        minWidth: 100,
+        transition: "all 0.1s"
+      }}
+    >
+      {active && (
+        <div style={{ position: "absolute", top: 4, left: 8, opacity: 0.7 }}>
+          <svg viewBox="0 0 12 12" width={10} height={10} fill="currentColor">
+            <path d="M2 4l4 4 4-4" />
+          </svg>
+        </div>
+      )}
+      <span style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.2, color, marginTop: active ? 6 : 0 }}>{value}</span>
+      <span style={{ fontSize: 10, color: active ? "#fff" : "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</span>
       <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>{sub}</span>
     </div>
   );
@@ -151,6 +175,8 @@ export default function TaskManager() {
   );
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("processes");
+  const [services, setServices] = useState<any[]>([]);
+  const [startupApps, setStartupApps] = useState<any[]>([]);
 
   // History for perf charts
   const [cpuHistory, setCpuHistory] = useState<number[]>(Array(30).fill(0));
@@ -158,20 +184,92 @@ export default function TaskManager() {
   const [diskHistory, setDiskHistory] = useState<number[]>(Array(30).fill(0));
   const [netHistory, setNetHistory] = useState<number[]>(Array(30).fill(30));
 
-  // Simulate real-time updates
+  // Fetch Services & Startup Info
   useEffect(() => {
-    const interval = setInterval(() => {
-      setProcesses((prev) =>
-        prev.map((p) => ({
-          ...p,
-          cpu: Math.max(0, Math.min(99, p.cpu + (Math.random() - 0.5) * 4)),
-          mem: Math.max(5, p.mem + (Math.random() - 0.5) * 8),
-          disk: Math.max(0, Math.min(50, p.disk + (Math.random() - 0.45) * 0.5)),
-        }))
-      );
-    }, 2000);
-    return () => clearInterval(interval);
+    const fetchExtra = async () => {
+      try {
+        const sRes = await fetch('/api/pc-services');
+        const sData = await sRes.json();
+        setServices(sData);
+
+        const stRes = await fetch('/api/pc-startup');
+        const stData = await stRes.json();
+        setStartupApps(stData);
+      } catch (e) {
+        console.error("Extra data fetch error", e);
+      }
+    };
+    fetchExtra();
+  }, [activeTab]); // Refetch when changing tabs to these
+
+  const [systemInfo, setSystemInfo] = useState<any>(null);
+  const [selectedStat, setSelectedStat] = useState<string>("CPU");
+
+  // Fetch Hardware Info
+  useEffect(() => {
+    const fetchSystem = async () => {
+      try {
+        const res = await fetch('/api/pc-system');
+        const data = await res.json();
+        setSystemInfo(data);
+      } catch (e) {
+        console.error("Hardware fetch error", e);
+      }
+    };
+    fetchSystem();
   }, []);
+
+  const [wasm, setWasm] = useState<any>(null);
+
+  // Load Wasm module
+  useEffect(() => {
+    const loadWasm = async () => {
+      try {
+        const response = await fetch('/process_utils.wasm');
+        const buffer = await response.arrayBuffer();
+        const { instance } = await WebAssembly.instantiate(buffer);
+        setWasm(instance.exports);
+      } catch (e) {
+        console.error("Failed to load Wasm", e);
+      }
+    };
+    loadWasm();
+  }, []);
+
+  // Fetch real processes from our Vite bridge
+  useEffect(() => {
+    const fetchProcesses = async () => {
+      try {
+        const res = await fetch('/api/pc-processes');
+        const data = await res.json();
+        
+        // Map real data to our process structure
+        const mapped: Process[] = data.map((item: any, i: number) => {
+          // Use Wasm for performance logic if available
+          const impact = wasm ? wasm.calculateLoad(item.CPU || 0, item.Mem || 0) : 0;
+          
+          return {
+            id: item.Id,
+            pid: item.Id,
+            name: item.ProcessName,
+            cpu: item.CPU ? Math.min(99.9, item.CPU / 10) : 0, // PowerShell CPU is cumulative, we simulate delta or simple scale
+            mem: item.Mem || 0,
+            disk: Math.random() * 2, // Mock disk for now
+            group: item.CPU > 5 ? "Aplicaciones" : "Procesos en segundo plano",
+            icon: item.ProcessName.toLowerCase().includes('edge') ? '#0078d4' : '#767676'
+          };
+        });
+
+        setProcesses(mapped);
+      } catch (err) {
+        console.error("Failed to fetch real processes", err);
+      }
+    };
+
+    const interval = setInterval(fetchProcesses, 3000);
+    fetchProcesses();
+    return () => clearInterval(interval);
+  }, [wasm]);
 
   // Update histories
   useEffect(() => {
@@ -184,9 +282,12 @@ export default function TaskManager() {
     setNetHistory((h) => [...h.slice(1), 20 + Math.random() * 30]);
   }, [processes]);
 
-  const avgCpu = processes.reduce((a, b) => a + b.cpu, 0) / Math.max(processes.length, 1);
+  const avgCpu = processes.reduce((a, b) => a + b.cpu, 0) / Math.max(processes.length / 10, 1);
   const totalMem = processes.reduce((a, b) => a + b.mem, 0);
-  const memPct = Math.min(99, Math.round(totalMem / 160));
+  
+  // Real calculation based on hardware RAM
+  const totalSystemRAM = systemInfo?.ram?.TotalVisibleMemorySize || 7708936; // Default to 8GB if not loaded
+  const memPct = Math.min(99, Math.round((totalMem * 1024 / totalSystemRAM) * 100));
   const totalDisk = Math.round(processes.reduce((a, b) => a + b.disk, 0));
 
   const handleEndTask = useCallback(() => {
@@ -300,11 +401,39 @@ export default function TaskManager() {
             borderBottom: "1px solid rgba(255,255,255,0.06)",
             flexShrink: 0,
           }}>
-            <div style={{ display: "flex", gap: 28 }}>
-              <StatBox label="CPU" value={`${avgCpu.toFixed(0)}%`} sub="3.2 GHz" color="#60cdff" />
-              <StatBox label="Memoria" value={`${memPct}%`} sub={`${(totalMem / 1024).toFixed(1)} / 15.9 GB`} color="#c48dfb" />
-              <StatBox label="Disco" value={`${totalDisk}%`} sub="SSD · NVMe" color="#60cdff" />
-              <StatBox label="Red" value="1.2 Mbps" sub="Ethernet" color="#9bcf8f" />
+            <div style={{ display: "flex", gap: 12 }}>
+              <StatBox 
+                label="CPU" 
+                value={`${avgCpu.toFixed(0)}%`} 
+                sub={systemInfo?.cpu?.Name || "Procesador"} 
+                color="#60cdff" 
+                active={selectedStat === "CPU"}
+                onClick={() => { setSelectedStat("CPU"); setActiveTab("perf"); }}
+              />
+              <StatBox 
+                label="Memoria" 
+                value={`${memPct}%`} 
+                sub={`${(totalMem / 1024).toFixed(1)} / ${(totalSystemRAM / 1024 / 1024).toFixed(1)} GB`} 
+                color="#c48dfb" 
+                active={selectedStat === "Memoria"}
+                onClick={() => { setSelectedStat("Memoria"); setActiveTab("perf"); }}
+              />
+              <StatBox 
+                label="Disco" 
+                value={`${totalDisk}%`} 
+                sub="SSD" 
+                color="#60cdff" 
+                active={selectedStat === "Disco"}
+                onClick={() => { setSelectedStat("Disco"); setActiveTab("perf"); }}
+              />
+              <StatBox 
+                label="GPU" 
+                value={`${(Math.random() * 5).toFixed(0)}%`} 
+                sub={systemInfo?.gpu?.Name || "AMD Radeon Graphics"} 
+                color="#9bcf8f" 
+                active={selectedStat === "GPU"}
+                onClick={() => { setSelectedStat("GPU"); setActiveTab("perf"); }}
+              />
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="tm-btn" style={{
@@ -341,7 +470,12 @@ export default function TaskManager() {
               return (
                 <div
                   key={tab}
-                  onClick={() => { if (i === 0) setActiveTab("processes"); if (i === 1) setActiveTab("perf"); }}
+                  onClick={() => { 
+                    if (i === 0) setActiveTab("processes"); 
+                    if (i === 1) setActiveTab("perf");
+                    if (i === 3) setActiveTab("startup");
+                    if (i === 6) setActiveTab("services");
+                  }}
                   style={{
                     padding: "8px 16px", fontSize: 12,
                     color: isActive ? "#60cdff" : "rgba(255,255,255,0.55)",
@@ -457,10 +591,10 @@ export default function TaskManager() {
           {activeTab === "perf" && (
             <div className="tm-scroll" style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", gap: 12, flexWrap: "wrap", alignContent: "flex-start" }}>
               {[
-                { title: "CPU", value: `${avgCpu.toFixed(0)}%`, sub: "Intel Core i7-1260P · 12 núcleos", color: "#60cdff", history: cpuHistory },
-                { title: "Memoria", value: `${memPct}%`, sub: `${(totalMem / 1024).toFixed(1)} / 15.9 GB en uso`, color: "#c48dfb", history: memHistory },
-                { title: "Disco 0 (C:) SSD", value: `${totalDisk}%`, sub: "0 KB/s lectura · 0 KB/s escritura", color: "#60cdff", history: diskHistory },
-                { title: "Red", value: "1.2 Mbps", sub: "Ethernet · 1 Gbps", color: "#9bcf8f", history: netHistory },
+                { title: "CPU", value: `${avgCpu.toFixed(0)}%`, sub: "Host Processor · Real Data", color: "#60cdff", history: cpuHistory },
+                { title: "Memoria", value: `${memPct}%`, sub: `${(totalMem / 1024).toFixed(1)} / 32.0 GB in use`, color: "#c48dfb", history: memHistory },
+                { title: "GPU", value: `${(Math.random() * 5).toFixed(0)}%`, sub: "AMD Radeon(TM) Graphics · WebGPU Active", color: "#9bcf8f", history: netHistory },
+                { title: "Disco 0 (C:) SSD", value: `${totalDisk}%`, sub: "Active PC monitoring", color: "#60cdff", history: diskHistory },
               ].map((card) => (
                 <div key={card.title} style={{
                   background: "#2b2b2b",
@@ -479,7 +613,51 @@ export default function TaskManager() {
             </div>
           )}
 
-          {/* STATUS BAR */}
+          {/* ── SERVICES PANEL ── */}
+          {activeTab === "services" && (
+            <div className="tm-scroll" style={{ flex: 1, overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead className="tm-thead" style={{ position: "sticky", top: 0, background: "#202020", zIndex: 5 }}>
+                  <tr>
+                    <th style={{ padding: "8px 12px", textAlign: "left", color: "rgba(255,255,255,0.45)" }}>Nombre</th>
+                    <th style={{ padding: "8px 12px", textAlign: "left", color: "rgba(255,255,255,0.45)" }}>Descripción</th>
+                    <th style={{ padding: "8px 12px", textAlign: "left", color: "rgba(255,255,255,0.45)" }}>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.isArray(services) && services.map((s, idx) => (
+                    <tr key={s.Name || idx} className="tm-row" style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                      <td style={{ padding: "6px 12px" }}>{s.Name}</td>
+                      <td style={{ padding: "6px 12px", color: "rgba(255,255,255,0.5)" }}>{s.DisplayName}</td>
+                      <td style={{ padding: "6px 12px" }}>
+                        <span style={{ color: s.Status === 4 ? "#9bcf8f" : "rgba(255,255,255,0.3)" }}>
+                          {s.Status === 4 ? "En ejecución" : "Detenido"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ── STARTUP PANEL ── */}
+          {activeTab === "startup" && (
+            <div className="tm-scroll" style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>Aplicaciones de inicio (Host)</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {Array.isArray(startupApps) && startupApps.map((app, idx) => (
+                  <div key={app.Name || idx} style={{ padding: 12, background: "#2b2b2b", borderRadius: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{app.Name}</div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{app.Command}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#9bcf8f" }}>Habilitado</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{
             display: "flex", gap: 24, padding: "6px 16px",
             fontSize: 11, color: "rgba(255,255,255,0.35)",

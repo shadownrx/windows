@@ -160,7 +160,7 @@ const WindowManagerProviderComponent: React.FC<{ children: ReactNode }> = ({ chi
       title: 'Panel de Control',
       icon: <Settings24Regular primaryFill="#757575" />,
       type: 'system',
-      content: <ControlPanel onWallpaperChange={() => {}} />,
+      content: <ControlPanel />,
       x: 120,
       y: 320,
     },

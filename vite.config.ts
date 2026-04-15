@@ -26,8 +26,6 @@ const processBridge = () => ({
       if (req.url === '/api/pc-system') {
         try {
           // Get Hardware Specs: CPU Model, Total RAM, GPU
-          const psCommand = `powershell -Command "Get-CimInstance Win32_Processor | Select-Object Name, NumberOfLogicalProcessors | ConvertTo-Json; Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, FreePhysicalMemory | ConvertTo-Json; Get-CimInstance Win32_VideoController | Select-Object Name | ConvertTo-Json"`
-          // Since we run multiple commands, we might need to handle the output differently or run them as one
           const hardwareCmd = `powershell -Command \"$cpu = Get-CimInstance Win32_Processor | Select-Object Name, NumberOfLogicalProcessors; $os = Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, FreePhysicalMemory; $gpu = Get-CimInstance Win32_VideoController | Select-Object Name; @{cpu=$cpu; ram=$os; gpu=$gpu} | ConvertTo-Json\"`
           const { stdout } = await execAsync(hardwareCmd)
           res.setHeader('Content-Type', 'application/json')

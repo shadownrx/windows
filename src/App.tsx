@@ -50,8 +50,8 @@ function AppContent() {
         />
       )}
 
-      {/* Global 背景 3D */}
-      <Background3D />
+      {/* Global 背景 3D - Solo mostrar en el Escritorio */}
+      {systemState === 'DESKTOP' && <Background3D />}
 
       {/* 1. Ciclo de Vida: Pantallas */}
       {systemState === 'OFF' && <OffScreen onPowerOn={() => setSystemState('BOOTING')} />}

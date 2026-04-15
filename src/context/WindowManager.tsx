@@ -226,7 +226,7 @@ const WindowManagerProviderComponent: React.FC<{ children: ReactNode }> = ({ chi
       const existing = prev.find((w) => w.id === id && w.desktopId === currentDesktopId);
       if (existing) {
         return prev.map((w) => 
-          w.id === id && w.desktopId === currentDesktopId ? { ...w, isOpen: true, isMinimized: false, snap: 'none', zIndex: nextZIndex } : w
+          w.id === id && w.desktopId === currentDesktopId ? { ...w, content, isOpen: true, isMinimized: false, snap: 'none', zIndex: nextZIndex } : w
         );
       }
       const filteredPrev = prev.filter((w) => !(w.id === id && w.desktopId === currentDesktopId));

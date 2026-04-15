@@ -23,6 +23,62 @@
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* --- NEON THEMES --- */
+:root[data-neon='cyberpunk'] {
+  --win-accent: #ff00ff;
+  --win-blue: #00ffff;
+  --neon-glow: 0 0 10px rgba(255, 0, 255, 0.8), 0 0 20px rgba(255, 0, 255, 0.4);
+  --win-radius: 0px;
+  --win-bg: #050505;
+}
+
+:root[data-neon='matrix'] {
+  --win-accent: #00ff41;
+  --win-blue: #003b00;
+  --neon-glow: 0 0 10px rgba(0, 255, 65, 0.8);
+  --win-radius: 4px;
+  --win-bg: #000c00;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+:root[data-neon='synthwave'] {
+  --win-accent: #f92aad;
+  --win-blue: #7214fc;
+  --neon-glow: 0 0 15px rgba(249, 42, 173, 0.6);
+  --win-radius: 12px;
+  --win-bg: #2d0b5a;
+}
+
+/* Neon Effects */
+.neon-border {
+  border: 1px solid var(--win-accent) !important;
+  box-shadow: var(--neon-glow);
+}
+
+.neon-text {
+  color: var(--win-accent) !important;
+  text-shadow: var(--neon-glow);
+}
+
+.scanlines {
+  position: relative;
+  overflow: hidden;
+}
+
+.scanlines::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  z-index: 2;
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+}
+
 :root[data-theme='dark'] {
   color-scheme: dark;
   color: rgba(255, 255, 255, 0.95);

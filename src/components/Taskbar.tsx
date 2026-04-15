@@ -21,7 +21,6 @@ interface TaskbarProps {
   isNotificationsOpen?: boolean;
   onShutdown?: () => void;
   onRestart?: () => void;
-  onWallpaperChange: (url: string) => void;
   onSearchClick?: () => void;
 }
 
@@ -33,7 +32,6 @@ const Taskbar: React.FC<TaskbarProps> = ({
   isNotificationsOpen,
   onShutdown,
   onRestart,
-  onWallpaperChange,
   onSearchClick,
 }) => {
   const { openWindow, windows, minimizeWindow, isWidgetsOpen, toggleWidgets } = useWindowManager();
@@ -51,13 +49,13 @@ const Taskbar: React.FC<TaskbarProps> = ({
     const existing = windows.find(w => w.id === app.id);
     if (existing) {
       if (existing.isMinimized) {
-        openWindow(app.id, app.label, app.icon, app.component({ onWallpaperChange }));
+        openWindow(app.id, app.label, app.icon, app.component({}));
       } else {
         minimizeWindow(app.id);
       }
       return;
     }
-    openWindow(app.id, app.label, app.icon, app.component({ onWallpaperChange }));
+    openWindow(app.id, app.label, app.icon, app.component({}));
   };
 
   return (

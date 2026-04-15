@@ -36,10 +36,9 @@ const TEXT_SECONDARY = "#a0a0a0";
 type Category = 'system' | 'personalization' | 'network' | 'apps' | 'accounts' | 'privacy' | 'update';
 
 interface ControlPanelProps {
-  onWallpaperChange: (url: string) => void;
 }
 
-const ControlPanel: React.FC<ControlPanelProps> = ({ onWallpaperChange }) => {
+const ControlPanel: React.FC<ControlPanelProps> = () => {
   const [activeTab, setActiveTab] = useState<Category>('system');
   const { 
     brightness, setBrightness, 
@@ -47,7 +46,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ onWallpaperChange }) => {
     isWifiEnabled, setIsWifiEnabled,
     isNightLightEnabled, setIsNightLightEnabled,
     userName, setUserName,
-    updateStatus, setUpdateStatus
+    updateStatus, setUpdateStatus,
+    neonTheme, setNeonTheme,
+    wallpaper, setWallpaper
   } = useSettings();
 
   const [newName, setNewName] = useState(userName);
@@ -313,6 +314,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ onWallpaperChange }) => {
          {activeTab === 'personalization' && (
            <div style={{ maxWidth: '800px' }}>
               <h1 style={{ fontSize: '28px', marginBottom: '32px', fontWeight: 600 }}>Personalización</h1>
+              
+              {/* Accent Color Section */}
               <div style={{ background: BG_CARD, borderRadius: '12px', border: `1px solid ${BORDER_CARD}`, padding: '24px', marginBottom: '24px' }}>
                  <h2 style={{ fontSize: '14px', marginBottom: '16px', fontWeight: 600 }}>Color de énfasis</h2>
                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -328,18 +331,51 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ onWallpaperChange }) => {
                     ))}
                  </div>
               </div>
+
+              {/* Neon Experience Section */}
+              <div style={{ background: BG_CARD, borderRadius: '12px', border: `1px solid ${BORDER_CARD}`, padding: '24px', marginBottom: '24px' }}>
+                 <h2 style={{ fontSize: '14px', marginBottom: '16px', fontWeight: 600 }}>Experiencia Neon</h2>
+                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '12px' }}>
+                    {[
+                       { id: 'none', label: 'Ninguno', color: '#1a1a1e' },
+                       { id: 'cyberpunk', label: 'Cyberpunk', color: '#ff00ff' },
+                       { id: 'matrix', label: 'Matrix', color: '#00ff41' },
+                       { id: 'synthwave', label: 'Synthwave', color: '#f92aad' }
+                    ].map(t => (
+                       <button 
+                          key={t.id} 
+                          onClick={() => setNeonTheme(t.id as any)}
+                          style={{ 
+                             padding: '16px', borderRadius: '8px', border: neonTheme === t.id ? `2px solid ${t.color}` : '1px solid rgba(255,255,255,0.1)', 
+                             background: neonTheme === t.id ? `${t.color}22` : 'rgba(255,255,255,0.03)', color: 'white', cursor: 'pointer', transition: 'all 0.2s',
+                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'
+                          }}
+                       >
+                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: t.color, boxShadow: neonTheme === t.id ? `0 0 15px ${t.color}` : 'none' }} />
+                          <span style={{ fontSize: '12px', fontWeight: 500 }}>{t.label}</span>
+                       </button>
+                    ))}
+                 </div>
+              </div>
+
+              {/* Wallpaper Section */}
               <div style={{ background: BG_CARD, borderRadius: '12px', border: `1px solid ${BORDER_CARD}`, padding: '24px' }}>
                  <h2 style={{ fontSize: '14px', marginBottom: '16px', fontWeight: 600 }}>Fondo de escritorio</h2>
                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
-                    {wallpapers.map(wp => (
-                      <button 
-                         key={wp} 
-                         onClick={() => onWallpaperChange(wp)}
-                         style={{ aspectRatio: '16/10', borderRadius: '8px', border: 'none', padding: 0, overflow: 'hidden', cursor: 'pointer' }}
-                      >
-                         <img src={wp} alt="Wall" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      </button>
-                    ))}
+                     {wallpapers.map(wp => (
+                       <button 
+                          key={wp} 
+                          onClick={() => setWallpaper(wp)}
+                          style={{ 
+                             aspectRatio: '16/10', borderRadius: '8px', padding: 0, overflow: 'hidden', cursor: 'pointer',
+                             border: wallpaper === wp ? `3px solid var(--win-accent)` : 'none',
+                             boxShadow: wallpaper === wp ? '0 0 15px var(--win-accent)' : 'none',
+                             transition: 'all 0.2s'
+                          }}
+                       >
+                          <img src={wp} alt="Wall" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: wallpaper === wp ? 1 : 0.7 }} />
+                       </button>
+                     ))}
                  </div>
               </div>
            </div>

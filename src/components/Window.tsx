@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dismiss20Regular, Subtract20Regular, Square20Regular, Copy20Regular } from '@fluentui/react-icons';
 import { useWindowManager, type AppWindow } from '../context/WindowManager';
+import { useSettings } from '../context/SettingsContext';
 
 interface WindowProps {
   window: AppWindow;
@@ -9,6 +10,7 @@ interface WindowProps {
 
 const Window: React.FC<WindowProps> = ({ window }) => {
   const { closeWindow, minimizeWindow, maximizeWindow, snapWindow, focusWindow } = useWindowManager();
+  const { neonTheme } = useSettings();
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [position, setPosition] = useState({ x: 100, y: 50 });
   const [isDragging, setIsDragging] = useState(false);
@@ -123,7 +125,7 @@ const Window: React.FC<WindowProps> = ({ window }) => {
       onMouseDown={() => {
         if (!window.isMinimized) focusWindow(window.id);
       }}
-      className="window mica premium-shadow border-glow"
+      className={`window mica premium-shadow border-glow ${neonTheme !== 'none' ? 'neon-border' : ''} ${neonTheme === 'cyberpunk' ? 'scanlines' : ''}`}
     >
       {/* Resizers */}
       {!window.isMaximized && (

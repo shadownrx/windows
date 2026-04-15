@@ -42,17 +42,16 @@ import CounterStrikeApp, { CounterIcon } from './apps/counter';
 import WindowsDefender from './apps/WindowsDefender';
 import DevCpp2026 from './apps/DevCpp2026';
 import { Play24Filled } from '@fluentui/react-icons';
+import ControlPanel from './apps/ControlPanel';
 
 
 
 interface DesktopProps {
-  wallpaper: string;
-  onWallpaperChange: (url: string) => void;
   onShutdown: () => void;
   onRestart: () => void;
 }
 
-const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutdown, onRestart }) => {
+const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
   const { 
     isStartOpen, 
     toggleStart, 
@@ -76,7 +75,7 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
     isDesktopSwitcherOpen,
   } = useWindowManager();
 
-  const { isTaskViewOpen, setIsTaskViewOpen, addNotification, userName } = useSettings();
+  const { isTaskViewOpen, setIsTaskViewOpen, addNotification, userName, wallpaper, setWallpaper, neonTheme } = useSettings();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -177,6 +176,8 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
   } else if (icon.id === 'counter-strike') {
     // IMPORTANTE: Pasarlo como <CounterStrikeApp /> (o como lo hayas importado)
     openWindow('counter-strike', 'Counter-Strike 1.6 Online', <CounterIcon />, <CounterStrikeApp />);
+  } else if (icon.id === 'control-panel' || icon.id === 'settings') {
+    openWindow(icon.id, icon.title, icon.icon, <ControlPanel />);
   } else {
     openWindow(icon.id, icon.title, icon.icon, icon.content || <div className="p-4">Archivo vacío</div>);
   }
@@ -288,9 +289,11 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
       onContextMenu={handleContextMenu}
       onClick={closeAllMenus}
       style={{
-        backgroundImage: `url("${wallpaper}")`,
+        backgroundImage: neonTheme === 'none' ? `url("${wallpaper}")` : 'none',
+        backgroundColor: neonTheme === 'none' ? 'transparent' : 'transparent',
         backgroundSize: 'cover',
-        backgroundPosition: 'center'
+        backgroundPosition: 'center',
+        zIndex: 1
       }}
     >
       <div 
@@ -343,7 +346,7 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
           <AnimatePresence mode="popLayout">
             {windows.filter((win) => win.desktopId === currentDesktopId && win.isOpen).map((win) => <Window key={win.id} window={win} />)}
           </AnimatePresence>
-          {isStartOpen && <StartMenu isOpen={isStartOpen} onClose={closeStart} onWallpaperChange={onWallpaperChange} onShutdown={onShutdown} onRestart={onRestart} />}
+          {isStartOpen && <StartMenu isOpen={isStartOpen} onClose={closeStart} onShutdown={onShutdown} onRestart={onRestart} />}
           {runDialogOpen && (
             <div className="run-overlay" onClick={() => setRunDialogOpen(false)}>
               <div className="run-dialog" onClick={(e) => e.stopPropagation()}>
@@ -396,7 +399,6 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
           isNotificationsOpen={isNotificationsOpen}
           onShutdown={onShutdown}
           onRestart={onRestart}
-          onWallpaperChange={onWallpaperChange}
           onSearchClick={() => setIsSearchOpen(!isSearchOpen)}
         />
 
@@ -473,8 +475,8 @@ const Desktop: React.FC<DesktopProps> = ({ wallpaper, onWallpaperChange, onShutd
                 { label: 'Archivo de texto', icon: <DrawText24Regular />, onClick: handleNewFile },
               ]
             },
-            { label: 'Configuración de pantalla', icon: <Desktop24Regular />, onClick: () => {} },
-            { label: 'Personalizar', icon: <Apps24Regular />, onClick: () => {} },
+            { label: 'Configuración de pantalla', icon: <Desktop24Regular />, onClick: () => openWindow('control-panel', 'Configuración', <Settings24Regular />, <ControlPanel />) },
+            { label: 'Personalizar', icon: <Apps24Regular />, onClick: () => openWindow('control-panel', 'Configuración', <Settings24Regular />, <ControlPanel />) },
           ]}
         />
       )}

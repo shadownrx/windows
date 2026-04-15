@@ -42,6 +42,10 @@ interface SettingsContextType {
   // -- NEX OS 2.0 --
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  neonTheme: 'none' | 'cyberpunk' | 'matrix' | 'synthwave';
+  setNeonTheme: (theme: 'none' | 'cyberpunk' | 'matrix' | 'synthwave') => void;
+  wallpaper: string;
+  setWallpaper: (url: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -77,6 +81,21 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [theme, setTheme] = useState<'light' | 'dark'>(() => 
     (localStorage.getItem('win11_theme') as 'light' | 'dark') || 'dark'
   );
+  const [neonTheme, setNeonTheme] = useState<'none' | 'cyberpunk' | 'matrix' | 'synthwave'>(() => 
+    (localStorage.getItem('win11_neonTheme') as any) || 'none'
+  );
+  const [wallpaper, setWallpaper] = useState<string>(() => 
+    localStorage.getItem('win11_wallpaper') || 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974'
+  );
+
+  useEffect(() => {
+    localStorage.setItem('win11_wallpaper', wallpaper);
+  }, [wallpaper]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-neon', neonTheme);
+    localStorage.setItem('win11_neonTheme', neonTheme);
+  }, [neonTheme]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -157,7 +176,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       notifications, addNotification, removeNotification,
       isTaskViewOpen, setIsTaskViewOpen,
       playSound,
-      theme, toggleTheme
+      theme, toggleTheme,
+      neonTheme, setNeonTheme,
+      wallpaper, setWallpaper
     }}>
       {children}
     </SettingsContext.Provider>

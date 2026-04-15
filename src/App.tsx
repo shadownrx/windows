@@ -9,20 +9,11 @@ import RestartScreen from './components/system/restart';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import NotificationContainer from './components/system/NotificationToast';
 import { Info24Regular } from '@fluentui/react-icons';
+import Background3D from './components/system/Background3D';
 
 function AppContent() {
-  const { isNightLightEnabled, systemState, setSystemState, addNotification, playSound } = useSettings();
+  const { isNightLightEnabled, systemState, setSystemState, addNotification, playSound, wallpaper } = useSettings();
   const hasLoggedInRef = React.useRef(false);
-  
-  // --- PERSISTENCIA DEL WALLPAPER ---
-  const [wallpaper, setWallpaper] = useState<string>(() => {
-    return localStorage.getItem('win11_wallpaper') || 
-      'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('win11_wallpaper', wallpaper);
-  }, [wallpaper]);
 
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>;
@@ -59,14 +50,15 @@ function AppContent() {
         />
       )}
 
+      {/* Global 背景 3D */}
+      <Background3D />
+
       {/* 1. Ciclo de Vida: Pantallas */}
       {systemState === 'OFF' && <OffScreen onPowerOn={() => setSystemState('BOOTING')} />}
       {systemState === 'BOOTING' && <BootScreen />}
       {systemState === 'LOGIN' && <LoginScreen onLogin={() => setSystemState('DESKTOP')} wallpaper={wallpaper} />}
       {systemState === 'DESKTOP' && (
         <Desktop 
-          wallpaper={wallpaper} 
-          onWallpaperChange={setWallpaper} 
           onShutdown={() => setSystemState('SHUTTING_DOWN')}
           onRestart={() => setSystemState('RESTARTING')}
         />

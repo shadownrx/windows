@@ -18,14 +18,14 @@
 - **Arquitectura de Micro-Frontends:** Cada aplicación (`File Explorer`, `VsCode`, `Dev-C++`) opera en su propio contexto aislado bajo un orquestador central.
 
 ### 🍱 Experiencia de Usuario (UX)
+- **NEX OS 2.0: Neon Experience:** Sistema de temas dinámicos que incluyen **Cyberpunk**, **Matrix** y **Synthwave** con bordes brillantes y efectos visuales adaptativos.
+- **Motor 3D Dinámico:** Fondos tridimensionales en tiempo real impulsados por **Three.js** que reaccionan al tema seleccionado.
 - **Escritorios Virtuales:** Soporte para múltiples espacios de trabajo con persistencia de estado y transiciones fluidas.
-- **Sistema de Ventanas Inteligente:** Gestión de Z-Index dinámico, snapping (anclaje de ventanas), minimización y maximización animada.
-- **Glassmorphism 2026:** Una interfaz basada en el diseño *Fluent* con desenfoque gaussiano en tiempo real y micro-animaciones SVG.
 
 ### 🛠️ Herramientas Integradas
 - **File Explorer Engine:** Navegación real de archivos simulados con soporte para previsualización de medios.
+- **NexBrowser Pro:** Navegador avanzado con soporte nativo de YouTube, gestión de historial por pestaña y seguridad integrada.
 - **Dev-C++ 2026:** Un entorno de desarrollo moderno con resaltado de sintaxis y simulación de compilación.
-- **Navegador Web Integrado:** Una ventana al mundo real dentro del sistema.
 
 ---
 
@@ -48,6 +48,8 @@ El proyecto implementa un patrón de **Gestión de Estado Centralizada** para el
 | **Tailwind CSS** | Estilizado moderno y utilitario. |
 | **AssemblyScript** | Compilación a WASM para rendimiento extremo. |
 | **Vite** | Bundler de última generación para carga instantánea. |
+| **Three.js** | Motor 3D para fondos dinámicos y partículas. |
+| **Framer Motion** | Orquestación de animaciones complejas de UI. |
 
 ---
 

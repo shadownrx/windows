@@ -38,7 +38,6 @@ import ManualApp from './apps/ManualApp';
 interface StartMenuProps {
   isOpen: boolean;
   onClose: () => void;
-  onWallpaperChange: (url: string) => void;
   onShutdown: () => void;
   onRestart: () => void;
 }
@@ -51,7 +50,7 @@ interface App {
   component?: React.ReactNode;
 }
 
-const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChange, onShutdown, onRestart }) => {
+const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRestart }) => {
   const { openWindow } = useWindowManager();
   const { userName, lockSystem } = useSettings();
   const [showPowerMenu, setShowPowerMenu] = useState(false);
@@ -66,7 +65,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onWallpaperChang
     { id: 'paint', icon: <Edit24Regular />, name: 'Paint', color: '#FF6E40', component: <Paint /> },
     { id: 'wordpad', icon: <Document24Regular />, name: 'WordPad', color: '#4CAF50', component: <WordPad /> },
     { id: 'task-manager', icon: <Apps24Regular />, name: 'Task Manager', color: '#2196F3', component: <TaskManager /> },
-    { id: 'control-panel', icon: <Settings24Regular />, name: 'Settings', color: '#757575', component: <ControlPanel onWallpaperChange={onWallpaperChange} /> },
+    { id: 'control-panel', icon: <Settings24Regular />, name: 'Settings', color: '#757575', component: <ControlPanel /> },
     { id: 'calendar', icon: <Calendar24Regular />, name: 'Calendar', color: '#E91E63', component: <Calendar /> },
     { id: 'search', icon: <Search24Regular />, name: 'Search', color: '#FF9800', component: <SearchApp /> },
     { id: 'defender', icon: <ShieldCheckmark24Regular />, name: 'Seguridad', color: '#008a17', component: <WindowsDefender /> },

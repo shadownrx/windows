@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  Book24Regular, 
-  Keyboard24Regular, 
+import {
+  Book24Regular,
+  Keyboard24Regular,
   Info24Regular,
   Flash24Regular,
   Lightbulb24Regular,
@@ -21,8 +21,8 @@ const ManualApp: React.FC = () => {
 
   const features = [
     { title: 'WebAssembly (WASM)', description: 'NEX utiliza binarios WASM para cálculos de alto rendimiento, como en el Administrador de Tareas.', icon: <Flash24Regular /> },
-    { title: 'Escritorios Virtuales', description: 'Organiza tu trabajo en múltiples espacios independientes accesibles desde la barra de tareas.', icon: <Book24Regular /> },
-    { title: 'Sistema de Archivos', description: 'Navega y gestiona archivos simulados con el Explorador de Archivos integrado.', icon: <Wrench24Regular /> },
+    { title: 'Temas Neon', description: 'Personalización profunda con estéticas Cyberpunk, Matrix y Synthwave con efectos de brillo real.', icon: <Lightbulb24Regular /> },
+    { title: 'NexBrowser Pro', description: 'Navegador avanzado con soporte nativo de YouTube, gestión de historial y seguridad integrada.', icon: <Book24Regular /> },
   ];
 
   return (
@@ -31,17 +31,23 @@ const ManualApp: React.FC = () => {
         <div className="manual-header">
           <Book24Regular className="header-icon" />
           <div className="header-text">
-            <h2>Manual de NEX</h2>
-            <span>Versión 2026.1</span>
+            <h2>Manual del SO</h2>
+            <span>Versión 2.0</span>
           </div>
         </div>
-        
+
         <nav className="manual-nav">
           <button className={`nav-item ${activeTab === 'welcome' ? 'active' : ''}`} onClick={() => setActiveTab('welcome')}>
             <Lightbulb24Regular /> Guía de Inicio
           </button>
           <button className={`nav-item ${activeTab === 'shortcuts' ? 'active' : ''}`} onClick={() => setActiveTab('shortcuts')}>
             <Keyboard24Regular /> Atajos de Teclado
+          </button>
+          <button className={`nav-item ${activeTab === 'custom' ? 'active' : ''}`} onClick={() => setActiveTab('custom')}>
+            <Lightbulb24Regular /> Personalización
+          </button>
+          <button className={`nav-item ${activeTab === 'browser' ? 'active' : ''}`} onClick={() => setActiveTab('browser')}>
+            <Book24Regular /> Navegación
           </button>
           <button className={`nav-item ${activeTab === 'tech' ? 'active' : ''}`} onClick={() => setActiveTab('tech')}>
             <Flash24Regular /> Tecnología NEX
@@ -57,7 +63,7 @@ const ManualApp: React.FC = () => {
           <section className="manual-content animate-in">
             <h1>Bienvenido a NEX OS</h1>
             <p className="lead">El sistema operativo web más avanzado, diseñado para la fluidez y el rendimiento.</p>
-            
+
             <div className="feature-grid">
               {features.map((f, i) => (
                 <div key={i} className="feature-card">
@@ -75,6 +81,14 @@ const ManualApp: React.FC = () => {
                 <p>Puedes arrastrar las ventanas hacia los bordes de la pantalla para anclarlas automáticamente en divisiones perfectas.</p>
               </div>
             </div>
+
+            <div className="tip-box" style={{ marginTop: '15px', background: 'rgba(59, 130, 246, 0.05)', borderLeft: '4px solid #60a5fa' }}>
+              <Flash24Regular className="tip-icon" style={{ color: '#60a5fa' }} />
+              <div>
+                <h4>Motor 3D Activo:</h4>
+                <p>NEX OS 2.0 utiliza Three.js para renderizar fondos inmersivos cuando activas los temas Neon.</p>
+              </div>
+            </div>
           </section>
         )}
 
@@ -82,7 +96,7 @@ const ManualApp: React.FC = () => {
           <section className="manual-content animate-in">
             <h1>Atajos de Teclado</h1>
             <p>Domina NEX como un profesional con estas combinaciones de teclas:</p>
-            
+
             <div className="shortcut-table">
               {shortcuts.map((s, i) => (
                 <div key={i} className="shortcut-row">
@@ -94,11 +108,55 @@ const ManualApp: React.FC = () => {
           </section>
         )}
 
+        {activeTab === 'custom' && (
+          <section className="manual-content animate-in">
+            <h1>Experiencia Neon</h1>
+            <p className="lead">NEX OS 2.0 introduce un sistema de temas dinámicos con renderizado de bordes brillantes.</p>
+            
+            <div className="feature-grid">
+              <div className="feature-card">
+                <h3>Cyberpunk 2077</h3>
+                <p>Estética rosa y cian con filtros de scanlines y ruido analógico. Ideal para entornos de alta energía.</p>
+              </div>
+              <div className="feature-card">
+                <h3>Matrix Digital</h3>
+                <p>Inspirado en el código fuente de la simulación. Tonos verdes, tipografía monoespaciada y alto contraste.</p>
+              </div>
+              <div className="feature-card">
+                <h3>Synthwave 80s</h3>
+                <p>Viaje retro-futurista con degradados púrpura/magenta y bordes de neón suave. Pura nostalgia visual.</p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'browser' && (
+          <section className="manual-content animate-in">
+            <h1>NexBrowser Pro</h1>
+            <p className="lead">Un sistema de navegación inteligente que va más allá de un simple iframe.</p>
+            
+            <div className="tech-stack">
+              <div className="tech-item">
+                <span className="tech-badge">YT-ENGINE</span>
+                <p>Detección inteligente de enlaces de YouTube para conversión automática al reproductor embebido oficial.</p>
+              </div>
+              <div className="tech-item">
+                <span className="tech-badge">HISTORY</span>
+                <p>Gestión de historial independiente por pestaña con soporte para botones de navegación de hardware.</p>
+              </div>
+              <div className="tech-item">
+                <span className="tech-badge">SECURITY</span>
+                <p>Capa de protección ante errores de ancestros (X-Frame-Options) con redirección a zonas seguras.</p>
+              </div>
+            </div>
+          </section>
+        )}
+
         {activeTab === 'tech' && (
           <section className="manual-content animate-in">
             <h1>Ingeniería de NEX</h1>
             <p>NEX no es solo CSS. Debajo del capó corre un motor de última generación:</p>
-            
+
             <div className="tech-stack">
               <div className="tech-item">
                 <span className="tech-badge">WASM</span>
@@ -112,6 +170,14 @@ const ManualApp: React.FC = () => {
                 <span className="tech-badge">GPU</span>
                 <p>Visualizaciones aceleradas por hardware para telemetría instantánea.</p>
               </div>
+              <div className="tech-item">
+                <span className="tech-badge">Three.js</span>
+                <p>Renderizado 3D de alto rendimiento para fondos dinámicos y efectos visuales de partículas.</p>
+              </div>
+              <div className="tech-item">
+                <span className="tech-badge">React.js</span>
+                <p>Framework de JavaScript para la construcción de interfaces de usuario.</p>
+              </div>
             </div>
           </section>
         )}
@@ -122,11 +188,11 @@ const ManualApp: React.FC = () => {
             <div className="about-branding">
               <div className="logo-placeholder">NEX</div>
               <p>NEX Web Operating System</p>
-              <p className="sub">Build 2026.04.12</p>
+              <p className="sub">Build 2026.04.15</p>
             </div>
-            
+
             <div className="credits">
-              <p>Desarrollado con ❤️ por el equipo de ingeniería de NEX.</p>
+              <p>Desarrollado con ❤️ por Salvador juarez</p>
               <p>Este proyecto es una demostración técnica de capacidades frontend avanzadas.</p>
             </div>
           </section>

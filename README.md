@@ -1,9 +1,9 @@
 
 
-# 🌌 NEX - Web Operating System
+# 🌌 WebOS Operating System
 **Desarrollado con pasión por [Salvador]**
 
-**NEX** es una experiencia de computación de próxima generación construida enteramente para la web. No es simplemente un clon de una interfaz; es un ecosistema de aplicaciones de alto rendimiento desarrollado con **React 18**, **TypeScript**, **AssemblyScript (WASM)** y **WebGPU**. NEX redefine lo que es posible en un navegador, fusionando estética *Premium* con ingeniería de sistemas avanzada.
+**WebOS** es una experiencia de computación de próxima generación construida enteramente para la web. No es simplemente un clon de una interfaz; es un ecosistema de aplicaciones de alto rendimiento desarrollado con **React 18**, **TypeScript**, **AssemblyScript (WASM)** y **WebGPU**. WebOS redefine lo que es posible en un navegador, fusionando estética *Premium* con ingeniería de sistemas avanzada.
 
 > [!TIP]
 > **🌐 Demo en Vivo:** [https://windows-seven-rose.vercel.app/](https://windows-seven-rose.vercel.app/)

@@ -1,4 +1,4 @@
-# Referencia de API de NEX OS
+# Referencia de API de WebOs
 
 NEX ofrece una serie de hooks de React que permiten a las aplicaciones interactuar con el "núcleo" del sistema operativo.
 

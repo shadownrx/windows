@@ -1,18 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Play24Filled, 
-  Wrench24Filled, 
-  ArrowClockwise24Filled, 
-  Bug24Filled,
-  Search24Regular,
-  Folder24Filled,
-  Document24Regular,
-  MoreHorizontal24Regular,
-  Settings24Regular,
-  ChevronRight24Regular,
-  WindowConsoleRegular,
   Circle24Filled,
+  CursorClick24Regular,
+  Options24Regular,
+  TextBulletListSquare24Regular,
 } from '@fluentui/react-icons';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CppEngine } from '../../utils/cppEngine';
 
 interface File {
   name: string;
@@ -20,27 +12,34 @@ interface File {
   content: string;
 }
 
-const DEV_CPP_FILES: Record<string, File> = {
+const INITIAL_DEV_CPP_FILES: Record<string, File> = {
   'main.cpp': {
     name: 'main.cpp',
     language: 'cpp',
     content: `#include <iostream>
-#include <vector>
 #include <string>
 
 using namespace std;
 
 int main() {
-    vector<string> greets = {"Hello", "from", "Dev-C++", "2026"};
-    
+    string name;
+    int age;
+
     cout << "========================================" << endl;
-    cout << "   Welcome to the Future of C++ Dev" << endl;
+    cout << "   Welcome to Dev-C++ 2026 Interactive" << endl;
     cout << "========================================" << endl;
 
-    for (const auto& word : greets) {
-        cout << word << " ";
-    }
-    cout << endl;
+    cout << "Enter your name: ";
+    cin >> name;
+    
+    cout << "Enter your age: ";
+    cin >> age;
+
+    cout << endl << "Hello, " << name << "!" << endl;
+    cout << "Next year you will be " << age + 1 << " years old." << endl;
+    
+    cout << "----------------------------------------" << endl;
+    cout << "Execution finished successfully." << endl;
 
     return 0;
 }`
@@ -141,52 +140,239 @@ function tokenizeCpp(code: string): React.ReactNode[] {
 }
 
 const DevCpp2026: React.FC = () => {
+  const [files, setFiles] = useState(() => {
+    const saved = localStorage.getItem('devcpp_files');
+    return saved ? JSON.parse(saved) : INITIAL_DEV_CPP_FILES;
+  });
   const [activeFile, setActiveFile] = useState('main.cpp');
   const [isCompiling, setIsCompiling] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [isWaitingForInput, setIsWaitingForInput] = useState(false);
   const [terminalLines, setTerminalLines] = useState<string[]>([
     'Dev-C++ 2026 Compiler Service v1.0.4 - Ready',
     'Root workspace: C:\\Users\\User\\Project',
   ]);
+  const [inputBuffer, setInputBuffer] = useState('');
   const [status, setStatus] = useState('Listo');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [theme, setTheme] = useState<'modern' | 'classic'>('modern');
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
   
   const termRef = useRef<HTMLDivElement>(null);
-  const file = DEV_CPP_FILES[activeFile];
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const resolveInputRef = useRef<((val: string) => void) | null>(null);
+  
+  const file = files[activeFile];
+
+  useEffect(() => {
+    localStorage.setItem('devcpp_files', JSON.stringify(files));
+  }, [files]);
 
   useEffect(() => {
     if (termRef.current) {
       termRef.current.scrollTop = termRef.current.scrollHeight;
     }
-  }, [terminalLines]);
+  }, [terminalLines, isWaitingForInput]);
 
-  const handleCompile = () => {
+  const updateCursorPos = () => {
+    if (editorRef.current) {
+      const text = editorRef.current.value.substring(0, editorRef.current.selectionStart);
+      const lines = text.split('\n');
+      setCursorPos({ line: lines.length, col: lines[lines.length - 1].length + 1 });
+    }
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = e.currentTarget.scrollTop;
+      highlightRef.current.scrollLeft = e.currentTarget.scrollLeft;
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = e.currentTarget.selectionStart;
+      const end = e.currentTarget.selectionEnd;
+      const newVal = file.content.substring(0, start) + "    " + file.content.substring(end);
+      
+      setFiles(prev => ({
+        ...prev,
+        [activeFile]: { ...prev[activeFile], content: newVal }
+      }));
+      
+      setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.selectionStart = editorRef.current.selectionEnd = start + 4;
+        }
+      }, 0);
+    }
+    
+    if (e.key === 'Enter') {
+      const start = e.currentTarget.selectionStart;
+      const beforeStr = file.content.substring(0, start);
+      const lines = beforeStr.split('\n');
+      const lastLine = lines[lines.length - 1];
+      const match = lastLine.match(/^\s*/);
+      const indent = match ? match[0] : "";
+      
+      // Auto-indent
+      if (indent.length > 0) {
+        e.preventDefault();
+        const newVal = file.content.substring(0, start) + "\n" + indent + file.content.substring(start);
+        setFiles(prev => ({
+          ...prev,
+          [activeFile]: { ...prev[activeFile], content: newVal }
+        }));
+        setTimeout(() => {
+          if (editorRef.current) {
+            editorRef.current.selectionStart = editorRef.current.selectionEnd = start + indent.length + 1;
+          }
+        }, 0);
+      }
+    }
+    
+    // Auto-close brackets
+    const pairs: Record<string, string> = { '{': '}', '(': ')', '[': ']', '"': '"', "'": "'" };
+    if (pairs[e.key]) {
+      e.preventDefault();
+      const start = e.currentTarget.selectionStart;
+      const end = e.currentTarget.selectionEnd;
+      const newVal = file.content.substring(0, start) + e.key + pairs[e.key] + file.content.substring(end);
+      setFiles(prev => ({
+        ...prev,
+        [activeFile]: { ...prev[activeFile], content: newVal }
+      }));
+      setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.selectionStart = editorRef.current.selectionEnd = start + 1;
+        }
+      }, 0);
+    }
+
+    setTimeout(updateCursorPos, 0);
+  };
+
+  const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newContent = e.target.value;
+    setFiles(prev => ({
+      ...prev,
+      [activeFile]: {
+        ...prev[activeFile],
+        content: newContent
+      }
+    }));
+    updateCursorPos();
+  };
+
+  const handleCompile = async () => {
     setIsCompiling(true);
     setStatus('Compilando...');
     setTerminalLines(prev => [...prev, `[${new Date().toLocaleTimeString()}] g++ -O3 ${activeFile} -o main.exe`]);
     
-    setTimeout(() => {
-      setIsCompiling(false);
-      setStatus('Compilación finalizada con éxito');
-      setTerminalLines(prev => [...prev, 'Compilation finished successfully in 452ms.', 'Output written to main.exe']);
-    }, 1500);
+    // Check if backend API is available
+    try {
+      const response = await fetch('/api/compile-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files, mainFile: activeFile })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setIsCompiling(false);
+        if (result.success) {
+          setStatus('Compilación finalizada con éxito');
+          setTerminalLines(prev => [...prev, 'Compilation finished successfully.', 'Output written to main.exe']);
+          return true;
+        } else {
+          setStatus('Error en la compilación');
+          setTerminalLines(prev => [...prev, ...result.errors.split('\n')]);
+          return false;
+        }
+      }
+    } catch (e) {
+      console.log("Backend offline or error, falling back to simulator");
+    }
+
+    // Fallback to Simulation Engine
+    return new Promise((resolve) => {
+        setTimeout(() => {
+          setIsCompiling(false);
+          const engine = new CppEngine(files);
+          const result = engine.execute(activeFile);
+          
+          if (result.errors.length > 0) {
+            setStatus('Error en la compilación');
+            setTerminalLines(prev => [...prev, ...result.errors]);
+            resolve(false);
+          } else {
+            setStatus('Compilación finalizada con éxito');
+            setTerminalLines(prev => [...prev, 'Compilation finished successfully (Simulated).', 'Output written to main.exe']);
+            resolve(true);
+          }
+        }, 1200);
+    });
   };
 
-  const handleRun = () => {
+  const handleRun = async () => {
+    if (isRunning) return;
+    setIsRunning(true);
     setStatus('Ejecutando...');
-    setTerminalLines(prev => [...prev, '❯ Running main.exe...']);
+    setTerminalLines(prev => [...prev, '❯ Running main.exe...', '========================================']);
     
-    setTimeout(() => {
-      const output = [
-        '========================================',
-        '   Welcome to the Future of C++ Dev',
-        '========================================',
-        'Hello from Dev-C++ 2026 ',
-        '',
-        'Process exited with return value 0'
-      ];
-      setTerminalLines(prev => [...prev, ...output]);
-      setStatus('Listo');
-    }, 500);
+    const ioBridge = {
+      cout: async (val: string) => {
+        // Character streaming effect for realism
+        if (val.length > 50) {
+           setTerminalLines(prev => [...prev, val]);
+        } else {
+          for (let i = 0; i < val.length; i++) {
+            setTerminalLines(prev => {
+              const last = prev[prev.length - 1];
+              if (last.startsWith('❯') || last === '========================================' || last === '') {
+                return [...prev, val[i]];
+              }
+              const newPrev = [...prev];
+              newPrev[newPrev.length - 1] += val[i];
+              return newPrev;
+            });
+            await new Promise(r => setTimeout(r, 5));
+          }
+        }
+      },
+      cin: async () => {
+        setIsWaitingForInput(true);
+        setStatus('Esperando entrada...');
+        return new Promise<string>((resolve) => {
+          resolveInputRef.current = (val) => {
+            setIsWaitingForInput(false);
+            setStatus('Ejecutando...');
+            resolve(val);
+          };
+        });
+      }
+    };
+
+    const engine = new CppEngine(files, ioBridge);
+    const result = await engine.execute(activeFile);
+
+    setTerminalLines(prev => [...prev, '', '========================================', 'Process exited with return value ' + result.exitCode]);
+    setStatus('Listo');
+    setIsRunning(false);
+  };
+
+  const handleTerminalInput = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resolveInputRef.current && inputBuffer) {
+      const val = inputBuffer;
+      setTerminalLines(prev => [...prev, `> ${val}`]);
+      setInputBuffer('');
+      resolveInputRef.current(val);
+      resolveInputRef.current = null;
+    }
   };
 
   return (
@@ -201,28 +387,38 @@ const DevCpp2026: React.FC = () => {
         </div>
         
         <div className="devcpp-toolbar">
-          <button className="dev-tool-btn" title="Compilar (F9)" onClick={handleCompile} disabled={isCompiling}>
-            <Wrench24Filled primaryFill={isCompiling ? "#4a5568" : "#fbbf24"} />
+          <button className="dev-tool-btn" title="Compilar (F9)" onClick={handleCompile} disabled={isCompiling || isRunning}>
+            <Wrench24Filled primaryFill={isCompiling ? "#4a5568" : (theme === 'classic' ? "#fff" : "#fbbf24")} />
           </button>
-          <button className="dev-tool-btn" title="Ejecutar (F10)" onClick={handleRun}>
-            <Play24Filled primaryFill="#10b981" />
+          <button className="dev-tool-btn" title="Ejecutar (F10)" onClick={handleRun} disabled={isCompiling || isRunning}>
+            <Play24Filled primaryFill={isRunning ? "#4a5568" : (theme === 'classic' ? "#fff" : "#10b981")} />
           </button>
-          <button className="dev-tool-btn" title="Compilar y Ejecutar (F11)" onClick={() => { handleCompile(); setTimeout(handleRun, 1600); }}>
-             <div style={{ position: 'relative' }}>
-                <Wrench24Filled primaryFill="#3b82f6" />
-                <Play24Filled primaryFill="#10b981" style={{ position: 'absolute', bottom: -4, right: -4, fontSize: 12, border: '2px solid #0f172a', borderRadius: '50%' }} />
+          <button className="dev-tool-btn" title="Compilar y Ejecutar (F11)" onClick={() => { handleCompile().then(ok => ok && handleRun()); }} disabled={isCompiling || isRunning}>
+             <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Wrench24Filled primaryFill={theme === 'classic' ? "#fff" : "#3b82f6"} style={{ fontSize: 20 }} />
+                <Play24Filled primaryFill="#10b981" style={{ 
+                  position: 'absolute', 
+                  bottom: -5, 
+                  right: -5, 
+                  fontSize: 14,
+                  filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.5))'
+                }} />
              </div>
           </button>
           <div className="devcpp-divider" />
           <button className="dev-tool-btn" title="Reconstruir todo">
-            <ArrowClockwise24Filled primaryFill="#6366f1" />
+            <ArrowClockwise24Filled primaryFill={theme === 'classic' ? "#fff" : "#6366f1"} />
           </button>
           <button className="dev-tool-btn" title="Depurar">
-            <Bug24Filled primaryFill="#f43f5e" />
+            <Bug24Filled primaryFill={theme === 'classic' ? "#fff" : "#f43f5e"} />
           </button>
         </div>
 
         <div className="devcpp-header-right">
+            <button className="dev-tool-btn" title="Cambiar Tema" onClick={() => setTheme(t => t === 'modern' ? 'classic' : 'modern')}>
+               <Options24Regular primaryFill={theme === 'classic' ? '#fff' : '#94a3b8'} />
+            </button>
+            <div className="devcpp-divider" />
             <Search24Regular />
             <Settings24Regular />
         </div>
@@ -245,7 +441,7 @@ const DevCpp2026: React.FC = () => {
               </div>
               
               <div className="file-list">
-                {Object.keys(DEV_CPP_FILES).map(name => (
+                {Object.keys(files).map(name => (
                   <div 
                     key={name} 
                     className={`file-item ${activeFile === name ? 'active' : ''}`}
@@ -271,16 +467,52 @@ const DevCpp2026: React.FC = () => {
         {/* Main Editor Area */}
         <div className="devcpp-main">
           <div className="editor-tabs">
-             {Object.keys(DEV_CPP_FILES).map(name => (
-               <div key={name} className={`editor-tab ${activeFile === name ? 'active' : ''}`} onClick={() => setActiveFile(name)}>
-                 <span>{name}</span>
-                 {activeFile === name && <div className="tab-indicator" />}
-               </div>
-             ))}
+             <AnimatePresence mode="popLayout">
+               {Object.keys(files).map(name => (
+                 <motion.div 
+                    layout
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    key={name} 
+                    className={`editor-tab ${activeFile === name ? 'active' : ''}`} 
+                    onClick={() => setActiveFile(name)}
+                 >
+                   <span>{name}</span>
+                   {activeFile === name && (
+                     <motion.div layoutId="active-tab" className="tab-indicator" />
+                   )}
+                 </motion.div>
+               ))}
+             </AnimatePresence>
           </div>
 
-          <div className="editor-body">
-            {tokenizeCpp(file.content)}
+          <div className="editor-body-container">
+            {/* Active Line Highlight */}
+            <div 
+              className="line-highlight" 
+              style={{ 
+                top: `${(cursorPos.line - 1) * 1.6 + 1.3}em`,
+                opacity: theme === 'modern' ? 0.3 : 0.1
+              }} 
+            />
+            
+            <textarea
+              ref={editorRef}
+              className="editor-textarea"
+              value={file.content}
+              onChange={handleCodeChange}
+              onScroll={handleScroll}
+              onKeyDown={handleKeyDown}
+              onClick={updateCursorPos}
+              onKeyUp={updateCursorPos}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoComplete="off"
+              autoCorrect="off"
+            />
+            <div className="editor-highlight" ref={highlightRef}>
+              {tokenizeCpp(file.content)}
+            </div>
           </div>
 
           {/* Bottom Panel (Terminal) */}
@@ -295,10 +527,24 @@ const DevCpp2026: React.FC = () => {
                     <span>Depuración</span>
                 </div>
             </div>
-            <div className="bottom-content" ref={termRef}>
+            <div className={`bottom-content ${isWaitingForInput ? 'waiting' : ''}`} ref={termRef}>
                {terminalLines.map((line, idx) => (
                  <div key={idx} className="terminal-line">{line}</div>
                ))}
+               
+               {isWaitingForInput && (
+                 <form onSubmit={handleTerminalInput} className="terminal-input-row">
+                    <span className="terminal-cursor">█</span>
+                    <input 
+                      ref={inputRef}
+                      autoFocus
+                      className="term-input-field"
+                      value={inputBuffer}
+                      onChange={e => setInputBuffer(e.target.value)}
+                    />
+                 </form>
+               )}
+
                {isCompiling && (
                  <div className="compiling-loader">
                     <div className="spinner" />
@@ -311,17 +557,23 @@ const DevCpp2026: React.FC = () => {
       </div>
 
       {/* Status Bar */}
-      <div className="devcpp-status">
+      <div className={`devcpp-status theme-${theme}`}>
         <div className="status-left">
           <div className="status-indicator">
              <Circle24Filled primaryFill={status === 'Listo' ? '#10b981' : '#fbbf24'} style={{ fontSize: 8 }} />
              <span>{status}</span>
           </div>
           <div className="status-sep" />
-          <span>Línea: 1, Col: 1</span>
+          <div className="cursor-pos">
+             <CursorClick24Regular style={{ fontSize: 12 }} />
+             <span>Línea: {cursorPos.line}, Col: {cursorPos.col}</span>
+          </div>
         </div>
         <div className="status-right">
-          <span>UTF-8</span>
+          <div className="info-item">
+             <TextBulletListSquare24Regular style={{ fontSize: 12 }} />
+             <span>UTF-8</span>
+          </div>
           <div className="status-sep" />
           <span>C++ 20 (GCC)</span>
           <div className="status-sep" />
@@ -335,13 +587,13 @@ const DevCpp2026: React.FC = () => {
           flex-direction: column;
           width: 100%;
           height: 100%;
-          background: rgba(15, 23, 42, 0.85);
-          backdrop-filter: blur(25px);
-          color: #e2e8f0;
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          background: ${theme === 'modern' ? 'rgba(15, 23, 42, 0.85)' : '#f0f0f0'};
+          backdrop-filter: ${theme === 'modern' ? 'blur(25px)' : 'none'};
+          color: ${theme === 'modern' ? '#e2e8f0' : '#000'};
+          font-family: ${theme === 'modern' ? "'Segoe UI', sans-serif" : "'Tahoma', sans-serif"};
           overflow: hidden;
           border-radius: 8px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 1px solid ${theme === 'modern' ? 'rgba(255, 255, 255, 0.1)' : '#999'};
         }
 
         .devcpp-header {
@@ -349,265 +601,69 @@ const DevCpp2026: React.FC = () => {
           display: flex;
           align-items: center;
           padding: 0 16px;
-          background: rgba(30, 41, 59, 0.7);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          background: ${theme === 'modern' ? 'rgba(30, 41, 59, 0.7)' : 'linear-gradient(to bottom, #f9f9f9, #e1e1e1)'};
+          border-bottom: 1px solid ${theme === 'modern' ? 'rgba(255, 255, 255, 0.05)' : '#999'};
           justify-content: space-between;
-        }
-
-        .devcpp-title-group {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .devcpp-app-icon {
-          width: 24px;
-          height: 24px;
-          background: white;
-          border-radius: 6px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
-        }
-
-        .devcpp-title {
-          font-weight: 600;
-          font-size: 13px;
-          letter-spacing: 0.3px;
-        }
-
-        .devcpp-toolbar {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          background: rgba(255, 255, 255, 0.05);
-          padding: 4px 8px;
-          border-radius: 10px;
-          margin: 0 20px;
-        }
-
-        .dev-tool-btn {
-          width: 32px;
-          height: 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: transparent;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .dev-tool-btn:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.1);
-          transform: translateY(-1px);
-        }
-
-        .dev-tool-btn:active:not(:disabled) {
-          transform: translateY(0);
-        }
-
-        .dev-tool-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .devcpp-divider {
-          width: 1px;
-          height: 20px;
-          background: rgba(255, 255, 255, 0.1);
-          margin: 0 6px;
-        }
-
-        .devcpp-header-right {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            color: #94a3b8;
-        }
-
-        .devcpp-content {
-          flex: 1;
-          display: flex;
-          overflow: hidden;
+          color: ${theme === 'modern' ? 'inherit' : '#000'};
         }
 
         .devcpp-sidebar {
           width: 240px;
-          background: rgba(15, 23, 42, 0.4);
-          border-right: 1px solid rgba(255, 255, 255, 0.05);
+          background: ${theme === 'modern' ? 'rgba(15, 23, 42, 0.4)' : '#fff'};
+          border-right: 1px solid ${theme === 'modern' ? 'rgba(255, 255, 255, 0.05)' : '#999'};
           display: flex;
           flex-direction: column;
         }
 
-        .sidebar-header {
-          padding: 12px 16px;
-          font-size: 10px;
-          font-weight: 700;
-          color: #64748b;
-          letter-spacing: 1px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .folder-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 16px;
-          font-size: 13px;
-          font-weight: 600;
-        }
-
-        .file-list {
-          padding-left: 20px;
-        }
-
-        .file-item {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 6px 16px;
-          font-size: 12px;
-          color: #94a3b8;
-          cursor: pointer;
-          border-radius: 6px 0 0 6px;
-          margin-bottom: 2px;
-        }
-
-        .file-item:hover {
-          background: rgba(59, 130, 246, 0.1);
-          color: #e2e8f0;
-        }
-
-        .file-item.active {
-          background: rgba(59, 130, 246, 0.2);
-          color: #3b82f6;
-          border-right: 2px solid #3b82f6;
-        }
-
-        .sidebar-ad {
-            margin-top: auto;
-            padding: 16px;
-        }
-
-        .ad-content {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.2));
-            padding: 16px;
-            border-radius: 12px;
-            border: 1px solid rgba(59, 130, 246, 0.2);
-            text-align: center;
-        }
-
-        .ad-content p {
-            font-size: 11px;
-            font-weight: 600;
-            margin: 0 0 12px 0;
-        }
-
-        .ad-content button {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 10px;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        .devcpp-main {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        .editor-tabs {
-          height: 36px;
-          display: flex;
-          background: rgba(30, 41, 59, 0.5);
-          gap: 2px;
-          padding: 0 8px;
-        }
-
-        .editor-tab {
-          display: flex;
-          align-items: center;
-          padding: 0 16px;
-          font-size: 12px;
-          color: #94a3b8;
-          cursor: pointer;
-          position: relative;
-        }
-
-        .editor-tab.active {
-          color: #3b82f6;
-          background: rgba(59, 130, 246, 0.05);
-        }
-
-        .tab-indicator {
+        .editor-textarea {
           position: absolute;
-          bottom: 0;
+          top: 0;
           left: 0;
-          right: 0;
-          height: 2px;
-          background: #3b82f6;
-        }
-
-        .editor-body {
-          flex: 1;
+          width: 100%;
+          height: 100%;
           padding: 20px;
+          background: transparent;
+          color: transparent;
+          caret-color: ${theme === 'modern' ? '#3b82f6' : '#000'};
+          border: none;
+          outline: none;
+          resize: none;
           font-family: 'Cascadia Code', 'Consolas', monospace;
           font-size: 14px;
           line-height: 1.6;
+          white-space: pre;
           overflow: auto;
-          background: rgba(15, 23, 42, 0.6);
+          z-index: 2;
+          padding-left: 56px;
         }
 
-        .devcpp-line {
-          display: flex;
-          gap: 24px;
+        .line-highlight {
+          position: absolute;
+          left: 0;
+          right: 0;
+          height: 1.6em;
+          background: ${theme === 'modern' ? 'rgba(59, 130, 246, 0.15)' : '#fff8dc'};
+          border-top: 1px solid ${theme === 'modern' ? 'rgba(59, 130, 246, 0.2)' : '#e0d8b0'};
+          border-bottom: 1px solid ${theme === 'modern' ? 'rgba(59, 130, 246, 0.2)' : '#e0d8b0'};
+          pointer-events: none;
+          z-index: 0;
         }
 
-        .devcpp-ln {
-          width: 32px;
-          text-align: right;
-          color: #475569;
-          user-select: none;
-        }
-
-        .devcpp-bottom {
-          height: 180px;
-          display: flex;
-          flex-direction: column;
-          background: #020617;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .bottom-tabs {
-            display: flex;
-            height: 32px;
-            background: #0f172a;
-            padding: 0 16px;
-        }
-
-        .bottom-tab {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 0 16px;
-            font-size: 11px;
-            color: #64748b;
-            cursor: pointer;
-        }
-
-        .bottom-tab.active {
-            color: #e2e8f0;
-            border-bottom: 2px solid #3b82f6;
+        .editor-highlight {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          padding: 20px;
+          pointer-events: none;
+          font-family: 'Cascadia Code', 'Consolas', monospace;
+          font-size: 14px;
+          line-height: 1.6;
+          white-space: pre;
+          overflow: hidden;
+          z-index: 1;
+          color: ${theme === 'classic' ? '#000' : 'inherit'};
         }
 
         .bottom-content {
@@ -616,61 +672,58 @@ const DevCpp2026: React.FC = () => {
           font-family: 'Consolas', monospace;
           font-size: 12px;
           overflow-y: auto;
-          color: #cbd5e1;
+          color: ${theme === 'modern' ? '#cbd5e1' : '#fff'};
+          background: ${theme === 'modern' ? '#020617' : '#000080'};
         }
 
-        .terminal-line {
-          margin-bottom: 4px;
+        .bottom-content.waiting {
+          box-shadow: inset 0 0 15px rgba(59, 130, 246, 0.4);
         }
 
-        .compiling-loader {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-top: 12px;
-            color: #fbbf24;
+        .terminal-input-row {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          margin-top: 4px;
         }
 
-        .spinner {
-            width: 14px;
-            height: 14px;
-            border: 2px solid rgba(251, 191, 36, 0.3);
-            border-top-color: #fbbf24;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+        .term-input-field {
+          background: transparent;
+          border: none;
+          outline: none;
+          color: #fff;
+          font-family: inherit;
+          font-size: inherit;
+          flex: 1;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .terminal-cursor {
+          animation: blink 1s step-end infinite;
+          color: #3b82f6;
+        }
+
+        @keyframes blink {
+          50% { opacity: 0; }
         }
 
         .devcpp-status {
-          height: 24px;
+          height: 28px;
           display: flex;
           align-items: center;
           justify-content: space-between;
           padding: 0 12px;
-          background: #3b82f6;
-          color: white;
+          background: ${theme === 'modern' ? '#3b82f6' : '#d4d0c8'};
+          color: ${theme === 'modern' ? 'white' : '#000'};
           font-size: 11px;
+          border-top: ${theme === 'classic' ? '1px solid #fff' : 'none'};
         }
 
-        .status-left, .status-right {
+        .theme-classic .status-sep { background: #808080; }
+        
+        .cursor-pos, .info-item {
           display: flex;
           align-items: center;
-          gap: 12px;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .status-sep {
-          width: 1px;
-          height: 14px;
-          background: rgba(255, 255, 255, 0.3);
+          gap: 6px;
         }
       `}</style>
     </div>

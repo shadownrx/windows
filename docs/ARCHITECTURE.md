@@ -1,4 +1,4 @@
-# Arquitectura Técnica de NEX OS
+# Arquitectura del WebOS
 
 NEX OS está diseñado bajo los principios de modularidad y alto rendimiento. Esta página detalla los componentes principales que hacen que el sistema funcione.
 

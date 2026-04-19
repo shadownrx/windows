@@ -93,4 +93,4 @@ Para profundizar en la ingeniería de NEX, consulta nuestras guías detalladas:
 > [!NOTE]
 > Este proyecto es una demostración técnica de capacidades frontend modernas y no está afiliado a Microsoft.
 
-© 2026 NEX OS Team.
+© 2026 Salvador Juarez.

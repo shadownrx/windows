@@ -1,6 +1,6 @@
-# El Puente WASM: AssemblyScript en NEX OS
+# El Puente WASM: AssemblyScript en WebOs
 
-Para lograr un rendimiento premium, NEX OS delega cálculos intensivos a **WebAssembly (WASM)**. Utilizamos **AssemblyScript** para escribir estos módulos, lo que nos permite mantener una sintaxis familiar a TypeScript mientras obtenemos beneficios de rendimiento significativos.
+Para lograr un rendimiento premium, WebOs delega cálculos intensivos a **WebAssembly (WASM)**. Utilizamos **AssemblyScript** para escribir estos módulos, lo que nos permite mantener una sintaxis familiar a TypeScript mientras obtenemos beneficios de rendimiento significativos.
 
 ## 🚀 ¿Por qué WASM?
 
@@ -50,4 +50,4 @@ Esto generará los archivos `.wasm` optimizados en la carpeta `build/` (o la car
 
 ---
 
-© 2026 NEX Engineering Team.
+© 2026 Salvador juarez.

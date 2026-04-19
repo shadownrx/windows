@@ -1,6 +1,6 @@
-# Guía de Contribución a NEX OS
+# Guía de Contribución a WebOs
 
-¡Gracias por tu interés en mejorar NEX! Este proyecto busca empujar los límites de lo que es posible en la web, y tu ayuda es invaluable.
+¡Gracias por tu interés en mejorar WebOs! Este proyecto busca empujar los límites de lo que es posible en la web, y tu ayuda es invaluable.
 
 ## 🚀 Cómo Empezar
 

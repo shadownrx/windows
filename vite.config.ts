@@ -62,6 +62,51 @@ const processBridge = () => ({
         return
       }
 
+      if (req.url === '/api/compile-run' && req.method === 'POST') {
+        let body = '';
+        req.on('data', (chunk: any) => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const { files, mainFile } = JSON.parse(body);
+            const fs = await import('fs/promises');
+            const path = await import('path');
+            const os = await import('os');
+
+            const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'devcpp-'));
+            
+            // Write all files to temp dir
+            for (const name in files) {
+              const filePath = path.join(tempDir, name);
+              await fs.mkdir(path.dirname(filePath), { recursive: true });
+              await fs.writeFile(filePath, files[name].content);
+            }
+
+            const outputFile = path.join(tempDir, 'program.exe');
+            const mainPath = path.join(tempDir, mainFile);
+
+            // Try to compile with g++
+            try {
+              await execAsync(`g++ -O3 "${mainPath}" -o "${outputFile}"`, { cwd: tempDir });
+              
+              // If successful, run it
+              const { stdout, stderr } = await execAsync(`"${outputFile}"`, { cwd: tempDir, timeout: 5000 });
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, output: stdout, errors: stderr }));
+            } catch (compileErr: any) {
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, output: '', errors: compileErr.stderr || compileErr.message }));
+            } finally {
+              // Cleanup
+              setTimeout(() => fs.rm(tempDir, { recursive: true, force: true }).catch(() => {}), 1000);
+            }
+          } catch (err: any) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+
       next()
     })
   }

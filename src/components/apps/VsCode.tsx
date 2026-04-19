@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-const VSCODE_FILES: Record<string, { content: string; language: string }> = {
+const INITIAL_VSCODE_FILES: Record<string, { content: string; language: string }> = {
   'index.tsx': {
     language: 'tsx',
     content: `import React from 'react';
@@ -24,6 +24,7 @@ function App() {
   return (
     <div className="app">
       <h1>Hello Windows 11</h1>
+      <p>Editing this will change the terminal output!</p>
       <button onClick={() => setCount(c => c + 1)}>
         Count: {count}
       </button>
@@ -183,6 +184,7 @@ function tokenize(code: string, lang: string): React.ReactNode[] {
 }
 
 const VsCode: React.FC = () => {
+  const [files, setFiles] = useState(INITIAL_VSCODE_FILES);
   const [activeFile, setActiveFile] = useState('App.tsx');
   const [openFiles, setOpenFiles] = useState<string[]>(['App.tsx', 'index.css']);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -194,8 +196,10 @@ const VsCode: React.FC = () => {
   ]);
   const [termInput, setTermInput] = useState('');
   const termRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
 
-  const file = VSCODE_FILES[activeFile];
+  const file = files[activeFile];
 
   const openFile = (name: string) => {
     if (!openFiles.includes(name)) setOpenFiles(prev => [...prev, name]);
@@ -209,18 +213,42 @@ const VsCode: React.FC = () => {
     if (activeFile === name) setActiveFile(next[next.length - 1] ?? '');
   };
 
+  const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newContent = e.target.value;
+    setFiles(prev => ({
+      ...prev,
+      [activeFile]: {
+        ...prev[activeFile],
+        content: newContent
+      }
+    }));
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = e.currentTarget.scrollTop;
+      highlightRef.current.scrollLeft = e.currentTarget.scrollLeft;
+    }
+  };
+
   const handleTermInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       const cmd = termInput.trim();
       const output: string[] = [];
-      if (cmd === 'npm run dev') {
+      if (cmd === 'npm run dev' || cmd === 'npm start') {
         output.push('> vite', '', 'VITE v5.4.2  ready in 312 ms', '  ➜  Local:   http://localhost:5173/');
+        // Realistic check for errors in App.tsx
+        if (files['App.tsx'].content.includes('error') || !files['App.tsx'].content.includes('return')) {
+            output.push('', '[vite] Internal server error: Failed to parse source for /src/App.tsx', '  1 |  import React from "react";', '  > 2 |  const App = () => { error }');
+        }
       } else if (cmd === 'ls' || cmd === 'dir') {
-        output.push('index.tsx  App.tsx  package.json  index.css  README.md');
+        output.push(Object.keys(files).join('  '));
       } else if (cmd === 'clear' || cmd === 'cls') {
         setTerminalLines([]);
         setTermInput('');
         return;
+      } else if (cmd === 'cat ' + activeFile) {
+        output.push(...files[activeFile].content.split('\n'));
       } else if (cmd) {
         output.push(`bash: ${cmd}: command not found`);
       }
@@ -266,7 +294,7 @@ const VsCode: React.FC = () => {
               <svg viewBox="0 0 24 24" width="14" height="14"><path fill="#c8c8c8" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
               <span>windows</span>
             </div>
-            {Object.keys(VSCODE_FILES).map(fname => (
+            {Object.keys(files).map(fname => (
               <div
                 key={fname}
                 className={`vsc-file ${activeFile === fname ? 'vsc-file-active' : ''}`}
@@ -306,8 +334,19 @@ const VsCode: React.FC = () => {
 
         {/* Editor */}
         {activeFile && file ? (
-          <div className="vsc-editor">
-            <div className="vsc-code">
+          <div className="vsc-editor-container">
+            <textarea
+              ref={editorRef}
+              className="vsc-textarea"
+              value={file.content}
+              onChange={handleCodeChange}
+              onScroll={handleScroll}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoComplete="off"
+              autoCorrect="off"
+            />
+            <div className="vsc-highlight" ref={highlightRef}>
               {tokenize(file.content, file.language)}
             </div>
           </div>
@@ -539,16 +578,51 @@ const VsCode: React.FC = () => {
         .vsc-tab-close:hover { background: rgba(255,255,255,0.15); color: white; }
 
         /* Editor */
-        .vsc-editor {
+        .vsc-editor-container {
           flex: 1;
-          overflow: auto;
+          position: relative;
           background: #1e1e1e;
+          overflow: hidden;
+        }
+
+        .vsc-textarea {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
           padding: 8px 0;
+          background: transparent;
+          color: transparent;
+          caret-color: #aeafad;
+          border: none;
+          outline: none;
+          resize: none;
+          font-family: 'Consolas', 'Courier New', monospace;
+          font-size: 13px;
+          line-height: 19px;
+          white-space: pre;
+          overflow: auto;
+          z-index: 2;
+          padding-left: 58px; /* Offset for line numbers */
         }
-        .vsc-code {
-          min-width: 100%;
-          display: inline-block;
+
+        .vsc-highlight {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          padding: 8px 0;
+          pointer-events: none;
+          font-family: 'Consolas', 'Courier New', monospace;
+          font-size: 13px;
+          line-height: 19px;
+          white-space: pre;
+          overflow: hidden;
+          z-index: 1;
         }
+
         .vsc-line {
           display: flex;
           align-items: baseline;

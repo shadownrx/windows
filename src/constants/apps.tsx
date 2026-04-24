@@ -19,6 +19,9 @@ import ControlPanel from '../components/apps/ControlPanel';
 import Calendar from '../components/apps/Calendar';
 import SearchApp from '../components/apps/SearchApp';
 import WindowsDefender from '../components/apps/WindowsDefender';
+import Calculator from '../components/apps/Calculator';
+import Notepad from '../components/apps/Notepad';
+import Cmd from '../components/apps/Cmd';
 
 export interface AppItem {
   id: string;
@@ -29,8 +32,8 @@ export interface AppItem {
 
 export const APPS: AppItem[] = [
   { id: 'search', icon: <Search24Regular />, label: 'Buscar', component: (props) => <SearchApp {...props} /> },
-  { id: 'files', icon: <Folder24Regular />, label: 'Explorador', component: (props) => <FileExplorer {...props} /> },
-  { id: 'chrome', icon: <ChromeIcon />, label: 'Chrome', component: (props) => <BrowserApp {...props} /> },
+  { id: 'files', icon: <Folder24Regular />, label: 'Explorador de archivos', component: (props) => <FileExplorer {...props} /> },
+  { id: 'chrome', icon: <ChromeIcon />, label: 'Google Chrome', component: (props) => <BrowserApp {...props} /> },
   { 
     id: 'vscode', 
     icon: (
@@ -42,9 +45,12 @@ export const APPS: AppItem[] = [
     component: (props) => <Vscode {...props} /> 
   },
   { id: 'paint', icon: <Edit24Regular />, label: 'Paint', component: (props) => <Paint {...props} /> },
-  { id: 'control-panel', icon: <Settings24Regular />, label: 'Settings', component: (props) => <ControlPanel {...props} /> },
+  { id: 'control-panel', icon: <Settings24Regular />, label: 'Configuración', component: (props) => <ControlPanel {...props} /> },
   { id: 'wordpad', icon: <Document24Regular />, label: 'WordPad', component: (props) => <WordPad {...props} /> },
-  { id: 'task-manager', icon: <Apps24Regular />, label: 'Task Manager', component: (props) => <TaskManager {...props} /> },
-  { id: 'calendar', icon: <Calendar24Regular />, label: 'Calendar', component: (props) => <Calendar {...props} /> },
+  { id: 'task-manager', icon: <Apps24Regular />, label: 'Administrador de tareas', component: (props) => <TaskManager {...props} /> },
+  { id: 'calendar', icon: <Calendar24Regular />, label: 'Calendario', component: (props) => <Calendar {...props} /> },
   { id: 'defender', icon: <ShieldCheckmark24Regular />, label: 'Seguridad de Windows', component: (props) => <WindowsDefender {...props} /> },
+  { id: 'calculator', icon: <Apps24Regular />, label: 'Calculadora', component: (props) => <Calculator {...props} /> },
+  { id: 'notepad', icon: <Document24Regular />, label: 'Bloc de notas', component: (props) => <Notepad {...props} /> },
+  { id: 'terminal', icon: <span style={{ fontFamily: 'Consolas, monospace', fontSize: 16 }}>C:\\</span>, label: 'Terminal', component: (props) => <Cmd {...props} /> },
 ];

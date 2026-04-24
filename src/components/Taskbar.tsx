@@ -159,7 +159,7 @@ const Taskbar: React.FC<TaskbarProps> = ({
           transition: all 0.2s;
           margin: 0 4px;
         }
-        .taskbar-search-pill:hover { background: rgba(255,255,255,0.12); width: 140px; }
+        .taskbar-search-pill:hover { background: rgba(255,255,255,0.12); width: 160px; }
         .taskbar-search-pill span { font-size: 13px; color: rgba(255,255,255,0.9); }
         .search-pill-icon { color: var(--win-accent); font-size: 18px; }
 

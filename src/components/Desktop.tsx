@@ -225,7 +225,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
       }
       if (e.metaKey && e.key.toLowerCase() === 'e') {
         e.preventDefault();
-        openWindow('file-explorer', 'File Explorer', <Desktop24Regular />, <div className="p-4">File Explorer no está disponible aun.</div>);
+        openWindow('file-explorer', 'Explorador de archivos', <Desktop24Regular />, <div className="p-4">El Explorador de archivos no está disponible aún.</div>);
       }
       if (e.metaKey && e.key.toLowerCase() === 'r') {
         e.preventDefault();

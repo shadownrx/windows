@@ -118,7 +118,7 @@ const NotificationsMenu: React.FC<NotificationsMenuProps> = ({ isOpen, onClose }
         </div>
         <div className="footer-right">
           <button className="footer-icon-btn" onClick={() => window.alert('Próximamente')}><Edit24Regular /></button>
-          <button className="footer-icon-btn" onClick={() => window.alert('Settings')}><Settings24Regular /></button>
+          <button className="footer-icon-btn" onClick={() => window.alert('Configuración')}><Settings24Regular /></button>
         </div>
       </div>
 

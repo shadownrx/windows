@@ -1,3 +1,16 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Play24Filled,
+  Wrench24Filled,
+  Bug24Filled,
+  ArrowClockwise24Filled,
+  Folder24Filled,
+  Document24Regular,
+  ChevronRight24Regular,
+  MoreHorizontal24Regular,
+  Search24Regular,
+  Settings24Regular,
+  WindowConsoleRegular,
   Circle24Filled,
   CursorClick24Regular,
   Options24Regular,
@@ -198,7 +211,7 @@ const DevCpp2026: React.FC = () => {
       const end = e.currentTarget.selectionEnd;
       const newVal = file.content.substring(0, start) + "    " + file.content.substring(end);
       
-      setFiles(prev => ({
+      setFiles((prev: any) => ({
         ...prev,
         [activeFile]: { ...prev[activeFile], content: newVal }
       }));
@@ -222,7 +235,7 @@ const DevCpp2026: React.FC = () => {
       if (indent.length > 0) {
         e.preventDefault();
         const newVal = file.content.substring(0, start) + "\n" + indent + file.content.substring(start);
-        setFiles(prev => ({
+        setFiles((prev: any) => ({
           ...prev,
           [activeFile]: { ...prev[activeFile], content: newVal }
         }));
@@ -241,7 +254,7 @@ const DevCpp2026: React.FC = () => {
       const start = e.currentTarget.selectionStart;
       const end = e.currentTarget.selectionEnd;
       const newVal = file.content.substring(0, start) + e.key + pairs[e.key] + file.content.substring(end);
-      setFiles(prev => ({
+      setFiles((prev: any) => ({
         ...prev,
         [activeFile]: { ...prev[activeFile], content: newVal }
       }));
@@ -257,7 +270,7 @@ const DevCpp2026: React.FC = () => {
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value;
-    setFiles(prev => ({
+    setFiles((prev: any) => ({
       ...prev,
       [activeFile]: {
         ...prev[activeFile],
@@ -270,7 +283,7 @@ const DevCpp2026: React.FC = () => {
   const handleCompile = async () => {
     setIsCompiling(true);
     setStatus('Compilando...');
-    setTerminalLines(prev => [...prev, `[${new Date().toLocaleTimeString()}] g++ -O3 ${activeFile} -o main.exe`]);
+    setTerminalLines((prev: string[]) => [...prev, `[${new Date().toLocaleTimeString()}] g++ -O3 ${activeFile} -o main.exe`]);
     
     // Check if backend API is available
     try {
@@ -285,11 +298,11 @@ const DevCpp2026: React.FC = () => {
         setIsCompiling(false);
         if (result.success) {
           setStatus('Compilación finalizada con éxito');
-          setTerminalLines(prev => [...prev, 'Compilation finished successfully.', 'Output written to main.exe']);
+          setTerminalLines((prev: string[]) => [...prev, 'Compilation finished successfully.', 'Output written to main.exe']);
           return true;
         } else {
           setStatus('Error en la compilación');
-          setTerminalLines(prev => [...prev, ...result.errors.split('\n')]);
+          setTerminalLines((prev: string[]) => [...prev, ...result.errors.split('\n')]);
           return false;
         }
       }
@@ -299,18 +312,18 @@ const DevCpp2026: React.FC = () => {
 
     // Fallback to Simulation Engine
     return new Promise((resolve) => {
-        setTimeout(() => {
+        setTimeout(async () => {
           setIsCompiling(false);
-          const engine = new CppEngine(files);
-          const result = engine.execute(activeFile);
+          const engine = new CppEngine(files, { cout: () => {}, cin: async () => "" });
+          const result = await engine.execute(activeFile);
           
           if (result.errors.length > 0) {
             setStatus('Error en la compilación');
-            setTerminalLines(prev => [...prev, ...result.errors]);
+            setTerminalLines((prev: string[]) => [...prev, ...result.errors]);
             resolve(false);
           } else {
             setStatus('Compilación finalizada con éxito');
-            setTerminalLines(prev => [...prev, 'Compilation finished successfully (Simulated).', 'Output written to main.exe']);
+            setTerminalLines((prev: string[]) => [...prev, 'Compilation finished successfully (Simulated).', 'Output written to main.exe']);
             resolve(true);
           }
         }, 1200);
@@ -321,16 +334,16 @@ const DevCpp2026: React.FC = () => {
     if (isRunning) return;
     setIsRunning(true);
     setStatus('Ejecutando...');
-    setTerminalLines(prev => [...prev, '❯ Running main.exe...', '========================================']);
+    setTerminalLines((prev: string[]) => [...prev, '❯ Running main.exe...', '========================================']);
     
     const ioBridge = {
       cout: async (val: string) => {
         // Character streaming effect for realism
         if (val.length > 50) {
-           setTerminalLines(prev => [...prev, val]);
+           setTerminalLines((prev: string[]) => [...prev, val]);
         } else {
           for (let i = 0; i < val.length; i++) {
-            setTerminalLines(prev => {
+            setTerminalLines((prev: string[]) => {
               const last = prev[prev.length - 1];
               if (last.startsWith('❯') || last === '========================================' || last === '') {
                 return [...prev, val[i]];
@@ -359,7 +372,7 @@ const DevCpp2026: React.FC = () => {
     const engine = new CppEngine(files, ioBridge);
     const result = await engine.execute(activeFile);
 
-    setTerminalLines(prev => [...prev, '', '========================================', 'Process exited with return value ' + result.exitCode]);
+    setTerminalLines((prev: string[]) => [...prev, '', '========================================', 'Process exited with return value ' + result.exitCode]);
     setStatus('Listo');
     setIsRunning(false);
   };
@@ -368,7 +381,7 @@ const DevCpp2026: React.FC = () => {
     e.preventDefault();
     if (resolveInputRef.current && inputBuffer) {
       const val = inputBuffer;
-      setTerminalLines(prev => [...prev, `> ${val}`]);
+      setTerminalLines((prev: string[]) => [...prev, `> ${val}`]);
       setInputBuffer('');
       resolveInputRef.current(val);
       resolveInputRef.current = null;

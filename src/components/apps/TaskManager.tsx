@@ -591,10 +591,10 @@ export default function TaskManager() {
           {activeTab === "perf" && (
             <div className="tm-scroll" style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", gap: 12, flexWrap: "wrap", alignContent: "flex-start" }}>
               {[
-                { title: "CPU", value: `${avgCpu.toFixed(0)}%`, sub: "Host Processor · Real Data", color: "#60cdff", history: cpuHistory },
-                { title: "Memoria", value: `${memPct}%`, sub: `${(totalMem / 1024).toFixed(1)} / 32.0 GB in use`, color: "#c48dfb", history: memHistory },
-                { title: "GPU", value: `${(Math.random() * 5).toFixed(0)}%`, sub: "AMD Radeon(TM) Graphics · WebGPU Active", color: "#9bcf8f", history: netHistory },
-                { title: "Disco 0 (C:) SSD", value: `${totalDisk}%`, sub: "Active PC monitoring", color: "#60cdff", history: diskHistory },
+                { title: "CPU", value: `${avgCpu.toFixed(0)}%`, sub: "Procesador · Datos reales", color: "#60cdff", history: cpuHistory },
+                { title: "Memoria", value: `${memPct}%`, sub: `${(totalMem / 1024).toFixed(1)} / 32.0 GB en uso`, color: "#c48dfb", history: memHistory },
+                { title: "GPU", value: `${(Math.random() * 5).toFixed(0)}%`, sub: "Gráficos · WebGPU activo", color: "#9bcf8f", history: netHistory },
+                { title: "Disco 0 (C:) SSD", value: `${totalDisk}%`, sub: "Monitoreo activo", color: "#60cdff", history: diskHistory },
               ].map((card) => (
                 <div key={card.title} style={{
                   background: "#2b2b2b",

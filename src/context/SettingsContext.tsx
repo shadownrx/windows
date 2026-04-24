@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type SystemState = 'OFF' | 'BOOTING' | 'LOGIN' | 'DESKTOP' | 'SHUTTING_DOWN' | 'RESTARTING';
+export type SystemState = 'OFF' | 'BOOTING' | 'UEFI' | 'LOGIN' | 'DESKTOP' | 'SHUTTING_DOWN' | 'RESTARTING';
 
 export interface Notification {
   id: string;
@@ -27,6 +27,8 @@ interface SettingsContextType {
   setUserName: (name: string) => void;
   systemState: SystemState;
   setSystemState: (state: SystemState) => void;
+  osType: 'windows' | 'nexos';
+  setOsType: (os: 'windows' | 'nexos') => void;
   updateStatus: 'idle' | 'checking' | 'downloading' | 'up-to-date';
   setUpdateStatus: (status: 'idle' | 'checking' | 'downloading' | 'up-to-date') => void;
   lockSystem: () => void;
@@ -52,6 +54,9 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [systemState, setSystemState] = useState<SystemState>('OFF');
+  const [osType, setOsType] = useState<'windows' | 'nexos'>(() => 
+    (localStorage.getItem('win11_osType') as 'windows' | 'nexos') || 'windows'
+  );
   const [brightness, setBrightness] = useState(() => 
     Number(localStorage.getItem('win11_brightness')) || 100
   );
@@ -161,6 +166,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('win11_userName', userName);
   }, [userName]);
 
+  useEffect(() => {
+    localStorage.setItem('win11_osType', osType);
+  }, [osType]);
+
   return (
     <SettingsContext.Provider value={{
       brightness, setBrightness,
@@ -171,6 +180,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       isNightLightEnabled, setIsNightLightEnabled,
       userName, setUserName,
       systemState, setSystemState,
+      osType, setOsType,
       updateStatus, setUpdateStatus,
       lockSystem,
       notifications, addNotification, removeNotification,

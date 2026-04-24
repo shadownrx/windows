@@ -9,7 +9,7 @@ interface LoginScreenProps {
 import { useSettings } from '../../context/SettingsContext';
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, wallpaper }) => {
-  const { userName } = useSettings();
+  const { userName, osType } = useSettings();
   const [showLogin, setShowLogin] = useState(false);
   const [time, setTime] = useState(new Date());
   const [pin, setPin] = useState('');
@@ -53,8 +53,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, wallpaper }) => {
         justifyContent: 'center',
         position: 'relative',
         overflow: 'hidden',
-        fontFamily: '"Segoe UI Variable Display", "Segoe UI", sans-serif',
-        backgroundImage: `url("${wallpaper}")`,
+        fontFamily: osType === 'nexos' ? '"JetBrains Mono", monospace' : '"Segoe UI Variable Display", "Segoe UI", sans-serif',
+        backgroundImage: osType === 'nexos' 
+          ? 'linear-gradient(to bottom, #000, #0a0a0a), url("https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=2070")'
+          : `url("${wallpaper}")`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         userSelect: 'none',
@@ -82,19 +84,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, wallpaper }) => {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          color: 'white',
-          textShadow: '0 2px 10px rgba(0,0,0,0.3)',
+          color: osType === 'nexos' ? '#00ffff' : 'white',
+          textShadow: osType === 'nexos' ? '0 0 20px rgba(0,255,255,0.6)' : '0 2px 10px rgba(0,0,0,0.3)',
           cursor: 'pointer',
           transform: showLogin ? 'translateY(-100px)' : 'translateY(0)',
           opacity: showLogin ? 0 : 1,
           pointerEvents: showLogin ? 'none' : 'auto',
           transition: 'transform 0.5s cubic-bezier(0.2, 0, 0, 1), opacity 0.3s ease',
+          fontFamily: osType === 'nexos' ? '"JetBrains Mono", monospace' : 'inherit',
         }}
       >
-        <span style={{ fontSize: '7.5rem', fontWeight: 500, lineHeight: 1, letterSpacing: '-0.02em', textShadow: '0px 2px 20px rgba(0,0,0,0.3)' }}>
+        <span style={{ fontSize: '7.5rem', fontWeight: osType === 'nexos' ? 700 : 500, lineHeight: 1, letterSpacing: '-0.02em' }}>
           {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
-        <span style={{ fontSize: '1.5rem', fontWeight: 600, marginTop: '8px', textTransform: 'capitalize' }}>
+        <span style={{ fontSize: '1.5rem', fontWeight: 600, marginTop: '8px', textTransform: 'uppercase', letterSpacing: osType === 'nexos' ? '4px' : 'normal' }}>
            {new Intl.DateTimeFormat('es-ES', { weekday: 'long', month: 'long', day: 'numeric' }).format(time)}
         </span>
       </div>
@@ -138,12 +141,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, wallpaper }) => {
 
         {/* User Name */}
         <h1 style={{ 
-          color: 'white', 
+          color: osType === 'nexos' ? '#00ffff' : 'white', 
           fontSize: '36px', 
           fontWeight: 600, 
           margin: '0 0 24px 0', 
-          textShadow: '0 2px 4px rgba(0,0,0,0.3)',
-          letterSpacing: '-0.01em'
+          textShadow: osType === 'nexos' ? '0 0 15px rgba(0,255,255,0.5)' : '0 2px 4px rgba(0,0,0,0.3)',
+          letterSpacing: '-0.01em',
+          textTransform: osType === 'nexos' ? 'uppercase' : 'none'
         }}>
           {userName}
         </h1>

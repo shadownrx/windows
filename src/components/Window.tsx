@@ -97,14 +97,14 @@ const Window: React.FC<WindowProps> = ({ window }) => {
       initial={{ scale: 0.9, opacity: 0, y: 40, filter: 'blur(10px)' }}
       exit={{ scale: 0.9, opacity: 0, y: 40, filter: 'blur(10px)', transition: { duration: 0.2, ease: [0.4, 0, 0.2, 1] } }}
       animate={{ 
-        scale: window.isMinimized ? 0.8 : 1, 
+        scale: window.isMinimized ? 0.7 : 1, 
         opacity: window.isMinimized ? 0 : 1,
-        y: window.isMinimized ? 100 : 0,
-        filter: window.isMinimized ? 'blur(10px)' : 'blur(0px)',
+        y: window.isMinimized ? 150 : 0,
+        filter: window.isMinimized ? 'blur(20px)' : 'blur(0px)',
         width: window.isMaximized ? '100vw' : (window.snap?.includes('left') || window.snap?.includes('right')) ? '50vw' : size.width,
         height: window.isMaximized ? 'calc(100vh - var(--taskbar-height))' : 
                 (window.snap?.includes('top') || window.snap?.includes('bottom')) ? 'calc((100vh - var(--taskbar-height)) / 2)' : 
-                'calc(100vh - var(--taskbar-height) - 40px)',
+                size.height,
         top: window.isMaximized ? 0 : 
              window.snap?.includes('top') ? 0 : 
              window.snap?.includes('bottom') ? 'calc((100vh - var(--taskbar-height)) / 2)' : 
@@ -210,7 +210,7 @@ const Window: React.FC<WindowProps> = ({ window }) => {
         <div className="window-controls" onMouseDown={(e) => e.stopPropagation()}>
           <button onClick={() => snapWindow(window.id, 'left')} title="Acoplar izquierda">◀</button>
           <button onClick={() => snapWindow(window.id, 'right')} title="Acoplar derecha">▶</button>
-          <button onClick={() => minimizeWindow(window.id)}><Subtract20Regular /></button>
+          <button onClick={() => minimizeWindow(window.id)} title="Minimizar"><Subtract20Regular /></button>
           <div 
             style={{ position: 'relative', height: '100%', display: 'flex' }}
             onMouseEnter={() => setShowSnapLayouts(true)}

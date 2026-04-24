@@ -58,16 +58,16 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
 
   const pinnedApps = [
     { id: 'browser', icon: <Globe24Regular />, name: 'Edge', color: '#0078d4' },
-    { id: 'files', icon: <Folder24Regular />, name: 'Explorer', color: '#f1c40f', component: <FileExplorer /> },
-    { id: 'notepad', icon: <Document24Regular />, name: 'Notepad', color: '#4CAF50', component: <Notepad /> },
-    { id: 'calculator', icon: <Calculator24Regular />, name: 'Calc', color: '#D32F2F', component: <Calculator /> },
+    { id: 'files', icon: <Folder24Regular />, name: 'Explorador', color: '#f1c40f', component: <FileExplorer /> },
+    { id: 'notepad', icon: <Document24Regular />, name: 'Bloc de notas', color: '#4CAF50', component: <Notepad /> },
+    { id: 'calculator', icon: <Calculator24Regular />, name: 'Calculadora', color: '#D32F2F', component: <Calculator /> },
     { id: 'cmd', icon: <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, name: 'Terminal', color: '#64b5f6', component: <Cmd /> },
     { id: 'paint', icon: <Edit24Regular />, name: 'Paint', color: '#FF6E40', component: <Paint /> },
     { id: 'wordpad', icon: <Document24Regular />, name: 'WordPad', color: '#4CAF50', component: <WordPad /> },
-    { id: 'task-manager', icon: <Apps24Regular />, name: 'Task Manager', color: '#2196F3', component: <TaskManager /> },
-    { id: 'control-panel', icon: <Settings24Regular />, name: 'Settings', color: '#757575', component: <ControlPanel /> },
-    { id: 'calendar', icon: <Calendar24Regular />, name: 'Calendar', color: '#E91E63', component: <Calendar /> },
-    { id: 'search', icon: <Search24Regular />, name: 'Search', color: '#FF9800', component: <SearchApp /> },
+    { id: 'task-manager', icon: <Apps24Regular />, name: 'Admin. tareas', color: '#2196F3', component: <TaskManager /> },
+    { id: 'control-panel', icon: <Settings24Regular />, name: 'Configuración', color: '#757575', component: <ControlPanel /> },
+    { id: 'calendar', icon: <Calendar24Regular />, name: 'Calendario', color: '#E91E63', component: <Calendar /> },
+    { id: 'search', icon: <Search24Regular />, name: 'Buscar', color: '#FF9800', component: <SearchApp /> },
     { id: 'defender', icon: <ShieldCheckmark24Regular />, name: 'Seguridad', color: '#008a17', component: <WindowsDefender /> },
     { id: 'devcpp-2026', icon: <Play24Filled />, name: 'Dev-C++ 2026', color: '#3b82f6', component: <DevCpp2026 /> },
     { id: 'manual', icon: <Book24Regular />, name: 'Manual', color: '#3b82f6', component: <ManualApp /> },
@@ -75,10 +75,10 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
 
 
   const recommended = [
-    { name: 'Financial Report', date: 'Recently added' },
-    { name: 'Vacation Photos', date: '2h ago' },
-    { name: 'Project Roadmap', date: 'Yesterday' },
-    { name: 'Meeting Notes', date: 'March 20' },
+    { name: 'Informe Financiero', date: 'Agregado recientemente' },
+    { name: 'Fotos de Vacaciones', date: 'Hace 2 horas' },
+    { name: 'Hoja de Ruta Proyecto', date: 'Ayer' },
+    { name: 'Notas de la Reunión', date: '20 de marzo' },
   ];
 
   const filteredApps = pinnedApps.filter(app => 
@@ -117,7 +117,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
                 <Search24Regular className="search-icon" />
                 <input 
                   type="text" 
-                  placeholder="Search for apps, settings, and documents" 
+                  placeholder="Buscar aplicaciones, configuraciones y documentos" 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   autoFocus
@@ -128,8 +128,8 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
             <div className="scroll-content">
               <div className="section">
                 <div className="section-header">
-                  <h3>Pinned</h3>
-                  <button className="section-action">All apps &gt;</button>
+                  <h3>Anclado</h3>
+                  <button className="section-action">Todas las aplicaciones &gt;</button>
                 </div>
                 <div className="apps-grid">
                   {filteredApps.map((app, index) => (
@@ -145,8 +145,8 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
 
               <div className="section">
                 <div className="section-header">
-                  <h3>Recommended</h3>
-                  <button className="section-action">More &gt;</button>
+                  <h3>Recomendado</h3>
+                  <button className="section-action">Más &gt;</button>
                 </div>
                 <div className="recommended-grid">
                   {recommended.map((item, index) => (

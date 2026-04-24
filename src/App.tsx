@@ -21,8 +21,8 @@ function AppContent() {
     let timeout: ReturnType<typeof setTimeout>;
     if (systemState === 'BOOTING') {
       timeout = setTimeout(() => {
-        setSystemState('UEFI');
-      }, 2000);
+        setSystemState('LOGIN');
+      }, 3500); // Muestra el logo de carga del OS por 3.5s
     }
     else if (systemState === 'SHUTTING_DOWN') timeout = setTimeout(() => setSystemState('OFF'), 3000);
     else if (systemState === 'RESTARTING') timeout = setTimeout(() => setSystemState('BOOTING'), 2500);
@@ -56,12 +56,13 @@ function AppContent() {
       {systemState === 'DESKTOP' && <Background3D />}
 
       {/* 1. Ciclo de Vida: Pantallas */}
-      {systemState === 'OFF' && <OffScreen onPowerOn={() => setSystemState('BOOTING')} />}
+      {systemState === 'OFF' && <OffScreen onPowerOn={() => setSystemState('UEFI')} />}
       {systemState === 'BOOTING' && <BootScreen />}
       {systemState === 'UEFI' && (
         <UEFI
-          onBootWindows={() => setSystemState('LOGIN')}
+          onBootWindows={() => setSystemState('BOOTING')}
           onBootNexOS={() => {
+            // Podríamos añadir un BootScreen específico para NEX OS aquí
             setSystemState('LOGIN');
           }}
           setOsType={setOsType}

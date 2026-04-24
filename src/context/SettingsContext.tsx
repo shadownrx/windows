@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-export type SystemState = 'OFF' | 'BOOTING' | 'UEFI' | 'LOGIN' | 'DESKTOP' | 'SHUTTING_DOWN' | 'RESTARTING';
+export type SystemState = 'OFF' | 'BOOTING' | 'UEFI' | 'WINDOWS_BOOT' | 'LOGIN' | 'DESKTOP' | 'SHUTTING_DOWN' | 'RESTARTING';
 
 export interface Notification {
   id: string;
@@ -109,17 +109,17 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-  const addNotification = (title: string, message: string, icon?: React.ReactNode) => {
+  const addNotification = useCallback((title: string, message: string, icon?: React.ReactNode) => {
     const newNotif: Notification = { id: Math.random().toString(36), title, message, icon, timestamp: new Date() };
     setNotifications(prev => [newNotif, ...prev].slice(0, 5));
     playSound('notif');
-  };
+  }, []);
 
-  const removeNotification = (id: string) => {
+  const removeNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
-  };
+  }, []);
 
-  const playSound = (type: 'startup' | 'notif' | 'error') => {
+  const playSound = useCallback((type: 'startup' | 'notif' | 'error') => {
     const urls = {
       startup: 'https://archive.org/download/windows-11-original-sounds/Windows%20Logon.mp3',
       notif: 'https://archive.org/download/windows-11-original-sounds/Windows%20Notify%20System%20Generic.mp3',
@@ -128,7 +128,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const audio = new Audio(urls[type]);
     audio.volume = volume / 100;
     audio.play().catch(() => console.log('Audio blocked by browser policy'));
-  };
+  }, [volume]);
 
   const lockSystem = () => {
     if (systemState === 'DESKTOP') {

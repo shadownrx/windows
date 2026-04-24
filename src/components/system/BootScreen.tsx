@@ -1,31 +1,44 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useSettings } from '../../context/SettingsContext';
 
 const BootScreen: React.FC = () => {
+  const { setSystemState } = useSettings();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'f') {
+        setSystemState('UEFI');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setSystemState]);
+
   return (
-    <div className="w-full h-full bg-black flex flex-col items-center justify-center relative font-mono">
-      <div className="flex flex-wrap w-[80px] h-[80px] gap-1 animate-pulse">
-        <div className="w-[38px] h-[38px] bg-[#0078D4]"></div>
-        <div className="w-[38px] h-[38px] bg-[#0078D4]"></div>
-        <div className="w-[38px] h-[38px] bg-[#0078D4]"></div>
-        <div className="w-[38px] h-[38px] bg-[#0078D4]"></div>
+    <div className="w-full h-full bg-black flex flex-col items-center justify-center relative font-mono text-white">
+      {/* MOTHERBOARD LOGO (MOCKUP) */}
+      <div className="flex flex-col items-center gap-2 mb-12">
+        <div className="w-24 h-24 border-4 border-white flex items-center justify-center text-4xl font-black italic">
+          NEX
+        </div>
+        <div className="text-xs tracking-[0.3em] font-bold">MOTHERBOARD SERIES</div>
       </div>
       
-      <div className="absolute bottom-32 flex flex-col items-center gap-6">
-        <div className="loader"></div>
+      <div className="absolute bottom-12 flex flex-col items-center gap-4 opacity-40">
+        <p className="text-[10px] uppercase tracking-widest animate-pulse">
+          Presione [F] para entrar a la configuración de la UEFI
+        </p>
+        <div className="flex gap-8 text-[8px] uppercase">
+           <span>F12: Boot Menu</span>
+           <span>F2: Setup</span>
+           <span>DEL: Flash Utility</span>
+        </div>
       </div>
 
       <style>{`
-        .loader {
-          border: 4px solid rgba(255, 255, 255, 0.1);
-          border-left-color: #0078D4;
-          border-radius: 50%;
-          width: 40px;
-          height: 40px;
-          animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
+        @keyframes pulse {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 0.8; }
         }
       `}</style>
     </div>

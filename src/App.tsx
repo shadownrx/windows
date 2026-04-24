@@ -12,6 +12,7 @@ import { Info24Regular } from '@fluentui/react-icons';
 import Background3D from './components/system/Background3D';
 import UEFI from './components/system/UEFI';
 import NexDesktop from './components/nexos/NexDesktop';
+import WindowsBoot from './components/system/WindowsBoot';
 
 function AppContent() {
   const { isNightLightEnabled, systemState, setSystemState, addNotification, playSound, wallpaper, osType, setOsType } = useSettings();
@@ -21,15 +22,25 @@ function AppContent() {
     let timeout: ReturnType<typeof setTimeout>;
     if (systemState === 'BOOTING') {
       timeout = setTimeout(() => {
+        setOsType('windows'); // Windows 11 Pro por defecto
+        setSystemState('WINDOWS_BOOT');
+      }, 2500); // BIOS POST time
+    }
+    else if (systemState === 'WINDOWS_BOOT') {
+      timeout = setTimeout(() => {
         setSystemState('LOGIN');
-      }, 3500); // Muestra el logo de carga del OS por 3.5s
+      }, 3500); // Windows Loading time
     }
     else if (systemState === 'SHUTTING_DOWN') timeout = setTimeout(() => setSystemState('OFF'), 3000);
     else if (systemState === 'RESTARTING') timeout = setTimeout(() => setSystemState('BOOTING'), 2500);
 
     if (systemState === 'DESKTOP' && !hasLoggedInRef.current) {
-      playSound('startup');
-      addNotification('Bienvenido', 'Windows 11 está listo para usarse.', <Info24Regular />);
+      if (osType === 'windows') {
+        playSound('startup');
+        addNotification('Bienvenido', 'Windows 11 está listo para usarse.', <Info24Regular />);
+      } else {
+        // Sonido o notificación para NEX OS si se desea
+      }
       hasLoggedInRef.current = true;
     }
 
@@ -56,13 +67,13 @@ function AppContent() {
       {systemState === 'DESKTOP' && <Background3D />}
 
       {/* 1. Ciclo de Vida: Pantallas */}
-      {systemState === 'OFF' && <OffScreen onPowerOn={() => setSystemState('UEFI')} />}
+      {systemState === 'OFF' && <OffScreen onPowerOn={() => setSystemState('BOOTING')} />}
       {systemState === 'BOOTING' && <BootScreen />}
+      {systemState === 'WINDOWS_BOOT' && <WindowsBoot />}
       {systemState === 'UEFI' && (
         <UEFI
-          onBootWindows={() => setSystemState('BOOTING')}
+          onBootWindows={() => setSystemState('WINDOWS_BOOT')}
           onBootNexOS={() => {
-            // Podríamos añadir un BootScreen específico para NEX OS aquí
             setSystemState('LOGIN');
           }}
           setOsType={setOsType}

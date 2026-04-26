@@ -119,7 +119,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setNotifications(prev => prev.filter(n => n.id !== id));
   }, []);
 
-  const playSound = useCallback((type: 'startup' | 'notif' | 'error') => {
+  const playSound = useCallback((type: 'startup' | 'notif' | 'error' | 'beep') => {
     const urls = {
       startup: 'https://archive.org/download/windows-11-original-sounds/Windows%20Logon.mp3',
       notif: 'https://archive.org/download/windows-11-original-sounds/Windows%20Notify%20System%20Generic.mp3',

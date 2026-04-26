@@ -222,7 +222,7 @@ export default function TaskManager() {
 
   const [wasm, setWasm] = useState<any>(null);
 
-  const { windows } = useWindowManager();
+  const { windows, focusedWindowId } = useWindowManager();
 
   // Load Wasm module (optional, keeping it if it exists)
   useEffect(() => {
@@ -266,7 +266,7 @@ export default function TaskManager() {
         const stats = appStats[win.id.split('-')[0]] || { mem: 50, cpuBase: 1.0, name: win.title, icon: '#767676' };
         
         // Add some jitter to CPU and Memory
-        const activeCpu = win.isFocused ? (stats.cpuBase * 2) : stats.cpuBase;
+        const activeCpu = focusedWindowId === win.id ? (stats.cpuBase * 2) : stats.cpuBase;
         const currentCpu = Math.max(0, activeCpu + (Math.random() * activeCpu * 0.5));
         const currentMem = stats.mem + (Math.random() * 10 - 5);
 

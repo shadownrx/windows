@@ -53,7 +53,7 @@ function AppContent() {
 
 
   return (
-    <div className="w-screen h-screen bg-black overflow-hidden relative select-none">
+    <div className="w-screen h-screen bg-black overflow-hidden relative select-none gpu-accelerated">
       {/* 0. Capas globales (Brillo y Luz Nocturna) */}
       <div className="brightness-overlay" />
       {isNightLightEnabled && (
@@ -99,14 +99,20 @@ function AppContent() {
 }
 
 import { FileSystemProvider } from './context/FileSystemContext';
+import { DesktopProvider } from './context/DesktopContext';
+import { UIProvider } from './context/UIContext';
 
 function App() {
   return (
     <SettingsProvider>
       <FileSystemProvider>
-        <WindowManagerProvider>
-          <AppContent />
-        </WindowManagerProvider>
+        <DesktopProvider>
+          <UIProvider>
+            <WindowManagerProvider>
+              <AppContent />
+            </WindowManagerProvider>
+          </UIProvider>
+        </DesktopProvider>
       </FileSystemProvider>
     </SettingsProvider>
   );

@@ -1,12 +1,13 @@
 
 
 # 🌌 WebOS Operating System
-**Desarrollado con pasión por [Salvador]**
 
 **WebOS** es una experiencia de computación de próxima generación construida enteramente para la web. No es simplemente un clon de una interfaz; es un ecosistema de aplicaciones de alto rendimiento desarrollado con **React 18**, **TypeScript**, **AssemblyScript (WASM)** y **WebGPU**. WebOS redefine lo que es posible en un navegador, fusionando estética *Premium* con ingeniería de sistemas avanzada.
 
 > [!TIP]
 > **🌐 Demo en Vivo:** [https://windows-seven-rose.vercel.app/](https://windows-seven-rose.vercel.app/)
+> 
+> **📖 Documentación Completa:** Consulta la carpeta [docs/](./docs/) para guías detalladas.
 
 ---
 
@@ -48,6 +49,95 @@ El proyecto implementa un patrón de **Gestión de Estado Centralizada** para el
 | **Tailwind CSS** | Estilizado moderno y utilitario. |
 | **AssemblyScript** | Compilación a WASM para rendimiento extremo. |
 | **Vite** | Bundler de última generación para carga instantánea. |
+| **Three.js** | Renderizado 3D para fondos dinámicos. |
+| **Framer Motion** | Animaciones fluidas y transiciones. |
+
+---
+
+## 🚀 Inicio Rápido
+
+### Requisitos Previos
+- **Node.js** 18+ ([Descargar](https://nodejs.org/))
+- **npm** 9+ o **yarn**
+
+### Instalación
+
+```bash
+# Clonar el repositorio
+git clone https://github.com/tu-usuario/windows.git
+cd windows
+
+# Instalar dependencias
+npm install
+
+# Compilar módulos de WASM (si es necesario)
+npm run asbuild
+
+# Iniciar servidor de desarrollo
+npm run dev
+```
+
+La aplicación se ejecutará en `http://localhost:5173`
+
+### Compilación para Producción
+
+```bash
+npm run build
+npm run preview  # Vista previa local de la compilación
+```
+
+---
+
+## 📖 Documentación
+
+- **[INSTALLATION.md](./docs/INSTALLATION.md)** - Guía detallada de instalación
+- **[DEVELOPMENT.md](./docs/DEVELOPMENT.md)** - Configuración del entorno de desarrollo
+- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - Arquitectura del sistema
+- **[API_REFERENCE.md](./docs/API_REFERENCE.md)** - Referencia de hooks y APIs
+- **[WASM_BRIDGE.md](./docs/WASM_BRIDGE.md)** - Guía de WebAssembly
+- **[PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)** - Estructura del proyecto
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - Guía de contribución
+
+---
+
+## 🎮 Características por Aplicación
+
+### 🗂️ File Explorer
+- Navegación de archivos simulados
+- Previsualización de imágenes
+- Vista en árbol y lista
+- Soporte para múltiples pestañas
+
+### 🌐 NexBrowser Pro
+- Navegación web integrada
+- Soporte para YouTube
+- Historial por pestaña
+- Gestor de cookies simulado
+
+### 💻 Dev-C++ 2026
+- Editor de código con resaltado de sintaxis
+- Simulación de compilación
+- Gestor de proyectos
+
+### 📊 Administrador de Tareas
+- Monitoreo en tiempo real (WASM optimizado)
+- Gráficos de CPU y memoria
+- Procesos simulados
+
+### 🎨 Paint
+- Herramientas de dibujo
+- Paleta de colores
+- Lienzo exportable
+
+---
+
+## ⚙️ Configuración
+
+La configuración del proyecto se encuentra en:
+- **`vite.config.ts`** - Configuración de Vite
+- **`asconfig.json`** - Configuración de AssemblyScript
+- **`tailwind.config.js`** - Temas y tokens de color
+- **`tsconfig.json`** - Configuración de TypeScript
 | **Three.js** | Motor 3D para fondos dinámicos y partículas. |
 | **Framer Motion** | Orquestación de animaciones complejas de UI. |
 

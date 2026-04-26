@@ -57,7 +57,7 @@ const getFileIcon = (item: FileItem, small = false) => {
 
 const FileExplorer: React.FC = () => {
   const { openWindow } = useWindowManager();
-  const { files, createFolder, createFile, deleteItem, renameItem } = useFileSystem();
+  const { files, createFolder, createFile, deleteItem, renameItem, copyItem, cutItem, pasteItem, clipboard } = useFileSystem();
   const { accentColor } = useSettings();
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>('c-drive');
@@ -68,6 +68,13 @@ const FileExplorer: React.FC = () => {
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, item: FileItem | null } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
+
+  useEffect(() => {
+    if (renamingId) {
+      const item = files.find(f => f.id === renamingId);
+      if (item) setRenameInput(item.name);
+    }
+  }, [renamingId, files]);
 
   const currentFolderFiles = useMemo(() => files.filter(f => f.parentId === currentFolderId), [files, currentFolderId]);
   const currentPath = useMemo(() => {
@@ -107,7 +114,7 @@ const FileExplorer: React.FC = () => {
     } else if ((item.ext === 'jpg' || item.ext === 'png') && item.imageUrl) {
       openWindow(`photos-${item.id}`, `Fotos - ${item.name}`, <Image20Regular />, <ImageViewer files={[{ name: item.name, imageUrl: item.imageUrl }]} initialIndex={0} />);
     } else if (item.ext === 'txt') {
-      openWindow(`notepad-${item.id}`, item.name, <Document20Regular />, <Notepad />);
+      openWindow(`notepad-${item.id}`, item.name, <Document20Regular />, <Notepad fileId={item.id} />);
     }
   };
 
@@ -129,10 +136,20 @@ const FileExplorer: React.FC = () => {
             <span>Nuevo</span>
           </button>
           <div className="fe-ribbon-divider" />
+          <button className={`fe-action-btn ${!selected ? 'disabled' : ''}`} onClick={() => selected && cutItem(selected)}>
+            <Cut20Regular />
+          </button>
+          <button className={`fe-action-btn ${!selected ? 'disabled' : ''}`} onClick={() => selected && copyItem(selected)}>
+            <Copy20Regular />
+          </button>
+          <button className={`fe-action-btn ${!clipboard || !currentFolderId ? 'disabled' : ''}`} onClick={() => currentFolderId && pasteItem(currentFolderId)}>
+            <ClipboardPaste20Regular />
+          </button>
+          <div className="fe-ribbon-divider" />
           <button className={`fe-action-btn ${!selected ? 'disabled' : ''}`} onClick={() => selected && deleteItem(selected)}>
             <Delete20Regular />
           </button>
-          <button className={`fe-action-btn ${!selected ? 'disabled' : ''}`} onClick={() => {}}>
+          <button className={`fe-action-btn ${!selected ? 'disabled' : ''}`} onClick={() => selected && setRenamingId(selected)}>
             <Rename20Regular />
           </button>
         </div>
@@ -204,7 +221,28 @@ const FileExplorer: React.FC = () => {
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setSelected(file.id); setContextMenu({ x: e.clientX, y: e.clientY, item: file }); }}
               >
                 <div className="file-icon-box">{getFileIcon(file)}</div>
-                <span className="file-name-modern">{file.name}</span>
+                {renamingId === file.id ? (
+                  <input
+                    autoFocus
+                    className="file-rename-input"
+                    value={renameInput}
+                    onChange={(e) => setRenameInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        renameItem(file.id, renameInput);
+                        setRenamingId(null);
+                      }
+                      if (e.key === 'Escape') setRenamingId(null);
+                    }}
+                    onBlur={() => {
+                      renameItem(file.id, renameInput);
+                      setRenamingId(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <span className="file-name-modern">{file.name}</span>
+                )}
               </div>
             ))}
           </div>
@@ -218,9 +256,12 @@ const FileExplorer: React.FC = () => {
           onClose={() => setContextMenu(null)}
           options={contextMenu.item ? [
             { label: 'Abrir', onClick: () => handleDoubleClick(contextMenu.item!) },
+            { label: 'Cortar', icon: <Cut20Regular />, onClick: () => cutItem(contextMenu.item!.id) },
+            { label: 'Copiar', icon: <Copy20Regular />, onClick: () => copyItem(contextMenu.item!.id) },
             { label: 'Eliminar', icon: <Delete20Regular />, onClick: () => deleteItem(contextMenu.item!.id) },
-            { label: 'Cambiar nombre', icon: <Rename20Regular />, onClick: () => {} },
+            { label: 'Cambiar nombre', icon: <Rename20Regular />, onClick: () => setRenamingId(contextMenu.item!.id) },
           ] : [
+            { label: 'Pegar', icon: <ClipboardPaste20Regular />, disabled: !clipboard, onClick: () => currentFolderId && pasteItem(currentFolderId) },
             { label: 'Nueva carpeta', icon: <Folder20Filled />, onClick: handleNewFolder },
             { label: 'Nuevo archivo', icon: <Document20Regular />, onClick: handleNewFile },
           ]}
@@ -368,6 +409,16 @@ const FileExplorer: React.FC = () => {
 
         .file-icon-box { font-size: 40px; }
         .file-name-modern { font-size: 12px; text-align: center; word-break: break-all; }
+        .file-rename-input {
+          background: #333;
+          border: 1px solid var(--win-accent);
+          color: white;
+          font-size: 12px;
+          text-align: center;
+          width: 90%;
+          outline: none;
+          border-radius: 2px;
+        }
       `}</style>
     </div>
   );

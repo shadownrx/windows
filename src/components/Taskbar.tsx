@@ -9,6 +9,7 @@ import {
   SpeakerMute24Regular,
 } from '@fluentui/react-icons';
 import { useWindowManager } from '../context/WindowManager';
+import { useUI } from '../context/UIContext';
 import { useSettings } from '../context/SettingsContext';
 import { APPS, type AppItem } from '../constants/apps';
 import ContextMenu, { type ContextMenuOption } from './ContextMenu';
@@ -34,7 +35,8 @@ const Taskbar: React.FC<TaskbarProps> = ({
   onRestart,
   onSearchClick,
 }) => {
-  const { openWindow, windows, minimizeWindow, isWidgetsOpen, toggleWidgets } = useWindowManager();
+  const { openWindow, windows, minimizeWindow, focusedWindowId } = useWindowManager();
+  const { isWidgetsOpen, toggleWidgets } = useUI();
   const { isWifiEnabled, volume, isTaskViewOpen, setIsTaskViewOpen, notifications } = useSettings();
   const [startContextMenu, setStartContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
   const [taskbarContextMenu, setTaskbarContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
@@ -59,7 +61,7 @@ const Taskbar: React.FC<TaskbarProps> = ({
   };
 
   return (
-    <footer className="taskbar-container mica">
+    <footer className="taskbar-container mica gpu-accelerated">
       <div className="taskbar-left">
         <button 
           className={`taskbar-icon ${isWidgetsOpen ? 'active' : ''}`}
@@ -88,7 +90,7 @@ const Taskbar: React.FC<TaskbarProps> = ({
         <div className="taskbar-apps">
           {APPS.filter(a => a.id !== 'search').map(app => {
             const isOpen = windows.some(w => w.id === app.id);
-            const isFocused = windows.length > 0 && windows[windows.length-1].id === app.id;
+            const isFocused = focusedWindowId === app.id;
             return (
               <button 
                 key={app.id}
@@ -124,17 +126,23 @@ const Taskbar: React.FC<TaskbarProps> = ({
       <style>{`
         .taskbar-container {
           position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
+          bottom: 8px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: calc(100% - 16px);
+          max-width: 1400px;
           height: var(--taskbar-height);
-          background: var(--taskbar-bg);
-          backdrop-filter: blur(20px);
+          background: rgba(20, 20, 20, 0.6);
+          backdrop-filter: blur(40px) saturate(200%);
+          -webkit-backdrop-filter: blur(40px) saturate(200%);
           display: flex;
           align-items: center;
           justify-content: space-between;
           padding: 0 12px;
           z-index: 10000;
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
 
         .taskbar-center {

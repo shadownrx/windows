@@ -1,12 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useFileSystem } from '../../context/FileSystemContext';
 
-const Notepad: React.FC = () => {
+interface NotepadProps {
+  fileId?: string;
+}
+
+const Notepad: React.FC<NotepadProps> = ({ fileId }) => {
+  const { files, updateFileContent } = useFileSystem();
+  const file = fileId ? files.find(f => f.id === fileId) : undefined;
+  
   const [text, setText] = useState('');
+  const [isSaved, setIsSaved] = useState(true);
+
+  useEffect(() => {
+    if (file && file.content) {
+      setText(file.content);
+      setIsSaved(true);
+    }
+  }, [file]);
+
+  const handleSave = () => {
+    if (fileId) {
+      updateFileContent(fileId, text);
+      setIsSaved(true);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.ctrlKey && e.key === 's') {
+      e.preventDefault();
+      handleSave();
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
+    setIsSaved(false);
+  };
 
   return (
     <div className="notepad-container">
       <div className="notepad-menu">
-        <span>File</span>
+        <span onClick={handleSave} style={{ opacity: fileId ? 1 : 0.5, cursor: fileId ? 'pointer' : 'default' }}>
+          File {fileId && !isSaved ? '(*)' : ''}
+        </span>
         <span>Edit</span>
         <span>Format</span>
         <span>View</span>
@@ -15,9 +52,11 @@ const Notepad: React.FC = () => {
       <textarea 
         className="notepad-textarea"
         value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Type something here..."
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        placeholder={fileId ? "Type something here..." : "Cannot save. Please create a .txt file first to save contents."}
         autoFocus
+        disabled={!fileId}
       />
 
       <style>{`
@@ -35,6 +74,7 @@ const Notepad: React.FC = () => {
           color: #ccc;
           background: #2d2d2d;
           border-bottom: 1px solid rgba(255,255,255,0.05);
+          user-select: none;
         }
         .notepad-menu span:hover {
           color: white;
@@ -51,6 +91,9 @@ const Notepad: React.FC = () => {
           outline: none;
           resize: none;
           line-height: 1.4;
+        }
+        .notepad-textarea:disabled {
+          color: #888;
         }
       `}</style>
     </div>

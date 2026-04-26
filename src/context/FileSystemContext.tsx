@@ -11,14 +11,20 @@ export interface FileItem {
   capacity?: string;
   used?: string;
   parentId: string | null;
+  content?: string;
 }
 
 interface FileSystemContextType {
   files: FileItem[];
   createFolder: (parentId: string, name: string) => void;
-  createFile: (parentId: string, name: string, ext: string) => void;
+  createFile: (parentId: string, name: string, ext: string) => string;
+  updateFileContent: (id: string, content: string) => void;
   deleteItem: (id: string) => void;
   renameItem: (id: string, newName: string) => void;
+  copyItem: (id: string) => void;
+  cutItem: (id: string) => void;
+  pasteItem: (targetParentId: string) => void;
+  clipboard: { id: string, type: 'copy' | 'cut' } | null;
 }
 
 const FileSystemContext = createContext<FileSystemContextType | undefined>(undefined);
@@ -56,16 +62,23 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const createFile = (parentId: string, name: string, ext: string) => {
+    const id = Math.random().toString(36).substr(2, 9);
     const newFile: FileItem = {
-      id: Math.random().toString(36).substr(2, 9),
+      id,
       name,
       type: 'file',
       ext,
       size: '0 KB',
       modified: new Date().toLocaleDateString('es-ES'),
-      parentId
+      parentId,
+      content: ''
     };
     setFiles([...files, newFile]);
+    return id;
+  };
+
+  const updateFileContent = (id: string, content: string) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, content, size: `${Math.max(1, Math.round(content.length / 1024))} KB`, modified: new Date().toLocaleDateString('es-ES') } : f));
   };
 
   const deleteItem = (id: string) => {
@@ -76,8 +89,37 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setFiles(files.map(f => f.id === id ? { ...f, name: newName } : f));
   };
 
+  const [clipboard, setClipboard] = useState<{ id: string, type: 'copy' | 'cut' } | null>(null);
+
+  const copyItem = (id: string) => setClipboard({ id, type: 'copy' });
+  const cutItem = (id: string) => setClipboard({ id, type: 'cut' });
+
+  const pasteItem = (targetParentId: string) => {
+    if (!clipboard) return;
+    const item = files.find(f => f.id === clipboard.id);
+    if (!item) return;
+
+    if (clipboard.type === 'copy') {
+      const newItem: FileItem = {
+        ...item,
+        id: Math.random().toString(36).substr(2, 9),
+        name: `${item.name} - Copia`,
+        parentId: targetParentId,
+        modified: new Date().toLocaleDateString('es-ES')
+      };
+      setFiles([...files, newItem]);
+    } else {
+      // Cut/Move
+      setFiles(files.map(f => f.id === clipboard.id ? { ...f, parentId: targetParentId } : f));
+      setClipboard(null);
+    }
+  };
+
   return (
-    <FileSystemContext.Provider value={{ files, createFolder, createFile, deleteItem, renameItem }}>
+    <FileSystemContext.Provider value={{ 
+      files, createFolder, createFile, updateFileContent, deleteItem, renameItem,
+      copyItem, cutItem, pasteItem, clipboard 
+    }}>
       {children}
     </FileSystemContext.Provider>
   );

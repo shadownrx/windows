@@ -16,19 +16,21 @@ const BootScreen: React.FC = () => {
 
   return (
     <div className="w-full h-full bg-black flex flex-col items-center justify-center relative font-mono text-white">
-      {/* MOTHERBOARD LOGO (MOCKUP) */}
-      <div className="flex flex-col items-center gap-2 mb-12">
-        <div className="w-24 h-24 border-4 border-white flex items-center justify-center text-4xl font-black italic">
+      <div className="flex flex-col items-center gap-2 mb-12 animate-in fade-in zoom-in duration-1000">
+        <div className="w-24 h-24 border-4 border-white flex items-center justify-center text-4xl font-black italic shadow-[0_0_30px_rgba(255,255,255,0.2)]">
           NEX
         </div>
-        <div className="text-xs tracking-[0.3em] font-bold">MOTHERBOARD SERIES</div>
+        <div className="text-xs tracking-[0.4em] font-bold opacity-80">MOTHERBOARD SERIES</div>
       </div>
       
-      <div className="absolute bottom-12 flex flex-col items-center gap-4 opacity-40">
-        <p className="text-[10px] uppercase tracking-widest animate-pulse">
-          Presione [F] para entrar a la configuración de la UEFI
-        </p>
-        <div className="flex gap-8 text-[8px] uppercase">
+      <div className="absolute bottom-12 flex flex-col items-center gap-4">
+        <div className="flex items-center gap-3">
+           <div className="w-2 h-2 rounded-full bg-white animate-ping" />
+           <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-white/60">
+             Presione <span className="text-white border border-white/40 px-1.5 py-0.5 rounded ml-1 mr-1">[F]</span> para entrar a la UEFI
+           </p>
+        </div>
+        <div className="flex gap-10 text-[8px] uppercase font-bold tracking-widest opacity-30">
            <span>F12: Boot Menu</span>
            <span>F2: Setup</span>
            <span>DEL: Flash Utility</span>
@@ -36,9 +38,18 @@ const BootScreen: React.FC = () => {
       </div>
 
       <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 0.8; }
+        @keyframes ping {
+          75%, 100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+        .animate-in {
+          animation: animate-in 0.5s ease-out;
+        }
+        @keyframes animate-in {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
         }
       `}</style>
     </div>

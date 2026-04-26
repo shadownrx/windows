@@ -9,7 +9,7 @@ interface WindowProps {
 }
 
 const Window: React.FC<WindowProps> = ({ window }) => {
-  const { closeWindow, minimizeWindow, maximizeWindow, snapWindow, focusWindow } = useWindowManager();
+  const { closeWindow, minimizeWindow, maximizeWindow, snapWindow, focusWindow, focusedWindowId } = useWindowManager();
   const { neonTheme } = useSettings();
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [position, setPosition] = useState({ x: 100, y: 50 });
@@ -99,17 +99,16 @@ const Window: React.FC<WindowProps> = ({ window }) => {
       animate={{ 
         scale: window.isMinimized ? 0.7 : 1, 
         opacity: window.isMinimized ? 0 : 1,
-        y: window.isMinimized ? 150 : 0,
         filter: window.isMinimized ? 'blur(20px)' : 'blur(0px)',
         width: window.isMaximized ? '100vw' : (window.snap?.includes('left') || window.snap?.includes('right')) ? '50vw' : size.width,
         height: window.isMaximized ? 'calc(100vh - var(--taskbar-height))' : 
                 (window.snap?.includes('top') || window.snap?.includes('bottom')) ? 'calc((100vh - var(--taskbar-height)) / 2)' : 
                 size.height,
-        top: window.isMaximized ? 0 : 
+        y: window.isMinimized ? 150 : (window.isMaximized ? 0 : 
              window.snap?.includes('top') ? 0 : 
              window.snap?.includes('bottom') ? 'calc((100vh - var(--taskbar-height)) / 2)' : 
-             (window.snap !== 'none' && window.snap ? 0 : position.y),
-        left: window.isMaximized ? 0 : 
+             (window.snap !== 'none' && window.snap ? 0 : position.y)),
+        x: window.isMaximized ? 0 : 
               window.snap?.includes('left') ? 0 : 
               window.snap?.includes('right') ? '50vw' : 
               position.x,
@@ -118,14 +117,16 @@ const Window: React.FC<WindowProps> = ({ window }) => {
       style={{ 
         zIndex: window.zIndex, 
         position: 'absolute', 
-        willChange: 'transform, opacity, width, height, top, left',
+        top: 0,
+        left: 0,
+        willChange: 'transform, opacity, width, height',
         pointerEvents: window.isMinimized ? 'none' : 'auto',
         transformOrigin: 'bottom center'
       }}
       onMouseDown={() => {
         if (!window.isMinimized) focusWindow(window.id);
       }}
-      className={`window mica premium-shadow border-glow ${neonTheme !== 'none' ? 'neon-border' : ''} ${neonTheme === 'cyberpunk' ? 'scanlines' : ''}`}
+      className={`window gpu-accelerated mica premium-shadow border-glow ${neonTheme !== 'none' ? 'neon-border' : ''} ${neonTheme === 'cyberpunk' ? 'scanlines' : ''} ${focusedWindowId === window.id ? 'focused' : ''}`}
     >
       {/* Resizers */}
       {!window.isMaximized && (
@@ -168,11 +169,11 @@ const Window: React.FC<WindowProps> = ({ window }) => {
             const currentX = moveEvent.clientX;
             const currentY = moveEvent.clientY;
 
-            if (currentY <= 0) {
+            if (currentY <= 5) {
               dragSnapPreview = 'maximize';
-            } else if (currentX <= 0) {
+            } else if (currentX <= 5) {
               dragSnapPreview = 'left';
-            } else if (currentX >= globalThis.innerWidth - 1) {
+            } else if (currentX >= globalThis.innerWidth - 10) {
               dragSnapPreview = 'right';
             } else {
               dragSnapPreview = null;
@@ -237,6 +238,12 @@ const Window: React.FC<WindowProps> = ({ window }) => {
           display: flex;
           flex-direction: column;
           user-select: none;
+          transition: box-shadow 0.3s ease, border-color 0.3s ease;
+        }
+        
+        .window.focused {
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 20px rgba(96, 205, 255, 0.1);
+          border-color: rgba(96, 205, 255, 0.3);
         }
 
         .window-header {
@@ -245,7 +252,8 @@ const Window: React.FC<WindowProps> = ({ window }) => {
           justify-content: space-between;
           align-items: center;
           padding: 0 0 0 12px;
-          background: rgba(0, 0, 0, 0.1);
+          background: rgba(0, 0, 0, 0.15);
+          backdrop-filter: blur(10px);
           cursor: default;
         }
 
@@ -365,6 +373,18 @@ const SnapLayoutsMenu = ({ onSnap }: { onSnap: (s: any) => void }) => (
        <div className="snap-zone" onClick={() => onSnap('top-left')} />
        <div className="snap-zone" onClick={() => onSnap('top-right')} />
        <div className="snap-zone" onClick={() => onSnap('bottom-left')} />
+       <div className="snap-zone" onClick={() => onSnap('bottom-right')} />
+    </div>
+    {/* Layout 3: Three columns */}
+    <div className="snap-group" style={{ gridTemplateColumns: '1fr 2fr 1fr' }}>
+       <div className="snap-zone" onClick={() => onSnap('left')} />
+       <div className="snap-zone" onClick={() => onSnap('maximize')} />
+       <div className="snap-zone" onClick={() => onSnap('right')} />
+    </div>
+    {/* Layout 4: One half, two quarters */}
+    <div className="snap-group" style={{ gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr' }}>
+       <div className="snap-zone" style={{ gridRow: 'span 2' }} onClick={() => onSnap('left')} />
+       <div className="snap-zone" onClick={() => onSnap('top-right')} />
        <div className="snap-zone" onClick={() => onSnap('bottom-right')} />
     </div>
   </div>

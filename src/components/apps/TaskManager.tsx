@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useWindowManager } from "../../context/WindowManager";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -221,7 +222,9 @@ export default function TaskManager() {
 
   const [wasm, setWasm] = useState<any>(null);
 
-  // Load Wasm module
+  const { windows } = useWindowManager();
+
+  // Load Wasm module (optional, keeping it if it exists)
   useEffect(() => {
     const loadWasm = async () => {
       try {
@@ -230,46 +233,63 @@ export default function TaskManager() {
         const { instance } = await WebAssembly.instantiate(buffer);
         setWasm(instance.exports);
       } catch (e) {
-        console.error("Failed to load Wasm", e);
+        // Wasm no vital para simulación
       }
     };
     loadWasm();
   }, []);
 
-  // Fetch real processes from our Vite bridge
+  // Generate processes based on open windows
   useEffect(() => {
-    const fetchProcesses = async () => {
-      try {
-        const res = await fetch('/api/pc-processes');
-        const data = await res.json();
-        
-        // Map real data to our process structure
-        const mapped: Process[] = data.map((item: any, i: number) => {
-          // Use Wasm for performance logic if available
-          const impact = wasm ? wasm.calculateLoad(item.CPU || 0, item.Mem || 0) : 0;
-          
-          return {
-            id: item.Id,
-            pid: item.Id,
-            name: item.ProcessName,
-            cpu: item.CPU ? Math.min(99.9, item.CPU / 10) : 0, // PowerShell CPU is cumulative, we simulate delta or simple scale
-            mem: item.Mem || 0,
-            disk: Math.random() * 2, // Mock disk for now
-            group: item.CPU > 5 ? "Aplicaciones" : "Procesos en segundo plano",
-            icon: item.ProcessName.toLowerCase().includes('edge') ? '#0078d4' : '#767676'
-          };
-        });
-
-        setProcesses(mapped);
-      } catch (err) {
-        console.error("Failed to fetch real processes", err);
-      }
+    const appStats: Record<string, { mem: number, cpuBase: number, name: string, icon: string }> = {
+      'chrome': { mem: 350, cpuBase: 2.5, name: 'Google Chrome', icon: '#0078d4' },
+      'ie': { mem: 120, cpuBase: 1.0, name: 'Internet Explorer', icon: '#0078d4' },
+      'file-explorer': { mem: 60, cpuBase: 0.5, name: 'Explorador de archivos', icon: '#ffb900' },
+      'notepad': { mem: 15, cpuBase: 0.1, name: 'Bloc de notas', icon: '#767676' },
+      'cmd': { mem: 25, cpuBase: 0.2, name: 'Símbolo del sistema', icon: '#000000' },
+      'taskmanager': { mem: 45, cpuBase: 1.5, name: 'Administrador de tareas', icon: '#2196F3' },
+      'counter-strike': { mem: 550, cpuBase: 15.0, name: 'Counter-Strike 1.6', icon: '#ffb900' },
+      'control-panel': { mem: 35, cpuBase: 0.2, name: 'Configuración', icon: '#767676' },
+      'devcpp-2026': { mem: 150, cpuBase: 2.0, name: 'Dev-C++', icon: '#3b82f6' },
     };
 
-    const interval = setInterval(fetchProcesses, 3000);
-    fetchProcesses();
+    const generateProcesses = () => {
+      // Base background processes
+      const baseProcesses: Process[] = INITIAL_PROCESSES.filter(p => p.group !== 'Aplicaciones').map((p, i) => ({
+        ...p,
+        id: 1000 + i,
+        cpu: Math.max(0, p.cpu + (Math.random() * 0.5 - 0.25)),
+      }));
+
+      // App processes based on open windows
+      const appProcesses: Process[] = windows.filter(w => w.isOpen).map((win, index) => {
+        const stats = appStats[win.id.split('-')[0]] || { mem: 50, cpuBase: 1.0, name: win.title, icon: '#767676' };
+        
+        // Add some jitter to CPU and Memory
+        const activeCpu = win.isFocused ? (stats.cpuBase * 2) : stats.cpuBase;
+        const currentCpu = Math.max(0, activeCpu + (Math.random() * activeCpu * 0.5));
+        const currentMem = stats.mem + (Math.random() * 10 - 5);
+
+        return {
+          id: index,
+          pid: 5000 + index * 12,
+          name: stats.name || win.title,
+          cpu: Number(currentCpu.toFixed(1)),
+          mem: Number(currentMem.toFixed(0)),
+          disk: Number((Math.random() * 0.5).toFixed(1)),
+          group: "Aplicaciones",
+          icon: stats.icon
+        };
+      });
+
+      setProcesses([...appProcesses, ...baseProcesses]);
+    };
+
+    const interval = setInterval(generateProcesses, 2000);
+    generateProcesses(); // Initial call
+
     return () => clearInterval(interval);
-  }, [wasm]);
+  }, [windows]);
 
   // Update histories
   useEffect(() => {

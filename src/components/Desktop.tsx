@@ -10,7 +10,10 @@ import WidgetsPanel from './system/WidgetsPanel';
 import TaskView from './system/TaskView';
 import Window from './Window';
 import ContextMenu from './ContextMenu';
-import { useWindowManager, type DesktopIcon } from '../context/WindowManager';
+import { useWindowManager } from '../context/WindowManager';
+import { useDesktop, type DesktopIcon } from '../context/DesktopContext';
+import { useFileSystem } from '../context/FileSystemContext';
+import { useUI } from '../context/UIContext';
 import { 
   Document24Regular, 
   Delete24Regular,
@@ -35,6 +38,8 @@ import {
 } from '@fluentui/react-icons';
 import RecycleBin from './apps/RecycleBin';
 import Notepad from './apps/Notepad';
+import FileExplorer from './apps/FileExplorer';
+import TaskManager from './apps/TaskManager';
 import Cmd from './apps/Cmd';
 import BrowserApp, { ChromeIcon } from './apps/BrowserApp';
 import IEApp, { IEIcon } from './apps/IEApp';
@@ -52,28 +57,10 @@ interface DesktopProps {
 }
 
 const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
-  const { 
-    isStartOpen, 
-    toggleStart, 
-    closeStart,
-    windows,
-    openWindow,
-    desktopIcons,
-    addDesktopIcon,
-    updateDesktopIcon,
-    removeDesktopIcon,
-    sortDesktopIcons,
-    isWidgetsOpen,
-    toggleWidgets,
-    closeWidgets,
-    closeFocusedWindow,
-    minimizeAllWindows,
-    currentDesktopId,
-    virtualDesktops,
-    switchDesktop,
-    addDesktop,
-    isDesktopSwitcherOpen,
-  } = useWindowManager();
+  const { windows, openWindow, closeFocusedWindow, minimizeAllWindows } = useWindowManager();
+  const { desktopIcons, addDesktopIcon, updateDesktopIcon, removeDesktopIcon, sortDesktopIcons, currentDesktopId, virtualDesktops, switchDesktop, addDesktop } = useDesktop();
+  const { isStartOpen, toggleStart, closeStart, isWidgetsOpen, toggleWidgets, closeWidgets, isDesktopSwitcherOpen } = useUI();
+  const { createFile } = useFileSystem();
 
   const { isTaskViewOpen, setIsTaskViewOpen, addNotification, userName, wallpaper, setWallpaper, neonTheme } = useSettings();
 
@@ -104,14 +91,14 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     }
 
     setRunError('');
-    if (normalized === 'cmd' || normalized === 'cmd.exe') {
+    if (normalized === 'cmd' || normalized === 'cmd.exe' || normalized === 'terminal') {
       openWindow('cmd', 'Terminal', <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, <Cmd />);
-    } else if (normalized === 'explorer' || normalized === 'file explorer') {
-      openWindow('file-explorer', 'File Explorer', <Desktop24Regular />, <div className="p-4">Explorador de archivos no disponible (mockup)</div>);
+    } else if (normalized === 'explorer' || normalized === 'file explorer' || normalized === 'files') {
+      openWindow('file-explorer', 'Explorador de archivos', <Folder24Regular />, <FileExplorer />);
     } else if (normalized === 'notepad') {
       openWindow('notepad', 'Notepad', <Document24Regular />, <Notepad />);
     } else if (normalized === 'taskmgr' || normalized === 'task manager') {
-      openWindow('taskmanager', 'Administrador de tareas', <Settings24Regular />, <div className="p-4" style={{ color: 'white' }}><h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', fontWeight: 'bold' }}>Administrador de tareas</h2><p>Esta es una simulación del Administrador de tareas.</p></div>);
+      openWindow('taskmanager', 'Administrador de tareas', <Apps24Regular />, <TaskManager />);
     } else if (normalized === 'calc' || normalized === 'calculator') {
       openWindow('calculator', 'Calculadora', <Calculator24Regular />, <div className="p-4" style={{ color: 'white' }}><h2>Calculadora simulada</h2></div>);
     } else if (normalized === 'defender' || normalized === 'ms-settings:windowsdefender') {
@@ -132,13 +119,15 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
 
 
   const handleNewFile = () => {
+    const fileId = createFile('desktop', 'Nuevo archivo.txt', 'txt');
     addDesktopIcon({
+      id: fileId,
       title: 'Nuevo archivo.txt',
       icon: <Document24Regular primaryFill="#ecf0f1" />,
       type: 'file',
       x: contextMenu?.x || 100,
       y: contextMenu?.y || 100,
-      content: <Notepad />
+      content: <Notepad fileId={fileId} />
     });
   };
 
@@ -312,7 +301,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
             return (
             <div
               key={icon.id}
-              className={`desktop-icon ${draggingIconId === icon.id ? 'dragging' : ''} ${selectedIconId === icon.id ? 'selected' : ''}`}
+              className={`desktop-icon hover-lift shine-effect ${draggingIconId === icon.id ? 'dragging' : ''} ${selectedIconId === icon.id ? 'selected' : ''}`}
               onDoubleClick={() => onIconDoubleClick(icon)}
               onMouseDown={(e) => {
                 setSelectedIconId(icon.id);
@@ -335,7 +324,9 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
                 userSelect: 'none',
               }}
             >
-              <div className="icon-wrapper" style={{ fontSize: iconFont[iconSize], marginBottom: 6 }}>{icon.icon}</div>
+              <div className="icon-wrapper" style={{ fontSize: iconFont[iconSize], marginBottom: 6 }}>
+                {icon.icon}
+              </div>
               <span className="icon-label">{icon.title}</span>
             </div>
             );
@@ -477,6 +468,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
             },
             { label: 'Configuración de pantalla', icon: <Desktop24Regular />, onClick: () => openWindow('control-panel', 'Configuración', <Settings24Regular />, <ControlPanel />) },
             { label: 'Personalizar', icon: <Apps24Regular />, onClick: () => openWindow('control-panel', 'Configuración', <Settings24Regular />, <ControlPanel />) },
+            { label: 'Abrir en Terminal', icon: <span style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold' }}>&gt;_</span>, onClick: () => openWindow('cmd', 'Terminal', <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, <Cmd />) },
           ]}
         />
       )}

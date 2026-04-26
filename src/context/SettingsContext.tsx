@@ -39,7 +39,7 @@ interface SettingsContextType {
   removeNotification: (id: string) => void;
   isTaskViewOpen: boolean;
   setIsTaskViewOpen: (val: boolean) => void;
-  playSound: (type: 'startup' | 'notif' | 'error') => void;
+  playSound: (type: 'startup' | 'notif' | 'error' | 'beep') => void;
 
   // -- NEX OS 2.0 --
   theme: 'light' | 'dark';
@@ -123,7 +123,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const urls = {
       startup: 'https://archive.org/download/windows-11-original-sounds/Windows%20Logon.mp3',
       notif: 'https://archive.org/download/windows-11-original-sounds/Windows%20Notify%20System%20Generic.mp3',
-      error: 'https://archive.org/download/windows-11-original-sounds/Windows%20Foreground.mp3'
+      error: 'https://archive.org/download/windows-11-original-sounds/Windows%20Foreground.mp3',
+      beep: 'https://www.soundjay.com/buttons/beep-07.wav'
     };
     const audio = new Audio(urls[type]);
     audio.volume = volume / 100;

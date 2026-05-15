@@ -33,6 +33,9 @@ import SearchApp from './apps/SearchApp';
 import WindowsDefender from './apps/WindowsDefender';
 import DevCpp2026 from './apps/DevCpp2026';
 import ManualApp from './apps/ManualApp';
+import ClockApp from './apps/Clock';
+import Photos from './apps/Photos';
+import SpotifyMini from './apps/SpotifyMini';
 
 
 interface StartMenuProps {
@@ -71,6 +74,9 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
     { id: 'defender', icon: <ShieldCheckmark24Regular />, name: 'Seguridad', color: '#008a17', component: <WindowsDefender /> },
     { id: 'devcpp-2026', icon: <Play24Filled />, name: 'Dev-C++ 2026', color: '#3b82f6', component: <DevCpp2026 /> },
     { id: 'manual', icon: <Book24Regular />, name: 'Manual', color: '#3b82f6', component: <ManualApp /> },
+    { id: 'clock', icon: <span style={{ fontSize: 20 }}>🕐</span>, name: 'Reloj', color: '#60cdff', component: <ClockApp /> },
+    { id: 'photos', icon: <span style={{ fontSize: 20 }}>📷</span>, name: 'Fotos', color: '#ff6b6b', component: <Photos /> },
+    { id: 'spotify', icon: <span style={{ fontSize: 20 }}>🎵</span>, name: 'Spotify', color: '#1db954', component: <SpotifyMini /> },
   ];
 
 

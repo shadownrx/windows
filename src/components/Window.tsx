@@ -19,6 +19,14 @@ const Window: React.FC<WindowProps> = ({ window }) => {
   const [showSnapLayouts, setShowSnapLayouts] = useState(false);
   const windowRef = useRef<HTMLDivElement>(null);
 
+  // Restore size from savedSize when un-maximizing
+  useEffect(() => {
+    if (!window.isMaximized && window.savedSize) {
+      setSize({ width: window.savedSize.width, height: window.savedSize.height });
+      setPosition({ x: window.savedSize.x, y: window.savedSize.y });
+    }
+  }, [window.isMaximized]);
+
   const handleResize = (e: React.MouseEvent, direction: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -144,7 +152,7 @@ const Window: React.FC<WindowProps> = ({ window }) => {
 
       <div 
         className="window-header" 
-        onDoubleClick={() => maximizeWindow(window.id)}
+        onDoubleClick={() => maximizeWindow(window.id, { ...size, ...position })}
         onMouseDown={(e) => {
           let currentTargetX = position.x;
           let currentTargetY = position.y;
@@ -217,7 +225,7 @@ const Window: React.FC<WindowProps> = ({ window }) => {
             onMouseEnter={() => setShowSnapLayouts(true)}
             onMouseLeave={() => setShowSnapLayouts(false)}
           >
-            <button onClick={() => maximizeWindow(window.id)}>
+            <button onClick={() => maximizeWindow(window.id, { ...size, ...position })}>
               {window.isMaximized ? <Copy20Regular /> : <Square20Regular />}
             </button>
             {showSnapLayouts && (

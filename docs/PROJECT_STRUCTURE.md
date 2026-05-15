@@ -1,4 +1,4 @@
-# 🏗️ Estructura del Proyecto - WebOS
+# 🏗️ Estructura del Proyecto — WebOS
 
 Esta documentación explica la organización de archivos y carpetas del proyecto.
 
@@ -9,140 +9,120 @@ Esta documentación explica la organización de archivos y carpetas del proyecto
 ```
 windows/
 ├── src/                       # Código fuente principal
-├── assembly/                  # Código WebAssembly
+├── assembly/                  # Código WebAssembly (AssemblyScript)
 ├── public/                    # Archivos estáticos
 ├── docs/                      # Documentación
-├── dist/                      # Build compilado (generado)
-├── build/                     # WASM compilado (generado)
-├── node_modules/              # Dependencias (generado)
+├── dist/                      # Build compilado (generado por npm run build)
 │
-├── package.json               # Dependencias del proyecto
+├── package.json               # Dependencias y scripts
 ├── tsconfig.json              # Configuración de TypeScript
-├── vite.config.ts             # Configuración de Vite
-├── tailwind.config.js         # Configuración de Tailwind
-├── eslint.config.js           # Configuración de ESLint
+├── vite.config.ts             # Configuración de Vite + PWA + puente PowerShell
+├── tailwind.config.js         # Temas y tokens de color
+├── eslint.config.js           # Reglas de linting
 ├── asconfig.json              # Configuración de AssemblyScript
 │
-├── README.md                  # Descripción del proyecto
+├── README.md                  # Descripción general del proyecto
 ├── CONTRIBUTING.md            # Guía de contribución
 └── CODE_OF_CONDUCT.md         # Código de conducta
 ```
 
 ---
 
-## 📂 Carpeta `src/` - Código Principal
+## 📂 Carpeta `src/` — Código Principal
 
 ```
 src/
 ├── components/
-│   ├── apps/                  # Aplicaciones del escritorio
-│   ├── system/                # Componentes del sistema
-│   ├── nexos/                 # Escritorios (NEX OS)
+│   ├── apps/                  # ← Aplicaciones del escritorio (ver tabla abajo)
+│   ├── system/                # Componentes del OS (boot, login, 3D bg…)
+│   ├── nexos/                 # Escritorio alternativo NEX OS
 │   │
-│   ├── Desktop.tsx            # Componente principal del escritorio
-│   ├── Window.tsx             # HOC para todas las ventanas
-│   ├── Taskbar.tsx            # Barra de tareas
+│   ├── Desktop.tsx            # Escritorio principal (íconos, drag, context menu)
+│   ├── Window.tsx             # HOC de ventana: drag, resize, snap, maximize
+│   ├── Taskbar.tsx            # Barra de tareas inferior
 │   ├── StartMenu.tsx          # Menú de Inicio
-│   ├── ContextMenu.tsx        # Menú contextual
-│   └── ... (otros componentes)
+│   ├── ContextMenu.tsx        # Menú contextual (clic derecho)
+│   ├── SearchPane.tsx         # Panel de búsqueda global
+│   ├── CalendarMenu.tsx       # Popover de calendario en la taskbar
+│   └── NotificationsMenu.tsx  # Panel de notificaciones
 │
 ├── context/
-│   ├── WindowManager.tsx      # Gestor central de ventanas
+│   ├── WindowManager.tsx      # 🧠 Núcleo: ventanas, foco, z-index, snap
+│   ├── SettingsContext.tsx    # Preferencias: tema, volumen, wallpaper…
 │   ├── FileSystemContext.tsx  # Sistema de archivos virtual
-│   ├── SettingsContext.tsx    # Configuración global
-│   └── UIContext.tsx          # Estado de UI global
-│
-├── utils/
-│   ├── cppEngine.ts           # Motor de compilación C++
-│   ├── gpuCharts.ts           # Gráficos acelerados por GPU
-│   └── ... (utilidades)
+│   ├── DesktopContext.tsx     # Íconos del escritorio + escritorios virtuales
+│   └── UIContext.tsx          # Estado global de UI (Start, Widgets, Switcher)
 │
 ├── constants/
-│   └── apps.tsx               # Definiciones de aplicaciones
+│   └── apps.tsx               # Registro central de todas las aplicaciones
 │
-├── assets/
-│   ├── images/                # Imágenes
-│   ├── icons/                 # Iconos
-│   └── ...
+├── utils/
+│   ├── cppEngine.ts           # Motor de compilación C++ (llama a g++)
+│   └── gpuCharts.ts           # Gráficos WebGPU para Task Manager
 │
-├── App.tsx                    # Componente raíz
-├── App.css                    # Estilos globales
-├── main.tsx                   # Punto de entrada
-├── vite-env.d.ts              # Tipos de Vite
-└── index.css                  # Estilos de Tailwind
+├── assets/                    # Imágenes, íconos, sonidos
+├── App.tsx                    # Componente raíz + máquina de estados del OS
+├── main.tsx                   # Punto de entrada React
+├── index.css                  # CSS global + variables de tema + utilidades
+└── vite-env.d.ts              # Tipos de entorno Vite
 ```
 
 ---
 
-## 🔹 Componentes Principales (`src/components/`)
+## 📱 Aplicaciones del Escritorio (`src/components/apps/`)
 
-### 📱 `apps/` - Aplicaciones del Escritorio
+| Archivo | App | Descripción |
+| :--- | :--- | :--- |
+| `BrowserApp.tsx` | NexBrowser Pro | Navegador integrado con historial y YouTube |
+| `Calculator.tsx` | Calculadora | Calculadora funcional |
+| `Calendar.tsx` | Calendario | Vista mensual con eventos |
+| `Clock.tsx` ⭐ | Reloj | Reloj analógico/digital, cronómetro, temporizador, zonas horarias |
+| `Cmd.tsx` | Terminal | Símbolo del sistema con comandos simulados |
+| `ControlPanel.tsx` | Panel de Control | Configuración completa del sistema |
+| `counter.tsx` | Counter-Strike | Mini-app de juego retro |
+| `DevCpp2026.tsx` | Dev-C++ 2026 | IDE con compilación real con g++ |
+| `FileExplorer.tsx` | Explorador | Navegación de archivos virtuales |
+| `IEApp.tsx` | Internet Explorer | IE simulado retro |
+| `ImageViewer.tsx` | Visor de Imágenes | Previsualización de imágenes |
+| `ManualApp.tsx` | Manual | Manual del sistema WebOS |
+| `mediaplayer.tsx` | Reproductor | Reproductor multimedia |
+| `Notepad.tsx` ⭐ | Notepad 2.0 | Editor con menús, zoom, fuentes, status bar y contador |
+| `Paint.tsx` | Paint | Editor de dibujo con canvas |
+| `Photos.tsx` ⭐ | Fotos | Galería con lightbox, zoom, rotación y URLs personalizadas |
+| `RecycleBin.tsx` | Papelera | Papelera de reciclaje |
+| `SearchApp.tsx` | Buscar | Búsqueda global de aplicaciones |
+| `Settings.tsx` | Configuración | Panel de ajustes |
+| `SpotifyMini.tsx` ⭐ | Spotify | Reproductor simulado con playlist y controles |
+| `TaskManager.tsx` | Administrador de Tareas | CPU/RAM en tiempo real vía WASM + PowerShell |
+| `Terminal.tsx` | Terminal Pro | Terminal alternativa |
+| `VsCode.tsx` | VS Code | Editor de código completo |
+| `WindowsDefender.tsx` | Seguridad | Windows Defender simulado |
+| `WordPad.tsx` | WordPad | Editor de texto enriquecido |
 
-Cada aplicación es un componente independiente:
+> ⭐ = Nuevas o mejoradas en la última actualización (Mayo 2026)
 
-```
-apps/
-├── FileExplorer.tsx           # Explorador de archivos
-├── BrowserApp.tsx             # Navegador web
-├── Terminal.tsx               # Terminal de comandos
-├── Paint.tsx                  # Editor de imágenes
-├── Notepad.tsx                # Editor de texto
-├── Calculator.tsx             # Calculadora
-├── TaskManager.tsx            # Administrador de tareas
-├── Settings.tsx               # Panel de configuración
-├── IEApp.tsx                  # Internet Explorer
-├── VsCode.tsx                 # Visual Studio Code
-├── DevCpp2026.tsx             # Dev-C++ 2026
-├── MediaPlayer.tsx            # Reproductor multimedia
-├── ImageViewer.tsx            # Visor de imágenes
-├── Calendar.tsx               # Calendario
-├── counter.tsx                # Aplicación de contador
-├── Cmd.tsx                    # Símbolo del sistema
-├── ManualApp.tsx              # Manual del sistema
-├── ControlPanel.tsx           # Panel de control
-├── RecycleBin.tsx             # Papelera de reciclaje
-├── SearchApp.tsx              # Buscador
-├── WordPad.tsx                # WordPad
-└── WindowsDefender.tsx        # Windows Defender
-```
+---
 
-**Estructura de una Aplicación:**
-```typescript
-interface MyAppProps {
-  id: string;
-}
-
-export const MyApp: React.FC<MyAppProps> = ({ id }) => {
-  return (
-    <div className="bg-white p-4">
-      {/* Contenido de la aplicación */}
-    </div>
-  );
-};
-```
-
-### 🖥️ `system/` - Componentes del Sistema
-
-Componentes que no son aplicaciones pero forman parte del OS:
+## 🖥️ Componentes del Sistema (`src/components/system/`)
 
 ```
 system/
-├── Background3D.tsx           # Fondo de pantalla 3D
-├── BootScreen.tsx             # Pantalla de inicio
-├── LoginScreen.tsx            # Pantalla de login
-├── OffScreen.tsx              # Pantalla apagada
+├── Background3D.tsx           # Orquestador de fondos 3D (delega por tema)
+├── BootScreen.tsx             # POST / BIOS animado
+├── WindowsBoot.tsx            # Animación de arranque de Windows
+├── LoginScreen.tsx            # Pantalla de login con wallpaper
+├── OffScreen.tsx              # Pantalla apagada (botón de encendido)
 ├── ShutdownScreen.tsx         # Pantalla de apagado
 ├── RestartScreen.tsx          # Pantalla de reinicio
-├── UEFI.tsx                   # Pantalla UEFI
-├── TaskView.tsx               # Vista de tareas
-├── WindowsBoot.tsx            # Animación de arranque
-├── NotificationToast.tsx      # Notificaciones
-├── WidgetsPanel.tsx           # Panel de widgets
+├── UEFI.tsx                   # Selector de OS en el arranque
+├── TaskView.tsx               # Vista de tareas (Win+Tab)
+├── NotificationToast.tsx      # Sistema de notificaciones toast
+├── WidgetsPanel.tsx           # Panel lateral de widgets
 │
 ├── 3d/
-│   ├── CyberpunkBG.tsx        # Fondo Cyberpunk
-│   ├── MatrixBG.tsx           # Fondo Matrix
-│   └── SynthwaveBG.tsx        # Fondo Synthwave
+│   ├── CyberpunkBG.tsx        # Fondo Cyberpunk (Three.js)
+│   ├── MatrixBG.tsx           # Fondo Matrix (lluvia de código)
+│   └── SynthwaveBG.tsx        # Fondo Synthwave (rejilla retro)
 │
 └── widgets/
     ├── WeatherWidget.tsx      # Widget de clima
@@ -154,193 +134,157 @@ system/
 
 ## 🧠 Contextos (`src/context/`)
 
-Los contextos manejan el estado global de la aplicación.
+### `WindowManager.tsx` — Núcleo del Sistema
 
-### `WindowManager.tsx`
+Gestiona el ciclo de vida de todas las ventanas.
 
-**Responsabilidades:**
-- Gestionar ventanas abiertas
-- Controlar z-index
-- Manejar escritorios virtuales
-- Gestionar el menú de Inicio
-
-**Métodos principales:**
 ```typescript
-interface WindowManagerContextType {
-  windows: AppWindow[];
-  activeDesktop: string;
-  isStartMenuOpen: boolean;
-  
-  openWindow: (id, title, icon, content) => void;
-  closeWindow: (id) => void;
-  minimizeWindow: (id) => void;
-  // ... más métodos
+interface AppWindow {
+  id: string;
+  title: string;
+  icon: ReactNode;
+  content: ReactNode;
+  desktopId: string;
+  isOpen: boolean;
+  isMinimized: boolean;
+  isMaximized: boolean;
+  snap?: 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'none';
+  zIndex: number;
+  savedSize?: { width: number; height: number; x: number; y: number }; // ← Nuevo: memoria de tamaño
 }
 ```
 
-### `FileSystemContext.tsx`
+**Métodos disponibles:**
 
-**Responsabilidades:**
-- Gestionar archivos virtuales
-- Navegar por directorios
-- Abrir/crear/eliminar archivos
+| Método | Descripción |
+| :--- | :--- |
+| `openWindow(id, title, icon, content)` | Abre o restaura una ventana |
+| `closeWindow(id)` | Cierra y elimina una ventana |
+| `minimizeWindow(id)` | Minimiza a la taskbar |
+| `minimizeAllWindows()` | Minimiza todas (`Win+D`) |
+| `maximizeWindow(id, currentSize?)` | Maximiza guardando el tamaño anterior |
+| `restoreWindow(id)` | Restaura desde minimizado sin reinicializar |
+| `snapWindow(id, direction)` | Acopla la ventana en un cuadrante |
+| `focusWindow(id)` | Trae al frente y actualiza z-index |
+| `closeFocusedWindow()` | Cierra la ventana activa (`Alt+F4`) |
 
 ### `SettingsContext.tsx`
 
-**Responsabilidades:**
-- Almacenar preferencias del usuario
-- Tema del sistema
-- Idioma
-- Volumen
-- Otras configuraciones
+Almacena y persiste preferencias del usuario en `localStorage`.
+
+| Clave | Tipo | Descripción |
+| :--- | :--- | :--- |
+| `brightness` | `0–100` | Brillo de pantalla |
+| `volume` | `0–100` | Volumen del sistema |
+| `accentColor` | `string` | Color de acento (CSS hex) |
+| `theme` | `'light' \| 'dark'` | Tema del OS |
+| `neonTheme` | `'none' \| 'cyberpunk' \| 'matrix' \| 'synthwave'` | Tema neon |
+| `wallpaper` | `string` | URL del fondo de pantalla |
+| `isWifiEnabled` | `boolean` | Estado del WiFi |
+| `isBluetoothEnabled` | `boolean` | Estado del Bluetooth |
+| `isNightLightEnabled` | `boolean` | Luz nocturna |
+| `userName` | `string` | Nombre del usuario |
+
+### `FileSystemContext.tsx`
+
+Sistema de archivos virtual en memoria con soporte para crear, leer y actualizar archivos `.txt`.
+
+### `DesktopContext.tsx`
+
+Gestiona los íconos del escritorio, su posición (drag & drop), orden y escritorios virtuales.
 
 ### `UIContext.tsx`
 
-**Responsabilidades:**
-- Tamaño de la pantalla
-- Modo oscuro/claro
-- Otros estados de UI
+Estado de visibilidad de panels del sistema: Start Menu, Widgets, Desktop Switcher.
 
 ---
 
-## ⚙️ Configuración (`assembly/`)
+## 📦 Registro de Aplicaciones (`src/constants/apps.tsx`)
 
-WebAssembly optimizado para tareas intensivas:
+Todas las aplicaciones de la **Taskbar** se registran aquí:
+
+```typescript
+export const APPS: AppItem[] = [
+  { id: 'notepad', icon: <Document24Regular />, label: 'Bloc de notas', component: (props) => <Notepad {...props} /> },
+  { id: 'clock',   icon: <Clock24Regular />,    label: 'Reloj',          component: (props) => <Clock {...props} /> },
+  { id: 'photos',  icon: <Image24Regular />,    label: 'Fotos',          component: (props) => <Photos {...props} /> },
+  { id: 'spotify', icon: <MusicNote2Regular />, label: 'Spotify',        component: (props) => <SpotifyMini {...props} /> },
+  // ...
+];
+```
+
+Para agregar una nueva app: 1) crear el componente en `apps/`, 2) importarlo aquí, 3) agregar la entrada al array.
+
+---
+
+## ⚙️ WebAssembly (`assembly/`)
 
 ```
 assembly/
-├── index.ts                   # Código principal
-└── tsconfig.json              # Configuración TS para WASM
+├── index.ts        # Funciones exportadas (calculateMetrics, processData…)
+└── tsconfig.json   # Configuración TS para AssemblyScript
 ```
 
-**Uso típico:**
-```typescript
-// assembly/index.ts
-export function calculateMetrics(data: f64[]): f64 {
-  // Cálculos intensivos en WASM
-  let sum: f64 = 0;
-  for (let i = 0; i < data.length; i++) {
-    sum += data[i];
-  }
-  return sum / f64(data.length);
-}
+Compila con:
+```bash
+npm run asbuild
+# Genera: public/process_utils.js + public/process_utils.wasm
 ```
 
 ---
 
-## 📦 Carpeta `public/`
+## 📊 Tamaños de Build (Mayo 2026)
 
-Archivos estáticos que se sirven directamente:
-
-```
-public/
-├── process_utils.js           # WASM compilado
-├── process_utils.d.ts         # Tipos TypeScript para WASM
-└── robots.txt                 # Configuración para crawlers
-```
+| Archivo | Sin comprimir | Gzip |
+| :--- | :--- | :--- |
+| `dist/assets/index.js` | 1,863 KB | 499 KB |
+| `dist/assets/index.css` | 27.6 KB | 6.4 KB |
+| `dist/index.html` | 1.2 KB | 0.6 KB |
 
 ---
 
-## 📚 Archivos de Configuración
-
-### `package.json`
-Define dependencias y scripts:
-```json
-{
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "asbuild": "asc assembly/index.ts -t public/"
-  }
-}
-```
-
-### `tsconfig.json`
-Configuración de TypeScript:
-- `strict: true` - Modo estricto
-- `jsx: react-jsx` - Soporte para React 18
-- `moduleResolution: bundler` - Resolución moderna
-
-### `vite.config.ts`
-Configuración de Vite:
-- Plugin de React
-- Definición de alias
-- Configuración de optimización
-
-### `tailwind.config.js`
-Temas y tokens de color:
-```javascript
-theme: {
-  colors: {
-    // Colores personalizados para temas
-    cyberpunk: { ... },
-    matrix: { ... },
-  }
-}
-```
-
-### `asconfig.json`
-Configuración de AssemblyScript:
-```json
-{
-  "targets": {
-    "release": {
-      "outFile": "public/process_utils.js"
-    }
-  }
-}
-```
-
----
-
-## 🎯 Flujo de Datos
-
-```
-User Interaction
-        ↓
-Component
-        ↓
-useWindowManager() / useFileSystem() / useSettings()
-        ↓
-Context (Estado Global)
-        ↓
-Re-render de Componentes
-```
-
----
-
-## 📊 Tamaños Típicos de Archivos
-
-- `public/process_utils.wasm` - ~50KB (comprimido)
-- `dist/` (producción) - ~800KB (sin comprimir)
-- `dist/` (con gzip) - ~250KB
-
----
-
-## 🔄 Cambios Comunes
+## 🔄 Operaciones Comunes
 
 ### Agregar una Nueva Aplicación
-1. Crear archivo en `src/components/apps/`
-2. Registrar en `constants/apps.tsx`
-3. Importar en `WindowManager.tsx`
 
-### Agregar un Nuevo Widget
-1. Crear en `src/components/system/widgets/`
-2. Importar en `WidgetsPanel.tsx`
+```bash
+# 1. Crear el componente
+touch src/components/apps/MiApp.tsx
 
-### Modificar Estilos Globales
-- Editar `src/index.css` o `src/App.css`
-- Usar clases de Tailwind
+# 2. Desarrollar el componente
+export default function MiApp() {
+  return <div style={{ padding: 24 }}>Hola desde Mi App</div>;
+}
 
-### Agregar Variables de Entorno
-- Crear `.env.local`
-- Acceder con `import.meta.env.VITE_*`
+# 3. Registrar en constants/apps.tsx
+import MiApp from '../components/apps/MiApp';
+{ id: 'mi-app', icon: <MyIcon />, label: 'Mi App', component: () => <MiApp /> }
+
+# 4. (Opcional) Agregar al StartMenu.tsx
+```
+
+### Agregar un Widget
+
+```bash
+# 1. Crear en system/widgets/
+# 2. Importar en WidgetsPanel.tsx
+```
+
+### Modificar Temas
+
+Editar las variables CSS en `src/index.css`:
+```css
+:root[data-neon='cyberpunk'] {
+  --win-accent: #ff00ff;
+  --neon-glow: 0 0 10px rgba(255, 0, 255, 0.8);
+}
+```
 
 ---
 
 ## 📚 Referencias
 
-- [DEVELOPMENT.md](./DEVELOPMENT.md) - Cómo desarrollar
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - Arquitectura
-- [API_REFERENCE.md](./API_REFERENCE.md) - Referencia de APIs
+- [DEVELOPMENT.md](./DEVELOPMENT.md) — Cómo desarrollar
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — Arquitectura en profundidad
+- [API_REFERENCE.md](./API_REFERENCE.md) — Referencia de hooks y APIs
+- [WASM_BRIDGE.md](./WASM_BRIDGE.md) — Integración WebAssembly

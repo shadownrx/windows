@@ -2,11 +2,11 @@
 
 # 🌌 WebOS Operating System
 
-**WebOS** es una experiencia de computación de próxima generación construida enteramente para la web. No es simplemente un clon de una interfaz; es un ecosistema de aplicaciones de alto rendimiento desarrollado con **React 18**, **TypeScript**, **AssemblyScript (WASM)** y **WebGPU**. WebOS redefine lo que es posible en un navegador, fusionando estética *Premium* con ingeniería de sistemas avanzada.
+**WebOS** es una experiencia de computación de próxima generación construida enteramente para la web. No es simplemente un clon de una interfaz; es un ecosistema de aplicaciones de alto rendimiento desarrollado con **React 19**, **TypeScript**, **AssemblyScript (WASM)** y **Three.js**. WebOS redefine lo que es posible en un navegador, fusionando estética *Premium* con ingeniería de sistemas avanzada.
 
 > [!TIP]
 > **🌐 Demo en Vivo:** [https://windows-seven-rose.vercel.app/](https://windows-seven-rose.vercel.app/)
-> 
+>
 > **📖 Documentación Completa:** Consulta la carpeta [docs/](./docs/) para guías detalladas.
 
 ---
@@ -14,43 +14,79 @@
 ## ✨ Características Destacadas
 
 ### 🚀 Ingeniería de Alto Rendimiento
-- **Ensamblado con WASM:** Lógica de cálculo crítico (como el Administrador de Tareas) optimizada con **AssemblyScript** para una ejecución a velocidad nativa.
-- **Gráficos WebGPU:** Visualizaciones de hardware aceleradas por GPU, proporcionando telemetría en tiempo real sin sobrecargar el hilo principal.
-- **Arquitectura de Micro-Frontends:** Cada aplicación (`File Explorer`, `VsCode`, `Dev-C++`) opera en su propio contexto aislado bajo un orquestador central.
+- **Ensamblado con WASM:** Lógica de cálculo crítico (Administrador de Tareas) optimizada con **AssemblyScript** para ejecución a velocidad nativa.
+- **Motor 3D Dinámico:** Fondos tridimensionales en tiempo real impulsados por **Three.js / @react-three/fiber** que reaccionan al tema seleccionado.
+- **Arquitectura de Micro-Frontends:** Cada aplicación opera en su propio contexto aislado bajo un orquestador central (`WindowManager`).
+- **PWA Ready:** Instalable como app nativa gracias a `vite-plugin-pwa`, con soporte offline y caché de recursos.
 
 ### 🍱 Experiencia de Usuario (UX)
-- **NEX OS 2.0: Neon Experience:** Sistema de temas dinámicos que incluyen **Cyberpunk**, **Matrix** y **Synthwave** con bordes brillantes y efectos visuales adaptativos.
-- **Motor 3D Dinámico:** Fondos tridimensionales en tiempo real impulsados por **Three.js** que reaccionan al tema seleccionado.
-- **Escritorios Virtuales:** Soporte para múltiples espacios de trabajo con persistencia de estado y transiciones fluidas.
+- **NEX OS 2.0 — Neon Experience:** Sistema de temas dinámicos: **Cyberpunk**, **Matrix** y **Synthwave** con bordes luminosos y efectos visuales adaptativos.
+- **Snap Layouts:** Acopiamiento de ventanas en mitades y cuadrantes (estilo Windows 11), con memoria de tamaño al restaurar.
+- **Escritorios Virtuales:** Múltiples espacios de trabajo con persistencia de estado y atajos de teclado (`Win+Ctrl+←/→`).
+- **Ciclo de Vida Completo:** Pantallas de UEFI → POST → Boot → Login → Escritorio → Suspender → Apagar → Reiniciar.
 
-### 🛠️ Herramientas Integradas
-- **File Explorer Engine:** Navegación real de archivos simulados con soporte para previsualización de medios.
-- **NexBrowser Pro:** Navegador avanzado con soporte nativo de YouTube, gestión de historial por pestaña y seguridad integrada.
-- **Dev-C++ 2026:** Un entorno de desarrollo moderno con resaltado de sintaxis y simulación de compilación.
+### 🛠️ Aplicaciones Integradas (18+)
+
+| Aplicación | Descripción |
+| :--- | :--- |
+| 🗂️ **File Explorer** | Navegación de archivos virtuales con vista árbol/lista y arrastrar-y-soltar. |
+| 🌐 **NexBrowser Pro** | Navegador integrado con soporte para YouTube, historial por pestaña y modo privado. |
+| 💻 **Dev-C++ 2026** | IDE con resaltado de sintaxis, compilación real con `g++` y ejecución de binarios. |
+| 🖼️ **VS Code** | Editor de código completo con soporte para múltiples lenguajes y temas. |
+| 📝 **Notepad 2.0** | Editor de texto avanzado con barra de menús, zoom, fuentes, contador de palabras y status bar. |
+| 🕐 **Reloj** | Reloj analógico + digital, cronómetro con vueltas, temporizador circular y zonas horarias mundiales. |
+| 📷 **Fotos** | Galería de imágenes con lightbox, zoom, rotación, tira de miniaturas y soporte de URLs personalizadas. |
+| 🎵 **Spotify Mini** | Reproductor de música simulado con playlist, controles, shuffle, repeat y ecualizador animado. |
+| 📊 **Task Manager** | Monitoreo en tiempo real (WASM) de CPU, memoria, procesos y servicios reales del sistema. |
+| 🎨 **Paint** | Editor de dibujo con herramientas, paleta de colores y lienzo exportable. |
+| 🛡️ **Windows Defender** | Simulación de seguridad del sistema con escaneo animado. |
+| 🖩 **Calculadora** | Calculadora funcional con historial de operaciones. |
+| 📅 **Calendario** | Vista mensual con eventos y selector de fecha. |
+| 💬 **Símbolo del Sistema** | Terminal con comandos simulados (`dir`, `echo`, `cls`, etc.). |
+| ⚙️ **Panel de Control** | Configuración completa: wallpaper, tema neon, brillo, volumen, acento de color. |
 
 ---
 
 ## 🏗️ Arquitectura del Sistema
 
-El proyecto implementa un patrón de **Gestión de Estado Centralizada** para el ciclo de vida de los procesos:
+```
+App.tsx
+├── SettingsProvider        ← Preferencias del usuario (tema, volumen, wallpaper…)
+├── FileSystemProvider      ← Sistema de archivos virtual
+├── DesktopProvider         ← Íconos y escritorios virtuales
+├── UIProvider              ← Estado de UI (Start, Widgets, Switcher…)
+└── WindowManagerProvider   ← Ciclo de vida de ventanas y foco
+    └── AppContent          ← Máquina de estados del OS
+        ├── OffScreen / BootScreen / WindowsBoot / UEFI
+        ├── LoginScreen
+        └── Desktop (Windows) | NexDesktop (NEX OS)
+            ├── Background3D
+            ├── Window × N  ← Cada ventana abierta
+            ├── Taskbar
+            ├── StartMenu
+            └── Overlays (ContextMenu, TaskView, Widgets…)
+```
 
-*   **`src/context/WindowManager`**: El corazón del sistema. Gestiona el registro de aplicaciones, el foco de ventanas y los escritorios virtuales.
-*   **`src/components/Window`**: Componente de orden superior que abstrae la lógica de arrastre, cambio de tamaño y controles de ventana.
-*   **`assembly/`**: Contiene los módulos de WebAssembly para procesamiento matemático intensivo.
+**Flujo de datos:**
+```
+User Interaction → Component → Hook (useWindowManager / useSettings…) → Context → Re-render
+```
 
 ---
 
 ## 🛠️ Stack Tecnológico
 
-| Tecnología | Propósito |
-| :--- | :--- |
-| **React 18** | Biblioteca base para la UI reactiva. |
-| **TypeScript** | Tipado estricto para una base de código robusta. |
-| **Tailwind CSS** | Estilizado moderno y utilitario. |
-| **AssemblyScript** | Compilación a WASM para rendimiento extremo. |
-| **Vite** | Bundler de última generación para carga instantánea. |
-| **Three.js** | Renderizado 3D para fondos dinámicos. |
-| **Framer Motion** | Animaciones fluidas y transiciones. |
+| Tecnología | Versión | Propósito |
+| :--- | :--- | :--- |
+| **React** | 19.x | Biblioteca base para UI reactiva. |
+| **TypeScript** | ~5.9 | Tipado estricto para una base de código robusta. |
+| **Vite** | 8.x | Bundler de última generación con HMR instantáneo. |
+| **Tailwind CSS** | 3.x | Estilizado utilitario y tokens de diseño. |
+| **Framer Motion** | 12.x | Animaciones fluidas y transiciones de ventanas. |
+| **Three.js / R3F** | 0.183 | Fondos 3D dinámicos con aceleración GPU. |
+| **AssemblyScript** | 0.28 | Compilación a WASM para procesamiento intensivo. |
+| **@fluentui/react-icons** | 2.x | Iconografía del sistema estilo Fluent Design. |
+| **vite-plugin-pwa** | 1.x | Instalación como PWA con soporte offline. |
 
 ---
 
@@ -58,19 +94,19 @@ El proyecto implementa un patrón de **Gestión de Estado Centralizada** para el
 
 ### Requisitos Previos
 - **Node.js** 18+ ([Descargar](https://nodejs.org/))
-- **npm** 9+ o **yarn**
+- **npm** 9+
 
 ### Instalación
 
 ```bash
 # Clonar el repositorio
-git clone https://github.com/tu-usuario/windows.git
+git clone https://github.com/shadownrx/windows.git
 cd windows
 
 # Instalar dependencias
 npm install
 
-# Compilar módulos de WASM (si es necesario)
+# Compilar módulos de WASM (opcional — para Task Manager real)
 npm run asbuild
 
 # Iniciar servidor de desarrollo
@@ -82,105 +118,53 @@ La aplicación se ejecutará en `http://localhost:5173`
 ### Compilación para Producción
 
 ```bash
-npm run build
-npm run preview  # Vista previa local de la compilación
+npm run build      # Compila TypeScript + genera dist/
+npm run preview    # Vista previa local del build
 ```
+
+> [!NOTE]
+> El build de producción genera ~1.8 MB sin comprimir (~499 KB gzip). Se recomienda activar Brotli en el servidor de hosting para máxima performance.
+
+---
+
+## ⌨️ Atajos de Teclado
+
+| Atajo | Acción |
+| :--- | :--- |
+| `Win + D` | Minimizar todas las ventanas |
+| `Win + R` | Abrir cuadro Ejecutar |
+| `Win + E` | Abrir Explorador de archivos |
+| `Win + Tab` | Vista de tareas |
+| `Win + Ctrl + →/←` | Cambiar escritorio virtual |
+| `Alt + F4` | Cerrar ventana enfocada |
+| `Ctrl + S` | Guardar (en Notepad, VS Code, etc.) |
 
 ---
 
 ## 📖 Documentación
 
-- **[INSTALLATION.md](./docs/INSTALLATION.md)** - Guía detallada de instalación
-- **[DEVELOPMENT.md](./docs/DEVELOPMENT.md)** - Configuración del entorno de desarrollo
-- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - Arquitectura del sistema
-- **[API_REFERENCE.md](./docs/API_REFERENCE.md)** - Referencia de hooks y APIs
-- **[WASM_BRIDGE.md](./docs/WASM_BRIDGE.md)** - Guía de WebAssembly
-- **[PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)** - Estructura del proyecto
-- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - Guía de contribución
-
----
-
-## 🎮 Características por Aplicación
-
-### 🗂️ File Explorer
-- Navegación de archivos simulados
-- Previsualización de imágenes
-- Vista en árbol y lista
-- Soporte para múltiples pestañas
-
-### 🌐 NexBrowser Pro
-- Navegación web integrada
-- Soporte para YouTube
-- Historial por pestaña
-- Gestor de cookies simulado
-
-### 💻 Dev-C++ 2026
-- Editor de código con resaltado de sintaxis
-- Simulación de compilación
-- Gestor de proyectos
-
-### 📊 Administrador de Tareas
-- Monitoreo en tiempo real (WASM optimizado)
-- Gráficos de CPU y memoria
-- Procesos simulados
-
-### 🎨 Paint
-- Herramientas de dibujo
-- Paleta de colores
-- Lienzo exportable
+- **[INSTALLATION.md](./docs/INSTALLATION.md)** — Guía detallada de instalación y configuración
+- **[DEVELOPMENT.md](./docs/DEVELOPMENT.md)** — Flujo de trabajo y convenciones de desarrollo
+- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** — Arquitectura del sistema en profundidad
+- **[API_REFERENCE.md](./docs/API_REFERENCE.md)** — Referencia completa de hooks y APIs
+- **[WASM_BRIDGE.md](./docs/WASM_BRIDGE.md)** — Guía de integración WebAssembly
+- **[PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md)** — Estructura de archivos y carpetas
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — Guía de contribución
 
 ---
 
 ## ⚙️ Configuración
 
-La configuración del proyecto se encuentra en:
-- **`vite.config.ts`** - Configuración de Vite
-- **`asconfig.json`** - Configuración de AssemblyScript
-- **`tailwind.config.js`** - Temas y tokens de color
-- **`tsconfig.json`** - Configuración de TypeScript
-| **Three.js** | Motor 3D para fondos dinámicos y partículas. |
-| **Framer Motion** | Orquestación de animaciones complejas de UI. |
-
----
-
-## 🔧 Guía de Instalación
-
-Sigue estos pasos para arrancar el motor de NEX en tu entorno local:
-
-1. **Clona el repositorio:**
-   ```bash
-   git clone https://github.com/tu-usuario/nex-os.git
-   ```
-
-2. **Instala las dependencias:**
-   ```bash
-   npm install
-   ```
-
-3. **Inicia el servidor de desarrollo:**
-   ```bash
-   npm run dev
-   ```
-
-4. **Compila los módulos WASM (Opcional):**
-   ```bash
-   npm run asbuild
-   ```
-
----
-
-## 📜 Documentación Adicional
-
-Para profundizar en la ingeniería de NEX, consulta nuestras guías detalladas:
-
-- 🏗️ [**Arquitectura Técnica**](./docs/ARCHITECTURE.md)
-- 🔌 [**Referencia de APIs Internas**](./docs/API_REFERENCE.md)
-- ⚡ [**Guía de Integración WASM**](./docs/WASM_BRIDGE.md)
-- 🤝 [**Guía de Contribución**](./CONTRIBUTING.md)
+| Archivo | Propósito |
+| :--- | :--- |
+| `vite.config.ts` | Vite + plugin PWA + puente de procesos PowerShell |
+| `tailwind.config.js` | Temas y tokens de color |
+| `tsconfig.json` | Configuración TypeScript estricta |
+| `asconfig.json` | Configuración AssemblyScript → WASM |
 
 ---
 
 > [!NOTE]
-> Este proyecto es una demostración técnica de capacidades frontend modernas y no está afiliado a Microsoft.
+> Este proyecto es una demostración técnica de capacidades frontend modernas y no está afiliado a Microsoft ni a Spotify.
 
 © 2026 Salvador Juarez.

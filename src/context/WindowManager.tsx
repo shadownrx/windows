@@ -12,6 +12,8 @@ export interface AppWindow {
   isMaximized: boolean;
   snap?: 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'none';
   zIndex: number;
+  /** Saved size/position for restore-from-maximized */
+  savedSize?: { width: number; height: number; x: number; y: number };
 }
 
 interface WindowManagerContextType {
@@ -21,9 +23,10 @@ interface WindowManagerContextType {
   minimizeWindow: (id: string) => void;
   minimizeAllWindows: () => void;
   closeFocusedWindow: () => void;
-  maximizeWindow: (id: string) => void;
+  maximizeWindow: (id: string, currentSize?: { width: number; height: number; x: number; y: number }) => void;
   snapWindow: (id: string, direction: 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'none') => void;
   focusWindow: (id: string) => void;
+  restoreWindow: (id: string) => void;
   focusedWindowId: string | null;
 }
 
@@ -77,13 +80,28 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
     closeWindow(focusedWindowId);
   };
 
-  const maximizeWindow = (id: string) => {
-    setWindows((prev) => prev.map((w) => w.id === id ? { ...w, isMaximized: !w.isMaximized } : w));
+  const maximizeWindow = (id: string, currentSize?: { width: number; height: number; x: number; y: number }) => {
+    setWindows((prev) => prev.map((w) => {
+      if (w.id !== id) return w;
+      // Going FROM normal → maximized: save current size
+      if (!w.isMaximized) {
+        return { ...w, isMaximized: true, snap: 'none', savedSize: currentSize ?? w.savedSize };
+      }
+      // Going FROM maximized → normal: restore
+      return { ...w, isMaximized: false };
+    }));
     focusWindow(id);
   };
 
   const focusWindow = (id: string) => {
     setWindows((prev) => prev.map((w) => w.id === id ? { ...w, zIndex: nextZIndex } : w));
+    setFocusedWindowId(id);
+    setNextZIndex((z) => z + 1);
+  };
+
+  /** Un-minimize and bring to front without reinitializing */
+  const restoreWindow = (id: string) => {
+    setWindows((prev) => prev.map((w) => w.id === id ? { ...w, isMinimized: false, zIndex: nextZIndex } : w));
     setFocusedWindowId(id);
     setNextZIndex((z) => z + 1);
   };
@@ -105,6 +123,7 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
       maximizeWindow, 
       snapWindow,
       focusWindow,
+      restoreWindow,
       closeFocusedWindow,
       focusedWindowId
     }}>

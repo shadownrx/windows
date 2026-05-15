@@ -8,6 +8,9 @@ import {
   Apps24Regular,
   Calendar24Regular,
   ShieldCheckmark24Regular,
+  Clock24Regular,
+  Image24Regular,
+  MusicNote2Regular,
 } from '@fluentui/react-icons';
 import FileExplorer from '../components/apps/FileExplorer';
 import BrowserApp, { ChromeIcon } from '../components/apps/BrowserApp';
@@ -22,6 +25,9 @@ import WindowsDefender from '../components/apps/WindowsDefender';
 import Calculator from '../components/apps/Calculator';
 import Notepad from '../components/apps/Notepad';
 import Cmd from '../components/apps/Cmd';
+import Clock from '../components/apps/Clock';
+import Photos from '../components/apps/Photos';
+import SpotifyMini from '../components/apps/SpotifyMini';
 
 export interface AppItem {
   id: string;
@@ -53,4 +59,7 @@ export const APPS: AppItem[] = [
   { id: 'calculator', icon: <Apps24Regular />, label: 'Calculadora', component: (props) => <Calculator {...props} /> },
   { id: 'notepad', icon: <Document24Regular />, label: 'Bloc de notas', component: (props) => <Notepad {...props} /> },
   { id: 'terminal', icon: <span style={{ fontFamily: 'Consolas, monospace', fontSize: 16 }}>C:\\</span>, label: 'Terminal', component: (props) => <Cmd {...props} /> },
+  { id: 'clock', icon: <Clock24Regular />, label: 'Reloj', component: (props) => <Clock {...props} /> },
+  { id: 'photos', icon: <Image24Regular />, label: 'Fotos', component: (props) => <Photos {...props} /> },
+  { id: 'spotify', icon: <MusicNote2Regular />, label: 'Spotify', component: (props) => <SpotifyMini {...props} /> },
 ];

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { genId } from '../utils/id';
 
 export type SystemState = 'OFF' | 'BOOTING' | 'UEFI' | 'WINDOWS_BOOT' | 'LOGIN' | 'DESKTOP' | 'SHUTTING_DOWN' | 'RESTARTING';
 
@@ -10,21 +11,30 @@ export interface Notification {
   timestamp: Date;
 }
 
+export interface UserProfile {
+  id: string;
+  name: string;
+  avatar: string;
+  pin: string;
+  settings: {
+    wallpaper: string;
+    theme: 'light' | 'dark';
+    neonTheme: 'none' | 'cyberpunk' | 'matrix' | 'synthwave';
+    accentColor: string;
+    isNightLightEnabled: boolean;
+  };
+}
+
 interface SettingsContextType {
+  // Global Settings
   brightness: number;
   setBrightness: (val: number) => void;
   volume: number;
   setVolume: (val: number) => void;
-  accentColor: string;
-  setAccentColor: (color: string) => void;
   isWifiEnabled: boolean;
   setIsWifiEnabled: (enabled: boolean) => void;
   isBluetoothEnabled: boolean;
   setIsBluetoothEnabled: (enabled: boolean) => void;
-  isNightLightEnabled: boolean;
-  setIsNightLightEnabled: (enabled: boolean) => void;
-  userName: string;
-  setUserName: (name: string) => void;
   systemState: SystemState;
   setSystemState: (state: SystemState) => void;
   osType: 'windows' | 'nexos';
@@ -32,8 +42,6 @@ interface SettingsContextType {
   updateStatus: 'idle' | 'checking' | 'downloading' | 'up-to-date';
   setUpdateStatus: (status: 'idle' | 'checking' | 'downloading' | 'up-to-date') => void;
   lockSystem: () => void;
-  
-  // -- NEW Perfect 11 Experience --
   notifications: Notification[];
   addNotification: (title: string, message: string, icon?: React.ReactNode) => void;
   removeNotification: (id: string) => void;
@@ -41,7 +49,19 @@ interface SettingsContextType {
   setIsTaskViewOpen: (val: boolean) => void;
   playSound: (type: 'startup' | 'notif' | 'error' | 'beep') => void;
 
-  // -- NEX OS 2.0 --
+  // Multi-User Management
+  users: UserProfile[];
+  currentUserId: string | null;
+  setCurrentUserId: (id: string | null) => void;
+  addUser: (name: string, pin: string) => void;
+  
+  // User Settings (Derived from currentUser)
+  userName: string;
+  setUserName: (name: string) => void;
+  accentColor: string;
+  setAccentColor: (color: string) => void;
+  isNightLightEnabled: boolean;
+  setIsNightLightEnabled: (enabled: boolean) => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   neonTheme: 'none' | 'cyberpunk' | 'matrix' | 'synthwave';
@@ -53,6 +73,7 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Global States
   const [systemState, setSystemState] = useState<SystemState>('OFF');
   const [osType, setOsType] = useState<'windows' | 'nexos'>(() => 
     (localStorage.getItem('win11_osType') as 'windows' | 'nexos') || 'windows'
@@ -63,93 +84,119 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [volume, setVolume] = useState(() => 
     Number(localStorage.getItem('win11_volume')) || 50
   );
-  const [accentColor, setAccentColor] = useState(() => 
-    localStorage.getItem('win11_accentColor') || '#60cdff'
-  );
   const [isWifiEnabled, setIsWifiEnabled] = useState(() => 
     localStorage.getItem('win11_wifi') !== 'false'
   );
   const [isBluetoothEnabled, setIsBluetoothEnabled] = useState(() => 
     localStorage.getItem('win11_bluetooth') !== 'false'
   );
-  const [isNightLightEnabled, setIsNightLightEnabled] = useState(() => 
-    localStorage.getItem('win11_nightlight') === 'true'
-  );
-  const [userName, setUserName] = useState(() => 
-    localStorage.getItem('win11_userName') || 'Martín'
-  );
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'downloading' | 'up-to-date'>('idle');
-  
-  // -- NEW --
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isTaskViewOpen, setIsTaskViewOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => 
-    (localStorage.getItem('win11_theme') as 'light' | 'dark') || 'dark'
-  );
-  const [neonTheme, setNeonTheme] = useState<'none' | 'cyberpunk' | 'matrix' | 'synthwave'>(() => 
-    (localStorage.getItem('win11_neonTheme') as any) || 'none'
-  );
-  const [wallpaper, setWallpaper] = useState<string>(() => 
-    localStorage.getItem('win11_wallpaper') || 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974'
-  );
 
+  // Multi-User States
+  const [users, setUsers] = useState<UserProfile[]>(() => {
+    const saved = localStorage.getItem('win11_users');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing users", e);
+      }
+    }
+    // Fallback: migrate old settings to a default user
+    return [{
+      id: 'default',
+      name: localStorage.getItem('win11_userName') || 'Martín',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=300&auto=format&fit=crop',
+      pin: '',
+      settings: {
+        wallpaper: localStorage.getItem('win11_wallpaper') || 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974',
+        theme: (localStorage.getItem('win11_theme') as 'light' | 'dark') || 'dark',
+        neonTheme: (localStorage.getItem('win11_neonTheme') as any) || 'none',
+        accentColor: localStorage.getItem('win11_accentColor') || '#60cdff',
+        isNightLightEnabled: localStorage.getItem('win11_nightlight') === 'true'
+      }
+    }];
+  });
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(users.length > 0 ? users[0].id : null);
+  const currentUser = users.find(u => u.id === currentUserId) || users[0];
+
+  // Save users to localstorage whenever they change
   useEffect(() => {
-    localStorage.setItem('win11_wallpaper', wallpaper);
-  }, [wallpaper]);
+    localStorage.setItem('win11_users', JSON.stringify(users));
+  }, [users]);
 
+  // Derived User Settings
+  const userName = currentUser?.name || 'Invitado';
+  const wallpaper = currentUser?.settings.wallpaper || '';
+  const theme = currentUser?.settings.theme || 'dark';
+  const neonTheme = currentUser?.settings.neonTheme || 'none';
+  const accentColor = currentUser?.settings.accentColor || '#60cdff';
+  const isNightLightEnabled = currentUser?.settings.isNightLightEnabled || false;
+
+  // Helpers to update user settings
+  const updateUserSetting = useCallback((key: keyof UserProfile['settings'], value: any) => {
+    if (!currentUserId) return;
+    setUsers(prev => prev.map(u => 
+      u.id === currentUserId 
+        ? { ...u, settings: { ...u.settings, [key]: value } }
+        : u
+    ));
+  }, [currentUserId]);
+
+  const setUserName = useCallback((name: string) => {
+    if (!currentUserId) return;
+    setUsers(prev => prev.map(u => u.id === currentUserId ? { ...u, name } : u));
+  }, [currentUserId]);
+
+  const addUser = useCallback((name: string, pin: string) => {
+    const newUser: UserProfile = {
+      id: genId(),
+      name,
+      pin,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+      settings: {
+        wallpaper: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974',
+        theme: 'dark',
+        neonTheme: 'none',
+        accentColor: '#60cdff',
+        isNightLightEnabled: false
+      }
+    };
+    setUsers(prev => [...prev, newUser]);
+    setCurrentUserId(newUser.id);
+  }, []);
+
+  const setWallpaper = (url: string) => updateUserSetting('wallpaper', url);
+  const setTheme = (t: 'light' | 'dark') => updateUserSetting('theme', t);
+  const toggleTheme = () => updateUserSetting('theme', theme === 'dark' ? 'light' : 'dark');
+  const setNeonTheme = (nt: any) => updateUserSetting('neonTheme', nt);
+  const setAccentColor = (color: string) => updateUserSetting('accentColor', color);
+  const setIsNightLightEnabled = (enabled: boolean) => updateUserSetting('isNightLightEnabled', enabled);
+
+  // Apply visual changes when current user settings change
   useEffect(() => {
     document.documentElement.setAttribute('data-neon', neonTheme);
-    localStorage.setItem('win11_neonTheme', neonTheme);
   }, [neonTheme]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('win11_theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-
-  const addNotification = useCallback((title: string, message: string, icon?: React.ReactNode) => {
-    const newNotif: Notification = { id: Math.random().toString(36), title, message, icon, timestamp: new Date() };
-    setNotifications(prev => [newNotif, ...prev].slice(0, 5));
-    playSound('notif');
-  }, []);
-
-  const removeNotification = useCallback((id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  }, []);
-
-  const playSound = useCallback((type: 'startup' | 'notif' | 'error' | 'beep') => {
-    const urls = {
-      startup: 'https://archive.org/download/windows-11-original-sounds/Windows%20Logon.mp3',
-      notif: 'https://archive.org/download/windows-11-original-sounds/Windows%20Notify%20System%20Generic.mp3',
-      error: 'https://archive.org/download/windows-11-original-sounds/Windows%20Foreground.mp3',
-      beep: 'https://www.soundjay.com/buttons/beep-07.wav'
-    };
-    const audio = new Audio(urls[type]);
-    audio.volume = volume / 100;
-    audio.play().catch(() => console.log('Audio blocked by browser policy'));
-  }, [volume]);
-
-  const lockSystem = () => {
-    if (systemState === 'DESKTOP') {
-      setSystemState('LOGIN');
-    }
-  };
+  useEffect(() => {
+    document.documentElement.style.setProperty('--win-accent', accentColor);
+  }, [accentColor]);
 
   useEffect(() => {
-    localStorage.setItem('win11_brightness', brightness.toString());
     document.documentElement.style.setProperty('--win-brightness', (brightness / 100).toString());
+    localStorage.setItem('win11_brightness', brightness.toString());
   }, [brightness]);
 
   useEffect(() => {
     localStorage.setItem('win11_volume', volume.toString());
   }, [volume]);
-
-  useEffect(() => {
-    localStorage.setItem('win11_accentColor', accentColor);
-    document.documentElement.style.setProperty('--win-accent', accentColor);
-  }, [accentColor]);
 
   useEffect(() => {
     localStorage.setItem('win11_wifi', isWifiEnabled.toString());
@@ -160,26 +207,61 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [isBluetoothEnabled]);
 
   useEffect(() => {
-    localStorage.setItem('win11_nightlight', isNightLightEnabled.toString());
-  }, [isNightLightEnabled]);
-
-  useEffect(() => {
-    localStorage.setItem('win11_userName', userName);
-  }, [userName]);
-
-  useEffect(() => {
     localStorage.setItem('win11_osType', osType);
   }, [osType]);
+
+  // Forward-declared by ref so addNotification can call playSound without
+  // forming a stale closure on `volume`.
+  const playSoundRef = useRef<(t: 'startup' | 'notif' | 'error' | 'beep') => void>(() => {});
+  const addNotification = useCallback((title: string, message: string, icon?: React.ReactNode) => {
+    const newNotif: Notification = { id: genId(), title, message, icon, timestamp: new Date() };
+    setNotifications(prev => [newNotif, ...prev].slice(0, 5));
+    playSoundRef.current('notif');
+  }, []);
+
+  const removeNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+
+  // Cache audio elements to avoid creating new instances on every play call.
+  const audioCacheRef = useRef<Record<string, HTMLAudioElement>>({});
+  const playSound = useCallback((type: 'startup' | 'notif' | 'error' | 'beep') => {
+    const urls: Record<string, string> = {
+      startup: 'https://archive.org/download/windows-11-original-sounds/Windows%20Logon.mp3',
+      notif: 'https://archive.org/download/windows-11-original-sounds/Windows%20Notify%20System%20Generic.mp3',
+      error: 'https://archive.org/download/windows-11-original-sounds/Windows%20Foreground.mp3',
+      beep: 'https://www.soundjay.com/buttons/beep-07.wav',
+    };
+    let audio = audioCacheRef.current[type];
+    if (!audio) {
+      audio = new Audio(urls[type]);
+      audio.preload = 'auto';
+      audioCacheRef.current[type] = audio;
+    }
+    audio.volume = volume / 100;
+    // Reset to start so rapid notifications still play
+    try { audio.currentTime = 0; } catch { /* ignore */ }
+    audio.play().catch(() => { /* Audio blocked by browser policy */ });
+  }, [volume]);
+
+  // Keep the ref pointing at the latest playSound so addNotification
+  // (with a stable identity) always plays at the current volume.
+  useEffect(() => {
+    playSoundRef.current = playSound;
+  }, [playSound]);
+
+  const lockSystem = () => {
+    if (systemState === 'DESKTOP') {
+      setSystemState('LOGIN');
+    }
+  };
 
   return (
     <SettingsContext.Provider value={{
       brightness, setBrightness,
       volume, setVolume,
-      accentColor, setAccentColor,
       isWifiEnabled, setIsWifiEnabled,
       isBluetoothEnabled, setIsBluetoothEnabled,
-      isNightLightEnabled, setIsNightLightEnabled,
-      userName, setUserName,
       systemState, setSystemState,
       osType, setOsType,
       updateStatus, setUpdateStatus,
@@ -187,6 +269,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       notifications, addNotification, removeNotification,
       isTaskViewOpen, setIsTaskViewOpen,
       playSound,
+      
+      users, currentUserId, setCurrentUserId, addUser,
+      userName, setUserName,
+      accentColor, setAccentColor,
+      isNightLightEnabled, setIsNightLightEnabled,
       theme, toggleTheme,
       neonTheme, setNeonTheme,
       wallpaper, setWallpaper
@@ -195,9 +282,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     </SettingsContext.Provider>
   );
 };
-
-
-
 
 export const useSettings = () => {
   const context = useContext(SettingsContext);

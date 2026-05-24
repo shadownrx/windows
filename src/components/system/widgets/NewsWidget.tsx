@@ -11,7 +11,8 @@ const NewsWidget: React.FC = () => {
         // BBC News RSS a JSON vía rss2json
         const res = await fetch('https://api.rss2json.com/v1/api.json?rss_url=https://feeds.bbci.co.uk/news/world/rss.xml');
         const data = await res.json();
-        const items = data.items.slice(0, 3).map((item: any) => ({
+        type RssItem = { title: string; pubDate: string };
+        const items = (data.items as RssItem[]).slice(0, 3).map((item) => ({
           title: item.title,
           source: data.feed.title,
           time: new Date(item.pubDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

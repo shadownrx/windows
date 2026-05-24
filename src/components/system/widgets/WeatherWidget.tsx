@@ -10,26 +10,33 @@ import {
 const WeatherWidget: React.FC = () => {
   const [weather, setWeather] = useState<{ temp: number; code: number; location: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchWeather = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Tucumán, AR (-26.82, -65.22)
+      const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-26.8241&longitude=-65.2226&current_weather=true');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data?.current_weather) throw new Error('Respuesta inválida');
+      setWeather({
+        temp: Math.round(data.current_weather.temperature),
+        code: data.current_weather.weathercode,
+        location: 'Tucumán, AR'
+      });
+    } catch (err) {
+      console.error('Weather fetch failed', err);
+      setError('No se pudo obtener el clima');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchWeather = async () => {
-      try {
-        // Tucumán, AR (-26.82, -65.22)
-        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-26.8241&longitude=-65.2226&current_weather=true');
-        const data = await res.json();
-        setWeather({
-          temp: Math.round(data.current_weather.temperature),
-          code: data.current_weather.weathercode,
-          location: 'Tucumán, AR'
-        });
-      } catch (err) {
-        console.error('Weather fetch failed', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchWeather();
-  }, []);
+  }, [fetchWeather]);
 
   const getWeatherIcon = (code: number) => {
     if (code === 0) return <WeatherSunny24Regular style={{ color: '#ffcc33', fontSize: 32 }} />;
@@ -49,6 +56,35 @@ const WeatherWidget: React.FC = () => {
 
   if (loading) return <div className="widget-card loading">Cargando clima...</div>;
 
+  if (error || !weather) {
+    return (
+      <div className="widget-card weather-live" style={{ alignItems: 'flex-start' }}>
+        <div className="weather-header">
+          <strong>Clima</strong>
+          <span>Sin conexión</span>
+        </div>
+        <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>
+          {error ?? 'Datos no disponibles'}
+        </div>
+        <button
+          onClick={fetchWeather}
+          style={{
+            background: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.15)',
+            color: 'white',
+            padding: '4px 10px',
+            borderRadius: 4,
+            fontSize: 11,
+            cursor: 'pointer',
+            alignSelf: 'flex-start',
+          }}
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="widget-card weather-live">
       <div className="weather-header">
@@ -56,10 +92,10 @@ const WeatherWidget: React.FC = () => {
         <span>Ahora</span>
       </div>
       <div className="weather-main">
-        <div className="weather-temp">{weather?.temp}°</div>
+        <div className="weather-temp">{weather.temp}°</div>
         <div className="weather-icon-box">
-          {weather && getWeatherIcon(weather.code)}
-          <span className="weather-desc">{weather && getWeatherText(weather.code)}</span>
+          {getWeatherIcon(weather.code)}
+          <span className="weather-desc">{getWeatherText(weather.code)}</span>
         </div>
       </div>
       <style>{`

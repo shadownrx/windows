@@ -61,7 +61,7 @@ const SearchPane: React.FC<SearchPaneProps> = ({ isOpen, onClose }) => {
                 <div className="section-title">Aplicaciones principales</div>
                 <div className="top-apps-grid">
                   {APPS.slice(0, 5).map((app: AppItem) => (
-                    <div key={app.id} className="top-app-item" onClick={() => { openWindow(app.id, app.label, app.icon, app.component({})); onClose(); }}>
+                    <div key={app.id} className="top-app-item" onClick={() => { openWindow(app.id, app.appId, app.label, app.icon); onClose(); }}>
                       <div className="top-app-icon">{app.icon}</div>
                       <div className="top-app-label">{app.label}</div>
                     </div>
@@ -93,7 +93,7 @@ const SearchPane: React.FC<SearchPaneProps> = ({ isOpen, onClose }) => {
               <div className="section-title">Mejor coincidencia</div>
               {filteredApps.length > 0 ? (
                 filteredApps.map((app: AppItem) => (
-                  <div key={app.id} className="result-item" onClick={() => { openWindow(app.id, app.label, app.icon, app.component({})); onClose(); }}>
+                  <div key={app.id} className="result-item" onClick={() => { openWindow(app.id, app.appId, app.label, app.icon); onClose(); }}>
                     <div className="result-left">
                        <div className="result-icon">{app.icon}</div>
                        <div className="result-info">

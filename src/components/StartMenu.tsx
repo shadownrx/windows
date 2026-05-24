@@ -20,22 +20,6 @@ import {
 import { useWindowManager } from '../context/WindowManager';
 
 import { useSettings } from '../context/SettingsContext';
-import FileExplorer from './apps/FileExplorer';
-import Notepad from './apps/Notepad';
-import Calculator from './apps/Calculator';
-import Cmd from './apps/Cmd';
-import Paint from './apps/Paint';
-import WordPad from './apps/WordPad';
-import TaskManager from './apps/TaskManager';
-import ControlPanel from './apps/ControlPanel';
-import Calendar from './apps/Calendar';
-import SearchApp from './apps/SearchApp';
-import WindowsDefender from './apps/WindowsDefender';
-import DevCpp2026 from './apps/DevCpp2026';
-import ManualApp from './apps/ManualApp';
-import ClockApp from './apps/Clock';
-import Photos from './apps/Photos';
-import SpotifyMini from './apps/SpotifyMini';
 
 
 interface StartMenuProps {
@@ -47,10 +31,10 @@ interface StartMenuProps {
 
 interface App {
   id: string;
+  appId: string;
   icon: React.ReactNode;
   name: string;
   color: string;
-  component?: React.ReactNode;
 }
 
 const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRestart }) => {
@@ -59,24 +43,24 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
   const [showPowerMenu, setShowPowerMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const pinnedApps = [
-    { id: 'browser', icon: <Globe24Regular />, name: 'Edge', color: '#0078d4' },
-    { id: 'files', icon: <Folder24Regular />, name: 'Explorador', color: '#f1c40f', component: <FileExplorer /> },
-    { id: 'notepad', icon: <Document24Regular />, name: 'Bloc de notas', color: '#4CAF50', component: <Notepad /> },
-    { id: 'calculator', icon: <Calculator24Regular />, name: 'Calculadora', color: '#D32F2F', component: <Calculator /> },
-    { id: 'cmd', icon: <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, name: 'Terminal', color: '#64b5f6', component: <Cmd /> },
-    { id: 'paint', icon: <Edit24Regular />, name: 'Paint', color: '#FF6E40', component: <Paint /> },
-    { id: 'wordpad', icon: <Document24Regular />, name: 'WordPad', color: '#4CAF50', component: <WordPad /> },
-    { id: 'task-manager', icon: <Apps24Regular />, name: 'Admin. tareas', color: '#2196F3', component: <TaskManager /> },
-    { id: 'control-panel', icon: <Settings24Regular />, name: 'Configuración', color: '#757575', component: <ControlPanel /> },
-    { id: 'calendar', icon: <Calendar24Regular />, name: 'Calendario', color: '#E91E63', component: <Calendar /> },
-    { id: 'search', icon: <Search24Regular />, name: 'Buscar', color: '#FF9800', component: <SearchApp /> },
-    { id: 'defender', icon: <ShieldCheckmark24Regular />, name: 'Seguridad', color: '#008a17', component: <WindowsDefender /> },
-    { id: 'devcpp-2026', icon: <Play24Filled />, name: 'Dev-C++ 2026', color: '#3b82f6', component: <DevCpp2026 /> },
-    { id: 'manual', icon: <Book24Regular />, name: 'Manual', color: '#3b82f6', component: <ManualApp /> },
-    { id: 'clock', icon: <span style={{ fontSize: 20 }}>🕐</span>, name: 'Reloj', color: '#60cdff', component: <ClockApp /> },
-    { id: 'photos', icon: <span style={{ fontSize: 20 }}>📷</span>, name: 'Fotos', color: '#ff6b6b', component: <Photos /> },
-    { id: 'spotify', icon: <span style={{ fontSize: 20 }}>🎵</span>, name: 'Spotify', color: '#1db954', component: <SpotifyMini /> },
+  const pinnedApps: App[] = [
+    { id: 'browser', appId: 'browser', icon: <Globe24Regular />, name: 'Edge', color: '#0078d4' },
+    { id: 'files', appId: 'file-explorer', icon: <Folder24Regular />, name: 'Explorador', color: '#f1c40f' },
+    { id: 'notepad', appId: 'notepad', icon: <Document24Regular />, name: 'Bloc de notas', color: '#4CAF50' },
+    { id: 'calculator', appId: 'calculator', icon: <Calculator24Regular />, name: 'Calculadora', color: '#D32F2F' },
+    { id: 'cmd', appId: 'cmd', icon: <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, name: 'Terminal', color: '#64b5f6' },
+    { id: 'paint', appId: 'paint', icon: <Edit24Regular />, name: 'Paint', color: '#FF6E40' },
+    { id: 'wordpad', appId: 'wordpad', icon: <Document24Regular />, name: 'WordPad', color: '#4CAF50' },
+    { id: 'task-manager', appId: 'taskmanager', icon: <Apps24Regular />, name: 'Admin. tareas', color: '#2196F3' },
+    { id: 'control-panel', appId: 'control-panel', icon: <Settings24Regular />, name: 'Configuración', color: '#757575' },
+    { id: 'calendar', appId: 'calendar', icon: <Calendar24Regular />, name: 'Calendario', color: '#E91E63' },
+    { id: 'search', appId: 'search', icon: <Search24Regular />, name: 'Buscar', color: '#FF9800' },
+    { id: 'defender', appId: 'defender', icon: <ShieldCheckmark24Regular />, name: 'Seguridad', color: '#008a17' },
+    { id: 'devcpp-2026', appId: 'devcpp-2026', icon: <Play24Filled />, name: 'Dev-C++ 2026', color: '#3b82f6' },
+    { id: 'manual', appId: 'manual', icon: <Book24Regular />, name: 'Manual', color: '#3b82f6' },
+    { id: 'clock', appId: 'clock', icon: <span style={{ fontSize: 20 }}>🕐</span>, name: 'Reloj', color: '#60cdff' },
+    { id: 'photos', appId: 'photos', icon: <span style={{ fontSize: 20 }}>📷</span>, name: 'Fotos', color: '#ff6b6b' },
+    { id: 'spotify', appId: 'spotify', icon: <span style={{ fontSize: 20 }}>🎵</span>, name: 'Spotify', color: '#1db954' },
   ];
 
 
@@ -92,17 +76,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
   );
 
   const handleAppClick = (app: App) => {
-    openWindow(
-      app.id, 
-      app.name, 
-      app.icon, 
-      app.component || (
-        <div className="p-4" style={{ color: 'white' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem' }}>{app.name}</h2>
-          <p>Mockup content for {app.name}.</p>
-        </div>
-      )
-    );
+    openWindow(app.id, app.appId, app.name, app.icon);
     onClose();
   };
 

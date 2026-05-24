@@ -36,18 +36,7 @@ import {
   Delete20Regular,
   ShieldCheckmark24Regular,
 } from '@fluentui/react-icons';
-import RecycleBin from './apps/RecycleBin';
-import Notepad from './apps/Notepad';
-import FileExplorer from './apps/FileExplorer';
-import TaskManager from './apps/TaskManager';
-import Cmd from './apps/Cmd';
-import BrowserApp, { ChromeIcon } from './apps/BrowserApp';
-import IEApp, { IEIcon } from './apps/IEApp';
-import CounterStrikeApp, { CounterIcon } from './apps/counter';
-import WindowsDefender from './apps/WindowsDefender';
-import DevCpp2026 from './apps/DevCpp2026';
 import { Play24Filled } from '@fluentui/react-icons';
-import ControlPanel from './apps/ControlPanel';
 
 
 
@@ -92,21 +81,20 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
 
     setRunError('');
     if (normalized === 'cmd' || normalized === 'cmd.exe' || normalized === 'terminal') {
-      openWindow('cmd', 'Terminal', <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, <Cmd />);
+      openWindow('cmd', 'cmd', 'Terminal', <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>);
     } else if (normalized === 'explorer' || normalized === 'file explorer' || normalized === 'files') {
-      openWindow('file-explorer', 'Explorador de archivos', <Folder24Regular />, <FileExplorer />);
+      openWindow('file-explorer', 'file-explorer', 'Explorador de archivos', <Folder24Regular />);
     } else if (normalized === 'notepad') {
-      openWindow('notepad', 'Notepad', <Document24Regular />, <Notepad />);
+      openWindow('notepad', 'notepad', 'Notepad', <Document24Regular />);
     } else if (normalized === 'taskmgr' || normalized === 'task manager') {
-      openWindow('taskmanager', 'Administrador de tareas', <Apps24Regular />, <TaskManager />);
+      openWindow('taskmanager', 'taskmanager', 'Administrador de tareas', <Apps24Regular />);
     } else if (normalized === 'calc' || normalized === 'calculator') {
-      openWindow('calculator', 'Calculadora', <Calculator24Regular />, <div className="p-4" style={{ color: 'white' }}><h2>Calculadora simulada</h2></div>);
+      openWindow('calculator', 'calculator', 'Calculadora', <Calculator24Regular />);
     } else if (normalized === 'defender' || normalized === 'ms-settings:windowsdefender') {
-      openWindow('defender', 'Seguridad de Windows', <ShieldCheckmark24Regular />, <WindowsDefender />);
+      openWindow('defender', 'defender', 'Seguridad de Windows', <ShieldCheckmark24Regular />);
     } else if (normalized === 'devcpp' || normalized === 'dev-cpp') {
-      openWindow('devcpp-2026', 'Dev-C++ 2026', <Play24Filled />, <DevCpp2026 />);
+      openWindow('devcpp-2026', 'devcpp-2026', 'Dev-C++ 2026', <Play24Filled />);
     } else if (normalized === 'shutdown') {
-
       onShutdown();
     } else {
       setRunError(`'${command}' no se reconoce como un comando interno o externo.`);
@@ -127,7 +115,8 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
       type: 'file',
       x: contextMenu?.x || 100,
       y: contextMenu?.y || 100,
-      content: <Notepad fileId={fileId} />
+      appId: 'notepad',
+      appProps: { fileId }
     });
   };
 
@@ -156,21 +145,16 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
   };
 
   const onIconDoubleClick = (icon: DesktopIcon) => {
-  if (icon.id === 'recycle-bin') {
-    openWindow('recycle-bin', 'Papelera de reciclaje', icon.icon, <RecycleBin />);
-  } else if (icon.id === 'chrome') {
-    openWindow('chrome', 'Google Chrome', <ChromeIcon />, <BrowserApp />);
-  } else if (icon.id === 'ie') {
-    openWindow('ie', 'Internet Explorer', <IEIcon />, <IEApp />);
-  } else if (icon.id === 'counter-strike') {
-    // IMPORTANTE: Pasarlo como <CounterStrikeApp /> (o como lo hayas importado)
-    openWindow('counter-strike', 'Counter-Strike 1.6 Online', <CounterIcon />, <CounterStrikeApp />);
-  } else if (icon.id === 'control-panel' || icon.id === 'settings') {
-    openWindow(icon.id, icon.title, icon.icon, <ControlPanel />);
-  } else {
-    openWindow(icon.id, icon.title, icon.icon, icon.content || <div className="p-4">Archivo vacío</div>);
-  }
-};
+    // Folders without an explicit appId open in the file explorer.
+    // Otherwise prefer the icon's own appId, falling back to icon.id.
+    const appId =
+      icon.appId ||
+      (icon.type === 'folder' ? 'file-explorer' : icon.id);
+    const appProps =
+      icon.appProps ||
+      (icon.type === 'folder' ? { initialFolderId: icon.id } : undefined);
+    openWindow(icon.id, appId, icon.title, icon.icon, appProps);
+  };
   const handleIconMouseDown = (e: React.MouseEvent, icon: DesktopIcon) => {
     e.stopPropagation();
     if (e.button !== 0) return;
@@ -214,7 +198,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
       }
       if (e.metaKey && e.key.toLowerCase() === 'e') {
         e.preventDefault();
-        openWindow('file-explorer', 'Explorador de archivos', <Desktop24Regular />, <div className="p-4">El Explorador de archivos no está disponible aún.</div>);
+        openWindow('file-explorer', 'file-explorer', 'Explorador de archivos', <Desktop24Regular />);
       }
       if (e.metaKey && e.key.toLowerCase() === 'r') {
         e.preventDefault();
@@ -466,9 +450,9 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
                 { label: 'Archivo de texto', icon: <DrawText24Regular />, onClick: handleNewFile },
               ]
             },
-            { label: 'Configuración de pantalla', icon: <Desktop24Regular />, onClick: () => openWindow('control-panel', 'Configuración', <Settings24Regular />, <ControlPanel />) },
-            { label: 'Personalizar', icon: <Apps24Regular />, onClick: () => openWindow('control-panel', 'Configuración', <Settings24Regular />, <ControlPanel />) },
-            { label: 'Abrir en Terminal', icon: <span style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold' }}>&gt;_</span>, onClick: () => openWindow('cmd', 'Terminal', <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, <Cmd />) },
+            { label: 'Configuración de pantalla', icon: <Desktop24Regular />, onClick: () => openWindow('control-panel', 'control-panel', 'Configuración', <Settings24Regular />) },
+            { label: 'Personalizar', icon: <Apps24Regular />, onClick: () => openWindow('control-panel', 'control-panel', 'Configuración', <Settings24Regular />) },
+            { label: 'Abrir en Terminal', icon: <span style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold' }}>&gt;_</span>, onClick: () => openWindow('cmd', 'cmd', 'Terminal', <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>) },
           ]}
         />
       )}

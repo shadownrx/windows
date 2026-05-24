@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { genId } from '../utils/id';
 
 export interface FileItem {
   id: string;
@@ -52,7 +53,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const createFolder = (parentId: string, name: string) => {
     const newFolder: FileItem = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: genId(),
       name,
       type: 'folder',
       modified: new Date().toLocaleDateString('es-ES'),
@@ -62,7 +63,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const createFile = (parentId: string, name: string, ext: string) => {
-    const id = Math.random().toString(36).substr(2, 9);
+    const id = genId();
     const newFile: FileItem = {
       id,
       name,
@@ -102,7 +103,7 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (clipboard.type === 'copy') {
       const newItem: FileItem = {
         ...item,
-        id: Math.random().toString(36).substr(2, 9),
+        id: genId(),
         name: `${item.name} - Copia`,
         parentId: targetParentId,
         modified: new Date().toLocaleDateString('es-ES')

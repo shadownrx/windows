@@ -1,11 +1,15 @@
 import React, { type ReactNode, createContext, useContext, useState } from 'react';
 import { useDesktop } from './DesktopContext';
 
+/** Props passed from the desktop/launcher to a specific app instance. */
+export type AppProps = Record<string, unknown>;
+
 export interface AppWindow {
   id: string;
   title: string;
   icon: ReactNode;
-  content: ReactNode;
+  appId: string;
+  appProps?: AppProps;
   desktopId: string;
   isOpen: boolean;
   isMinimized: boolean;
@@ -18,7 +22,7 @@ export interface AppWindow {
 
 interface WindowManagerContextType {
   windows: AppWindow[];
-  openWindow: (id: string, title: string, icon: ReactNode, content: ReactNode) => void;
+  openWindow: (id: string, appId: string, title: string, icon: ReactNode, appProps?: AppProps) => void;
   closeWindow: (id: string) => void;
   minimizeWindow: (id: string) => void;
   minimizeAllWindows: () => void;
@@ -40,16 +44,16 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
   // Usamos el currentDesktopId desde DesktopContext para asociar ventanas
   const { currentDesktopId } = useDesktop();
 
-  const openWindow = (id: string, title: string, icon: ReactNode, content: ReactNode) => {
+  const openWindow = (id: string, appId: string, title: string, icon: ReactNode, appProps?: AppProps) => {
     setWindows((prev) => {
       const existing = prev.find((w) => w.id === id && w.desktopId === currentDesktopId);
       if (existing) {
         return prev.map((w) => 
-          w.id === id && w.desktopId === currentDesktopId ? { ...w, content, isOpen: true, isMinimized: false, snap: 'none', zIndex: nextZIndex } : w
+          w.id === id && w.desktopId === currentDesktopId ? { ...w, appId, appProps, isOpen: true, isMinimized: false, snap: 'none', zIndex: nextZIndex } : w
         );
       }
       const filteredPrev = prev.filter((w) => !(w.id === id && w.desktopId === currentDesktopId));
-      return [...filteredPrev, { id, title, icon, content, desktopId: currentDesktopId, isOpen: true, isMinimized: false, isMaximized: false, snap: 'none', zIndex: nextZIndex }];
+      return [...filteredPrev, { id, appId, appProps, title, icon, desktopId: currentDesktopId, isOpen: true, isMinimized: false, isMaximized: false, snap: 'none', zIndex: nextZIndex }];
     });
     setFocusedWindowId(id);
     setNextZIndex((z) => z + 1);

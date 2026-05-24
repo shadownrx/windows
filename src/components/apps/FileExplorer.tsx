@@ -33,8 +33,6 @@ import { useWindowManager } from '../../context/WindowManager';
 import { useFileSystem, type FileItem } from '../../context/FileSystemContext';
 import { useSettings } from '../../context/SettingsContext';
 import ContextMenu from '../ContextMenu';
-import ImageViewer from './ImageViewer';
-import Notepad from './Notepad';
 
 const getFileIcon = (item: FileItem, small = false) => {
   const sz = small ? 16 : 20;
@@ -112,9 +110,21 @@ const FileExplorer: React.FC = () => {
     if (item.type === 'folder' || item.type === 'drive') {
       navigate(item.id);
     } else if ((item.ext === 'jpg' || item.ext === 'png') && item.imageUrl) {
-      openWindow(`photos-${item.id}`, `Fotos - ${item.name}`, <Image20Regular />, <ImageViewer files={[{ name: item.name, imageUrl: item.imageUrl }]} initialIndex={0} />);
+      openWindow(
+        `photos-${item.id}`,
+        'image-viewer',
+        `Fotos - ${item.name}`,
+        <Image20Regular />,
+        { files: [{ name: item.name, imageUrl: item.imageUrl }], initialIndex: 0 }
+      );
     } else if (item.ext === 'txt') {
-      openWindow(`notepad-${item.id}`, item.name, <Document20Regular />, <Notepad fileId={item.id} />);
+      openWindow(
+        `notepad-${item.id}`,
+        'notepad',
+        item.name,
+        <Document20Regular />,
+        { fileId: item.id }
+      );
     }
   };
 

@@ -10,24 +10,19 @@ import {
   Play24Filled,
   Book24Regular,
 } from '@fluentui/react-icons';
-import { ChromeIcon, BrowserApp } from "../components/apps/BrowserApp";
+import { ChromeIcon } from "../components/apps/BrowserApp";
 import { IEIcon } from '../components/apps/IEApp';
 import { CounterIcon } from '../components/apps/counter';
-import Paint from '../components/apps/Paint';
-import WordPad from '../components/apps/WordPad';
-import TaskManager from '../components/apps/TaskManager';
-import ControlPanel from '../components/apps/ControlPanel';
-import Calendar from '../components/apps/Calendar';
-import SearchApp from '../components/apps/SearchApp';
-import DevCpp2026 from '../components/apps/DevCpp2026';
-import ManualApp from '../components/apps/ManualApp';
+import type { AppProps } from './WindowManager';
+import { genId } from '../utils/id';
 
 export interface DesktopIcon {
   id: string;
   title: string;
   icon: ReactNode;
   type: 'file' | 'folder' | 'system';
-  content?: ReactNode;
+  appId?: string;
+  appProps?: AppProps;
   x: number;
   y: number;
 }
@@ -65,6 +60,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
       title: 'Papelera de reciclaje', 
       icon: <Delete24Regular primaryFill="#ecf0f1" />, 
       type: 'system',
+      appId: 'recycle-bin',
       x: 20, 
       y: 20 
     },
@@ -73,6 +69,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
       title: 'Internet Explorer',
       icon: <IEIcon />,
       type: 'system',
+      appId: 'ie',
       x: 20,
       y: 120,
     },
@@ -81,7 +78,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
       title: 'Google Chrome',
       icon: <ChromeIcon />, 
       type: 'system',
-      content: <BrowserApp />,
+      appId: 'chrome',
       x: 20,
       y: 220,
     },
@@ -90,6 +87,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
       title: 'Counter-Strike 1.6', 
       icon: <CounterIcon />,
       type: 'system',
+      appId: 'counter-strike',
       x: 20, 
       y: 320
     },
@@ -98,7 +96,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
       title: 'Paint',
       icon: <Edit24Regular primaryFill="#FF6E40" />,
       type: 'system',
-      content: <Paint />,
+      appId: 'paint',
       x: 120,
       y: 20,
     },
@@ -107,7 +105,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
       title: 'WordPad',
       icon: <Document24Regular primaryFill="#4CAF50" />,
       type: 'system',
-      content: <WordPad />,
+      appId: 'wordpad',
       x: 120,
       y: 120,
     },
@@ -116,7 +114,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
       title: 'Administrador de tareas',
       icon: <CheckmarkCircle24Regular primaryFill="#2196F3" />,
       type: 'system',
-      content: <TaskManager />,
+      appId: 'taskmanager',
       x: 120,
       y: 220,
     },
@@ -125,7 +123,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
       title: 'Panel de Control',
       icon: <Settings24Regular primaryFill="#757575" />,
       type: 'system',
-      content: <ControlPanel />,
+      appId: 'control-panel',
       x: 120,
       y: 320,
     },
@@ -134,7 +132,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
       title: 'Calendario',
       icon: <Calendar24Regular primaryFill="#E91E63" />,
       type: 'system',
-      content: <Calendar />,
+      appId: 'calendar',
       x: 220,
       y: 20,
     },
@@ -143,7 +141,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
       title: 'Buscar',
       icon: <Search24Regular primaryFill="#FF9800" />,
       type: 'system',
-      content: <SearchApp />,
+      appId: 'search',
       x: 220,
       y: 120,
     },
@@ -165,7 +163,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
         </div>
       ),
       type: 'system',
-      content: <DevCpp2026 />,
+      appId: 'devcpp-2026',
       x: 320,
       y: 20,
     },
@@ -174,14 +172,14 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
       title: 'Manual de NEX',
       icon: <Book24Regular primaryFill="#3b82f6" />,
       type: 'system',
-      content: <ManualApp />,
+      appId: 'manual',
       x: 320,
       y: 120,
     },
   ]);
 
   const addDesktopIcon = (icon: Omit<DesktopIcon, 'id'> & { id?: string }) => {
-    const id = icon.id || Math.random().toString(36).substr(2, 9);
+    const id = icon.id || genId();
     setDesktopIcons((prev) => [...prev, { ...icon, id }]);
   };
 

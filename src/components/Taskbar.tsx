@@ -51,13 +51,13 @@ const Taskbar: React.FC<TaskbarProps> = ({
     const existing = windows.find(w => w.id === app.id);
     if (existing) {
       if (existing.isMinimized) {
-        openWindow(app.id, app.label, app.icon, app.component({}));
+        openWindow(app.id, app.appId, app.label, app.icon);
       } else {
         minimizeWindow(app.id);
       }
       return;
     }
-    openWindow(app.id, app.label, app.icon, app.component({}));
+    openWindow(app.id, app.appId, app.label, app.icon);
   };
 
   return (

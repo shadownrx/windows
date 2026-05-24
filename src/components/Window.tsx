@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Dismiss20Regular, Subtract20Regular, Square20Regular, Copy20Regular } from '@fluentui/react-icons';
 import { useWindowManager, type AppWindow } from '../context/WindowManager';
 import { useSettings } from '../context/SettingsContext';
+import AppRegistry from './AppRegistry';
+import ErrorBoundary from './system/ErrorBoundary';
 
 interface WindowProps {
   window: AppWindow;
@@ -236,7 +238,9 @@ const Window: React.FC<WindowProps> = ({ window }) => {
         </div>
       </div>
       <div className="window-content" style={{ pointerEvents: isDragging || isResizing ? 'none' : 'auto' }}>
-        {window.content}
+        <ErrorBoundary appName={window.title}>
+          <AppRegistry appId={window.appId} appProps={window.appProps} />
+        </ErrorBoundary>
       </div>
 
       <style>{`
@@ -398,4 +402,6 @@ const SnapLayoutsMenu = ({ onSnap }: { onSnap: (s: any) => void }) => (
   </div>
 );
 
-export default Window;
+// Memoized: avoids re-rendering every Window when an unrelated state in any
+// shared context changes. Each Window only re-renders when its own props change.
+export default React.memo(Window);

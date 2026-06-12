@@ -83,7 +83,14 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const deleteItem = (id: string) => {
-    setFiles(files.filter(f => f.id !== id));
+    // Función para obtener todos los IDs a borrar (incluyendo hijos)
+    const getIdsToDelete = (targetId: string): string[] => {
+      const children = files.filter(f => f.parentId === targetId);
+      const childIds = children.flatMap(child => getIdsToDelete(child.id));
+      return [targetId, ...childIds];
+    };
+    const idsToDelete = getIdsToDelete(id);
+    setFiles(files.filter(f => !idsToDelete.includes(f.id)));
   };
 
   const renameItem = (id: string, newName: string) => {

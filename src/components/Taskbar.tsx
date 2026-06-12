@@ -35,7 +35,7 @@ const Taskbar: React.FC<TaskbarProps> = ({
   onRestart,
   onSearchClick,
 }) => {
-  const { openWindow, windows, minimizeWindow, focusedWindowId } = useWindowManager();
+  const { openWindow, windows, minimizeWindow, focusedWindowId, minimizeAllWindows, restoreWindow } = useWindowManager();
   const { isWidgetsOpen, toggleWidgets } = useUI();
   const { isWifiEnabled, volume, isTaskViewOpen, setIsTaskViewOpen, notifications } = useSettings();
   const [startContextMenu, setStartContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
@@ -51,6 +51,8 @@ const Taskbar: React.FC<TaskbarProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  const [allMinimized, setAllMinimized] = React.useState(false);
+
   const handleAppClick = (app: AppItem) => {
     const existing = windows.find(w => w.id === app.id);
     if (existing) {
@@ -62,6 +64,22 @@ const Taskbar: React.FC<TaskbarProps> = ({
       return;
     }
     openWindow(app.id, app.appId, app.label, app.icon);
+  };
+
+  const toggleShowDesktop = () => {
+    const anyOpen = windows.some(w => !w.isMinimized);
+    if (anyOpen) {
+      minimizeAllWindows();
+      setAllMinimized(true);
+    } else {
+      // Restore all windows that were open
+      windows.forEach(w => {
+        if (w.isOpen) {
+          restoreWindow(w.id);
+        }
+      });
+      setAllMinimized(false);
+    }
   };
 
   return (
@@ -134,7 +152,7 @@ const Taskbar: React.FC<TaskbarProps> = ({
           <div className="date">{time.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
         </div>
         
-        <div className="show-desktop" onClick={() => {}} />
+        <div className="show-desktop" onClick={(e) => { e.stopPropagation(); toggleShowDesktop(); }} />
       </div>
     </footer>
     </div>

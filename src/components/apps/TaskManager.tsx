@@ -240,20 +240,7 @@ export default function TaskManager() {
 
   const { windows, focusedWindowId } = useWindowManager();
 
-  // Load Wasm module (optional, keeping it if it exists)
-  useEffect(() => {
-    const loadWasm = async () => {
-      try {
-        const response = await fetch('/process_utils.wasm');
-        const buffer = await response.arrayBuffer();
-        const { instance } = await WebAssembly.instantiate(buffer);
-        setWasm(instance.exports);
-      } catch (e) {
-        // Wasm no vital para simulación
-      }
-    };
-    loadWasm();
-  }, []);
+
 
   // Generate and simulate processes via WASM engine
   useEffect(() => {

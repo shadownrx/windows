@@ -10,22 +10,22 @@ interface WindowProps {
   window: AppWindow;
 }
 
-const Window: React.FC<WindowProps> = ({ window }) => {
+const Window: React.FC<WindowProps> = ({ window: appWindow }) => {
   const { closeWindow, minimizeWindow, maximizeWindow, snapWindow, focusWindow, focusedWindowId } = useWindowManager();
   const { neonTheme } = useSettings();
   const [size, setSize] = useState({ 
-    width: window.innerWidth < 640 ? window.innerWidth : (window.innerWidth < 1024 ? Math.min(800, window.innerWidth - 40) : 800), 
-    height: window.innerWidth < 640 ? window.innerHeight - 48 : (window.innerWidth < 1024 ? Math.min(600, window.innerHeight - 100) : 600) 
+    width: globalThis.innerWidth < 640 ? globalThis.innerWidth : (globalThis.innerWidth < 1024 ? Math.min(800, globalThis.innerWidth - 40) : 800), 
+    height: globalThis.innerWidth < 640 ? globalThis.innerHeight - 48 : (globalThis.innerWidth < 1024 ? Math.min(600, globalThis.innerHeight - 100) : 600) 
   });
   const [position, setPosition] = useState({ 
-    x: window.innerWidth < 640 ? 0 : Math.max(0, (window.innerWidth - 800) / 2 + (Math.random() * 40 - 20)), 
-    y: window.innerWidth < 640 ? 0 : Math.max(0, (window.innerHeight - 600) / 2 + (Math.random() * 40 - 20)) 
+    x: globalThis.innerWidth < 640 ? 0 : Math.max(0, (globalThis.innerWidth - 800) / 2 + (Math.random() * 40 - 20)), 
+    y: globalThis.innerWidth < 640 ? 0 : Math.max(0, (globalThis.innerHeight - 600) / 2 + (Math.random() * 40 - 20)) 
   });
 
   // Auto-maximize on mobile
   useEffect(() => {
-    if (window.innerWidth < 640 && !window.isMaximized) {
-      maximizeWindow(window.id);
+    if (globalThis.innerWidth < 640 && !appWindow.isMaximized) {
+      maximizeWindow(appWindow.id);
     }
   }, []);
   const [isDragging, setIsDragging] = useState(false);
@@ -36,11 +36,11 @@ const Window: React.FC<WindowProps> = ({ window }) => {
 
   // Restore size from savedSize when un-maximizing
   useEffect(() => {
-    if (!window.isMaximized && window.savedSize) {
-      setSize({ width: window.savedSize.width, height: window.savedSize.height });
-      setPosition({ x: window.savedSize.x, y: window.savedSize.y });
+    if (!appWindow.isMaximized && appWindow.savedSize) {
+      setSize({ width: appWindow.savedSize.width, height: appWindow.savedSize.height });
+      setPosition({ x: appWindow.savedSize.x, y: appWindow.savedSize.y });
     }
-  }, [window.isMaximized]);
+  }, [appWindow.isMaximized]);
 
   const handleResize = (e: React.MouseEvent, direction: string) => {
     e.preventDefault();
@@ -108,7 +108,7 @@ const Window: React.FC<WindowProps> = ({ window }) => {
           backgroundColor: 'rgba(255, 255, 255, 0.1)',
           backdropFilter: 'blur(20px)',
           border: '1px solid rgba(255, 255, 255, 0.2)',
-          zIndex: window.zIndex - 1,
+          zIndex: appWindow.zIndex - 1,
           borderRadius: 'var(--win-radius)',
           pointerEvents: 'none',
           transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
@@ -120,39 +120,39 @@ const Window: React.FC<WindowProps> = ({ window }) => {
       initial={{ scale: 0.9, opacity: 0, y: 40, filter: 'blur(10px)' }}
       exit={{ scale: 0.9, opacity: 0, y: 40, filter: 'blur(10px)', transition: { duration: 0.2, ease: [0.4, 0, 0.2, 1] } }}
       animate={{ 
-        scale: window.isMinimized ? 0.7 : 1, 
-        opacity: window.isMinimized ? 0 : 1,
-        filter: window.isMinimized ? 'blur(20px)' : 'blur(0px)',
-        width: window.isMaximized ? '100vw' : (window.snap?.includes('left') || window.snap?.includes('right')) ? '50vw' : size.width,
-        height: window.isMaximized ? 'calc(100vh - var(--taskbar-height))' : 
-                (window.snap?.includes('top') || window.snap?.includes('bottom')) ? 'calc((100vh - var(--taskbar-height)) / 2)' : 
+        scale: appWindow.isMinimized ? 0.7 : 1, 
+        opacity: appWindow.isMinimized ? 0 : 1,
+        filter: appWindow.isMinimized ? 'blur(20px)' : 'blur(0px)',
+        width: appWindow.isMaximized ? '100vw' : (appWindow.snap?.includes('left') || appWindow.snap?.includes('right')) ? '50vw' : size.width,
+        height: appWindow.isMaximized ? 'calc(100vh - var(--taskbar-height))' : 
+                (appWindow.snap?.includes('top') || appWindow.snap?.includes('bottom')) ? 'calc((100vh - var(--taskbar-height)) / 2)' : 
                 size.height,
-        y: window.isMinimized ? 150 : (window.isMaximized ? 0 : 
-             window.snap?.includes('top') ? 0 : 
-             window.snap?.includes('bottom') ? 'calc((100vh - var(--taskbar-height)) / 2)' : 
-             (window.snap !== 'none' && window.snap ? 0 : position.y)),
-        x: window.isMaximized ? 0 : 
-              window.snap?.includes('left') ? 0 : 
-              window.snap?.includes('right') ? '50vw' : 
+        y: appWindow.isMinimized ? 150 : (appWindow.isMaximized ? 0 : 
+             appWindow.snap?.includes('top') ? 0 : 
+             appWindow.snap?.includes('bottom') ? 'calc((100vh - var(--taskbar-height)) / 2)' : 
+             (appWindow.snap !== 'none' && appWindow.snap ? 0 : position.y)),
+        x: appWindow.isMaximized ? 0 : 
+              appWindow.snap?.includes('left') ? 0 : 
+              appWindow.snap?.includes('right') ? '50vw' : 
               position.x,
       }}
       transition={isDragging || isResizing ? { duration: 0 } : { type: 'spring', damping: 22, stiffness: 220, mass: 0.8 }}
       style={{ 
-        zIndex: window.zIndex, 
-        position: window.isMaximized ? 'fixed' : 'absolute', 
+        zIndex: appWindow.zIndex, 
+        position: appWindow.isMaximized ? 'fixed' : 'absolute', 
         top: 0,
         left: 0,
         willChange: 'transform, opacity, width, height',
-        pointerEvents: window.isMinimized ? 'none' : 'auto',
+        pointerEvents: appWindow.isMinimized ? 'none' : 'auto',
         transformOrigin: 'bottom center'
       }}
       onMouseDown={() => {
-        if (!window.isMinimized) focusWindow(window.id);
+        if (!appWindow.isMinimized) focusWindow(appWindow.id);
       }}
-      className={`window gpu-accelerated mica premium-shadow border-glow ${window.isMaximized ? 'maximized' : ''} ${neonTheme !== 'none' ? 'neon-border' : ''} ${neonTheme === 'cyberpunk' ? 'scanlines' : ''} ${focusedWindowId === window.id ? 'focused' : ''}`}
+      className={`window gpu-accelerated mica premium-shadow border-glow ${appWindow.isMaximized ? 'maximized' : ''} ${neonTheme !== 'none' ? 'neon-border' : ''} ${neonTheme === 'cyberpunk' ? 'scanlines' : ''} ${focusedWindowId === appWindow.id ? 'focused' : ''}`}
     >
       {/* Resizers */}
-      {!window.isMaximized && (
+      {!appWindow.isMaximized && (
         <>
           <div className="resizer n" onMouseDown={(e) => handleResize(e, 'n')} />
           <div className="resizer e" onMouseDown={(e) => handleResize(e, 'e')} />
@@ -167,14 +167,14 @@ const Window: React.FC<WindowProps> = ({ window }) => {
 
       <div 
         className="window-header" 
-        onDoubleClick={() => maximizeWindow(window.id, { ...size, ...position })}
+        onDoubleClick={() => maximizeWindow(appWindow.id, { ...size, ...position })}
         onMouseDown={(e) => {
           let currentTargetX = position.x;
           let currentTargetY = position.y;
 
-          if (window.isMaximized || (window.snap && window.snap !== 'none')) {
-            if (window.isMaximized) maximizeWindow(window.id);
-            if (window.snap && window.snap !== 'none') snapWindow(window.id, 'none');
+          if (appWindow.isMaximized || (appWindow.snap && appWindow.snap !== 'none')) {
+            if (appWindow.isMaximized) maximizeWindow(appWindow.id);
+            if (appWindow.snap && appWindow.snap !== 'none') snapWindow(appWindow.id, 'none');
             
             currentTargetX = e.clientX - (size.width / 2);
             currentTargetY = 0;
@@ -212,11 +212,11 @@ const Window: React.FC<WindowProps> = ({ window }) => {
           const onMouseUp = () => {
             setIsDragging(false);
             if (dragSnapPreview === 'maximize') {
-              if (!window.isMaximized) maximizeWindow(window.id);
+              if (!appWindow.isMaximized) maximizeWindow(appWindow.id);
             } else if (dragSnapPreview === 'left') {
-              snapWindow(window.id, 'left');
+              snapWindow(appWindow.id, 'left');
             } else if (dragSnapPreview === 'right') {
-              snapWindow(window.id, 'right');
+              snapWindow(appWindow.id, 'right');
             }
             setSnapPreview(null);
             document.removeEventListener('mousemove', onMouseMove);
@@ -228,35 +228,35 @@ const Window: React.FC<WindowProps> = ({ window }) => {
         }}
       >
         <div className="window-title">
-          <div className="title-icon">{window.icon}</div>
-          <span>{window.title}</span>
+          <div className="title-icon">{appWindow.icon}</div>
+          <span>{appWindow.title}</span>
         </div>
         <div className="window-controls" onMouseDown={(e) => e.stopPropagation()}>
-          <button onClick={() => snapWindow(window.id, 'left')} title="Acoplar izquierda">◀</button>
-          <button onClick={() => snapWindow(window.id, 'right')} title="Acoplar derecha">▶</button>
-          <button onClick={() => minimizeWindow(window.id)} title="Minimizar"><Subtract20Regular /></button>
+          <button onClick={() => snapWindow(appWindow.id, 'left')} title="Acoplar izquierda">◀</button>
+          <button onClick={() => snapWindow(appWindow.id, 'right')} title="Acoplar derecha">▶</button>
+          <button onClick={() => minimizeWindow(appWindow.id)} title="Minimizar"><Subtract20Regular /></button>
           <div 
             style={{ position: 'relative', height: '100%', display: 'flex' }}
             onMouseEnter={() => setShowSnapLayouts(true)}
             onMouseLeave={() => setShowSnapLayouts(false)}
           >
-            <button onClick={() => maximizeWindow(window.id, { ...size, ...position })}>
-              {window.isMaximized ? <Copy20Regular /> : <Square20Regular />}
+            <button onClick={() => maximizeWindow(appWindow.id, { ...size, ...position })}>
+              {appWindow.isMaximized ? <Copy20Regular /> : <Square20Regular />}
             </button>
             {showSnapLayouts && (
               <SnapLayoutsMenu onSnap={(s) => {
-                if (s === 'maximize') maximizeWindow(window.id, { ...size, ...position, width: size.width, height: size.height });
-                else snapWindow(window.id, s);
+                if (s === 'maximize') maximizeWindow(appWindow.id, { ...size, ...position, width: size.width, height: size.height });
+                else snapWindow(appWindow.id, s);
                 setShowSnapLayouts(false);
               }} />
             )}
           </div>
-          <button className="close" onClick={() => closeWindow(window.id)}><Dismiss20Regular /></button>
+          <button className="close" onClick={() => closeWindow(appWindow.id)}><Dismiss20Regular /></button>
         </div>
       </div>
       <div className="window-content" style={{ pointerEvents: isDragging || isResizing ? 'none' : 'auto' }}>
-        <ErrorBoundary appName={window.title}>
-          <AppRegistry appId={window.appId} appProps={window.appProps} />
+        <ErrorBoundary appName={appWindow.title}>
+          <AppRegistry appId={appWindow.appId} appProps={appWindow.appProps} />
         </ErrorBoundary>
       </div>
 

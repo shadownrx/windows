@@ -483,6 +483,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
 
   .desktop-icon {
     width: 90px;
+    min-height: 100px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -550,7 +551,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
   .icon-label {
     font-size: 11px;
     text-align: center;
-    line-height: 1.2;
+    line-height: 1.3;
     max-width: 100%;
     word-break: normal;
     overflow-wrap: break-word;
@@ -558,7 +559,11 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    padding: 0 2px;
+    padding: 2px 4px;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
   }
 
   @media (max-width: 639px) {

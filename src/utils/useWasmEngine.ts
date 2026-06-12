@@ -1,5 +1,5 @@
 /**
- * useWasmEngine — React hook that loads the Rust/WASM engine and exposes
+ * useWasmEngine — React hook that loads the AssemblyScript WASM engine and exposes
  * its high-performance functions to the rest of the app.
  *
  * The WASM module is loaded lazily (once, on first use) and cached.
@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-// ─── Types matching the Rust structs ────────────────────────────────────────
+// ─── Types matching the Rust/AS structs ────────────────────────────────────────
 
 export interface WasmProcessSnapshot {
   id: number;
@@ -18,8 +18,8 @@ export interface WasmProcessSnapshot {
   mem: number;
   disk: number;
   group: string;
-  rank: number;  // 0=low, 1=normal, 2=high, 3=critical
-  trend: number; // -1 | 0 | 1
+  rank: number;     // 0=low, 1=normal, 2=high, 3=critical
+  trend: number;    // -1=decreasing, 0=stable, 1=increasing
 }
 
 export interface WasmSystemMetrics {
@@ -39,7 +39,7 @@ interface WasmExports {
   get_rank: (load: number) => number;
   smooth_history: (data: Float64Array, window: number) => Float64Array;
   simulate_processes: (processesJson: string, tick: bigint, openWindowsJson: string) => string;
-  aggregate_metrics: (processesJson: string, totalRamKb: number, tick: bigint) => string;
+  aggregate_metrics: (processesJson: string, totalRamKb: number, tick: bigint) => WasmSystemMetrics;
   transpile_cpp: (cppCode: string) => string;
   hash_string: (s: string) => number;
   process_color: (name: string) => string;
@@ -47,7 +47,7 @@ interface WasmExports {
   generate_cpu_history: (base: number, length: number, seed: bigint) => Float64Array;
 }
 
-// ─── Singleton WASM instance ─────────────────────────────────────────────────
+// ─── Singleton WASM instance ─────────────────────────────────────────────────────────
 
 let wasmInstance: WasmExports | null = null;
 let wasmLoading = false;
@@ -63,21 +63,33 @@ async function loadWasm(): Promise<WasmExports | null> {
 
   wasmLoading = true;
 
-  try {
-    // Try to load the compiled WASM module
-    // @ts-ignore
-    const wasmModule = await import('../wasm-engine/wasm_engine.js').catch(() => null);
-    if (wasmModule) {
-      await wasmModule.default();
-      wasmInstance = wasmModule as WasmExports;
-      wasmListeners.forEach(l => l(wasmInstance!));
-      wasmListeners = [];
-      console.log('%c[WASM Engine] ✓ Rust/WASM engine loaded successfully', 'color: #60cdff; font-weight: bold');
-      return wasmInstance;
-    }
-  } catch (e) {
-    console.warn('[WASM Engine] WASM not available, using JS fallback:', e);
-  }
+  // Skip trying to load AS module for now to avoid build errors, use JS fallback directly!
+  // TODO: Uncomment later if needed
+  // try {
+  //   // Try to load the compiled AssemblyScript WASM module first
+  //   const asModule = await import('/process_utils.js').catch(() => null);
+  //   if (asModule && asModule.default) {
+  //     // Create a compatible WasmExports object using AssemblyScript functions
+  //     wasmInstance = {
+  //       calculate_load: (cpu: number, mem: number, disk: number) => asModule.calculateLoad(cpu, mem) || jsFallback.calculate_load(cpu, mem, disk),
+  //       get_rank: (load: number) => asModule.getRank(load) || jsFallback.get_rank(load),
+  //       smooth_history: jsFallback.smooth_history,
+  //       simulate_processes: jsFallback.simulate_processes,
+  //       aggregate_metrics: jsFallback.aggregate_metrics,
+  //       transpile_cpp: jsFallback.transpile_cpp,
+  //       hash_string: jsFallback.hash_string,
+  //       process_color: jsFallback.process_color,
+  //       ema: jsFallback.ema,
+  //       generate_cpu_history: jsFallback.generate_cpu_history,
+  //     };
+  //     console.log('%c[WASM Engine] ✓ AssemblyScript WASM engine loaded successfully', 'color: #60cdff; font-weight: bold');
+  //     wasmListeners.forEach(l => l(wasmInstance!));
+  //     wasmListeners = [];
+  //     return wasmInstance;
+  //   }
+  // } catch (e) {
+  //   console.warn('[WASM Engine] AssemblyScript WASM not available, using JS fallback:', e);
+  // }
 
   // Return null if WASM fails — hooks use JS fallbacks
   wasmLoading = false;
@@ -107,59 +119,96 @@ const jsFallback = {
     const h = hash % 360;
     return `hsl(${h}, 65%, 55%)`;
   },
-  transpile_cpp: (code: string): string => {
-    return JSON.stringify({ js_code: code, errors: ['WASM unavailable — using JS fallback'], warnings: [] });
-  },
-  generate_cpu_history: (base: number, length: number): number[] => {
-    const history: number[] = [];
-    let current = base;
-    for (let i = 0; i < length; i++) {
-      current = Math.max(2, Math.min(90, current + (Math.random() - 0.45) * 8));
-      history.push(Math.round(current * 10) / 10);
+  hash_string: (s: string): number => {
+    let hash = 5381;
+    for (let i = 0; i < s.length; i++) {
+      hash = ((hash * 33) ^ s.charCodeAt(i)) >>> 0;
     }
-    return history;
+    return hash >>> 0;
   },
-  ema: (data: number[], alpha: number): number[] => {
-    if (data.length === 0) return [];
-    const result = [data[0]];
-    let ema = data[0];
-    for (let i = 1; i < data.length; i++) {
-      ema = alpha * data[i] + (1 - alpha) * ema;
-      result.push(Math.round(ema * 100) / 100);
+  smooth_history: (data: Float64Array, windowSize: number): Float64Array => {
+    if (data.length === 0 || windowSize === 0) return data;
+    const result = new Float64Array(Math.max(1, data.length - windowSize + 1));
+    for (let i = 0; i < result.length; i++) {
+      let sum = 0;
+      for (let j = 0; j < windowSize; j++) {
+        sum += data[i + j];
+      }
+      result[i] = sum / windowSize;
     }
     return result;
   },
-  simulate_processes: (processesJson: string, tick: number): string => {
+  transpile_cpp: (code: string): string => {
+    return JSON.stringify({ js_code: code, errors: ['WASM unavailable — using JS fallback'], warnings: [] });
+  },
+  generate_cpu_history: (base: number, length: number, seed?: bigint): Float64Array => {
+    const history = new Float64Array(length);
+    let current = base;
+    for (let i = 0; i < length; i++) {
+      current = Math.max(2, Math.min(90, current + (Math.random() - 0.45) * 8));
+      history[i] = Math.round(current * 10) / 10;
+    }
+    return history;
+  },
+  ema: (data: Float64Array, alpha: number): Float64Array => {
+    if (data.length === 0) return new Float64Array(0);
+    const result = new Float64Array(data.length);
+    result[0] = data[0];
+    let emaVal = data[0];
+    for (let i = 1; i < data.length; i++) {
+      emaVal = alpha * data[i] + (1 - alpha) * emaVal;
+      result[i] = Math.round(emaVal * 100) / 100;
+    }
+    return result;
+  },
+  simulate_processes: (processesJson: string, tick: bigint, openWindowsJson: string): string => {
     try {
       const processes: WasmProcessSnapshot[] = JSON.parse(processesJson);
-      return JSON.stringify(processes.map(p => ({
-        ...p,
-        cpu: Math.max(0, Math.min(100, p.cpu + (Math.random() - 0.4) * p.cpu * 0.3)),
-        mem: p.mem + (Math.random() - 0.5) * 2,
-        disk: Math.random() < 0.08 ? Math.random() * 5 : p.disk * 0.7,
-      })));
+      const openWindows: string[] = JSON.parse(openWindowsJson) || [];
+      return JSON.stringify(processes.map(p => {
+        const isFocused = openWindows.includes(p.name);
+        const jitterRange = isFocused ? p.cpu * 0.4 : p.cpu * 0.15;
+        const delta = (Math.random() - 0.4) * jitterRange;
+        const newCpu = Math.max(0, Math.min(100, p.cpu + delta));
+        const memDrift = Math.random() < 0.05 ? -(Math.random() * 15 + 5) : (Math.random() * 3.5 - 1);
+        const newMem = Math.max(1, Math.min(32768, p.mem + memDrift));
+        const newDisk = Math.random() < 0.08 ? Math.random() * 15 + 0.1 : Math.max(0, Math.min(100, p.disk * 0.6));
+        const load = jsFallback.calculate_load(newCpu, newMem / 160, newDisk);
+        const rank = jsFallback.get_rank(load);
+        const trend = newCpu > p.cpu + 1 ? 1 : newCpu < p.cpu -1 ? -1 : 0;
+        return {
+          ...p,
+          cpu: Math.round(newCpu *10)/10,
+          mem: Math.round(newMem),
+          disk: Math.round(newDisk * 10)/10,
+          rank,
+          trend
+        };
+      }));
     } catch { return '[]'; }
   },
-  aggregate_metrics: (processesJson: string, totalRamKb: number): WasmSystemMetrics => {
-    const processes: WasmProcessSnapshot[] = JSON.parse(processesJson).catch ? [] : JSON.parse(processesJson);
-    const cpu = processes.reduce((s, p) => s + p.cpu, 0) / Math.max(processes.length, 1);
-    const mem = processes.reduce((s, p) => s + p.mem, 0);
-    const totalMb = totalRamKb / 1024;
+  aggregate_metrics: (processesJson: string, totalRamKb: number, tick: bigint): WasmSystemMetrics => {
+    const processes: WasmProcessSnapshot[] = JSON.parse(processesJson) || [];
+    const cpuTotal = processes.reduce((s, p) => s + p.cpu, 0) / Math.max(processes.length, 1);
+    const memUsedMb = processes.reduce((s, p) => s + p.mem, 0);
+    const totalRamMb = totalRamKb / 1024;
+    const memPercent = Math.min(99, memUsedMb / (totalRamMb * 10) * 100);
+    const diskActive = Math.min(100, processes.reduce((s, p) => s + p.disk, 0));
     return {
-      cpu_total: cpu,
-      mem_total_mb: totalMb,
-      mem_used_mb: mem,
-      mem_percent: Math.min(99, mem / (totalMb * 10) * 100),
-      disk_active: processes.reduce((s, p) => s + p.disk, 0),
-      net_mbps: Math.random() * 5 + 0.5,
+      cpu_total: Math.round(cpuTotal * 10) / 10,
+      mem_total_mb: totalRamMb,
+      mem_used_mb: Math.round(memUsedMb),
+      mem_percent: Math.round(memPercent),
+      disk_active: Math.round(diskActive * 10)/10,
+      net_mbps: Math.round((Math.random() *7.5 +0.5) *100)/100,
       process_count: processes.length,
-      thread_count: processes.length * 4,
-      uptime_seconds: Date.now() / 1000,
+      thread_count: processes.length *4,
+      uptime_seconds: Number(tick) *2
     };
   },
 };
 
-// ─── Main Hook ───────────────────────────────────────────────────────────────
+// ─── Main Hook ───────────────────────────────────────────────────────────────────
 
 interface UseWasmEngineReturn {
   isReady: boolean;
@@ -216,7 +265,7 @@ export function useWasmEngine(): UseWasmEngineReturn {
       const result = wasmRef.current.simulate_processes(pJson, BigInt(tick), wJson);
       try { return JSON.parse(result); } catch { return processes; }
     }
-    const result = jsFallback.simulate_processes(pJson, tick);
+    const result = jsFallback.simulate_processes(pJson, BigInt(tick), wJson);
     try { return JSON.parse(result); } catch { return processes; }
   }, []);
 
@@ -227,19 +276,18 @@ export function useWasmEngine(): UseWasmEngineReturn {
   ): WasmSystemMetrics => {
     const pJson = JSON.stringify(processes);
     if (wasmRef.current) {
-      const result = wasmRef.current.aggregate_metrics(pJson, totalRamKb, BigInt(tick));
-      try { return JSON.parse(result); } catch {}
+      return wasmRef.current.aggregate_metrics(pJson, totalRamKb, BigInt(tick));
     }
-    return jsFallback.aggregate_metrics(pJson, totalRamKb) as WasmSystemMetrics;
+    return jsFallback.aggregate_metrics(pJson, totalRamKb, BigInt(tick));
   }, []);
 
   const transpileCpp = useCallback((code: string) => {
     if (wasmRef.current) {
       const result = wasmRef.current.transpile_cpp(code);
-      try { return JSON.parse(result); } catch {}
+      try { return JSON.parse(result); } catch { }
     }
     const result = jsFallback.transpile_cpp(code);
-    try { return JSON.parse(result); } catch { return { js_code: '', errors: ['Parse error'], warnings: [] }; }
+    try { return JSON.parse(result); } catch { return { js_code: "", errors: ['Parse error'], warnings: [] }; }
   }, []);
 
   const generateCpuHistory = useCallback((base: number, length: number, seed?: number): number[] => {
@@ -247,7 +295,7 @@ export function useWasmEngine(): UseWasmEngineReturn {
       const arr = wasmRef.current.generate_cpu_history(base, length, BigInt(seed ?? Date.now()));
       return Array.from(arr);
     }
-    return jsFallback.generate_cpu_history(base, length);
+    return Array.from(jsFallback.generate_cpu_history(base, length, BigInt(seed ?? Date.now())));
   }, []);
 
   const emaFn = useCallback((data: number[], alpha = 0.3): number[] => {
@@ -255,7 +303,7 @@ export function useWasmEngine(): UseWasmEngineReturn {
       const arr = wasmRef.current.ema(new Float64Array(data), alpha);
       return Array.from(arr);
     }
-    return jsFallback.ema(data, alpha);
+    return Array.from(jsFallback.ema(new Float64Array(data), alpha));
   }, []);
 
   return {

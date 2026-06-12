@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run build:as && tsc -b && vite build",
+    "build:as": "asc assembly/index.ts --target release",
     "lint": "eslint .",
     "preview": "vite preview"
   },

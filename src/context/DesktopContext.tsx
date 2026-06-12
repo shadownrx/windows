@@ -7,12 +7,11 @@ import {
   Settings24Regular,
   Calendar24Regular,
   Search24Regular,
-  Play24Filled,
   Book24Regular,
+  Globe24Regular,
+  Games24Regular,
+  Code24Regular,
 } from '@fluentui/react-icons';
-import { ChromeIcon } from "../components/apps/BrowserApp";
-import { IEIcon } from '../components/apps/IEApp';
-import { CounterIcon } from '../components/apps/counter';
 import type { AppProps } from './WindowManager';
 import { genId } from '../utils/id';
 
@@ -67,7 +66,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
     {
       id: 'ie',
       title: 'Internet Explorer',
-      icon: <IEIcon />,
+      icon: <Globe24Regular primaryFill="#0078d4" />,
       type: 'system',
       appId: 'ie',
       x: 20,
@@ -76,7 +75,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
     {
       id: 'chrome',
       title: 'Google Chrome',
-      icon: <ChromeIcon />, 
+      icon: <Globe24Regular primaryFill="#4285F4" />,
       type: 'system',
       appId: 'chrome',
       x: 20,
@@ -85,7 +84,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
     { 
       id: 'counter-strike', 
       title: 'Counter-Strike 1.6', 
-      icon: <CounterIcon />,
+      icon: <Games24Regular primaryFill="#ef6c00" />,
       type: 'system',
       appId: 'counter-strike',
       x: 20, 
@@ -148,20 +147,7 @@ export const DesktopProvider: React.FC<{ children: ReactNode }> = ({ children })
     {
       id: 'devcpp-2026',
       title: 'Dev-C++ 2026',
-      icon: (
-        <div style={{ 
-          width: 32, 
-          height: 32, 
-          background: 'white', 
-          borderRadius: 6, 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)'
-        }}>
-          <Play24Filled primaryFill="#3b82f6" style={{ transform: 'rotate(-45deg)', fontSize: 18 }} />
-        </div>
-      ),
+      icon: <Code24Regular primaryFill="#3b82f6" />,
       type: 'system',
       appId: 'devcpp-2026',
       x: 320,

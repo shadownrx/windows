@@ -14,7 +14,7 @@ import {
   Folder24Regular,
   Calculator24Regular,
   ShieldCheckmark24Regular,
-  Play24Filled,
+  Code24Regular,
   Book24Regular,
 } from '@fluentui/react-icons';
 import { useWindowManager } from '../context/WindowManager';
@@ -56,7 +56,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
     { id: 'calendar', appId: 'calendar', icon: <Calendar24Regular />, name: 'Calendario', color: '#E91E63' },
     { id: 'search', appId: 'search', icon: <Search24Regular />, name: 'Buscar', color: '#FF9800' },
     { id: 'defender', appId: 'defender', icon: <ShieldCheckmark24Regular />, name: 'Seguridad', color: '#008a17' },
-    { id: 'devcpp-2026', appId: 'devcpp-2026', icon: <Play24Filled />, name: 'Dev-C++ 2026', color: '#3b82f6' },
+    { id: 'devcpp-2026', appId: 'devcpp-2026', icon: <Code24Regular primaryFill="#3b82f6" />, name: 'Dev-C++ 2026', color: '#3b82f6' },
     { id: 'manual', appId: 'manual', icon: <Book24Regular />, name: 'Manual', color: '#3b82f6' },
     { id: 'clock', appId: 'clock', icon: <span style={{ fontSize: 20 }}>🕐</span>, name: 'Reloj', color: '#60cdff' },
     { id: 'photos', appId: 'photos', icon: <span style={{ fontSize: 20 }}>📷</span>, name: 'Fotos', color: '#ff6b6b' },
@@ -222,19 +222,52 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
           <style>{`
             .start-menu {
               position: fixed;
-              bottom: calc(var(--taskbar-height) + 12px);
+              bottom: calc(var(--taskbar-height) + 16px);
               left: 50%;
               transform: translateX(-50%);
-              width: 600px;
-              height: 500px;
-              border-radius: 8px;
+              width: 680px;
+              max-width: 95vw;
+              height: 540px;
+              max-height: 80vh;
+              border-radius: var(--win-radius-lg);
               z-index: 1001;
               display: flex;
               flex-direction: column;
-              background: rgba(32, 32, 32, 0.95);
-              backdrop-filter: blur(20px);
-              border: 1px solid rgba(255, 255, 255, 0.1);
-              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+              background: rgba(20, 20, 20, 0.45);
+              backdrop-filter: blur(60px) saturate(200%);
+              -webkit-backdrop-filter: blur(60px) saturate(200%);
+              border: 1px solid rgba(255, 255, 255, 0.08);
+              border-top: 1px solid rgba(255, 255, 255, 0.2);
+              box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.05);
+            }
+
+            /* Mobile Start Menu */
+            @media (max-width: 639px) {
+              .start-menu {
+                width: 95vw;
+                height: 85vh;
+                max-height: 85vh;
+                bottom: calc(var(--taskbar-height) + 10px);
+                border-radius: var(--win-radius-lg);
+              }
+            }
+
+            /* Tablet Start Menu */
+            @media (min-width: 640px) and (max-width: 1023px) {
+              .start-menu {
+                width: 90vw;
+                height: 80vh;
+                max-height: 80vh;
+                max-width: 700px;
+              }
+            }
+
+            /* Small height screens */
+            @media (max-height: 600px) {
+              .start-menu {
+                max-height: 95vh;
+                height: 95vh;
+              }
             }
 
             .start-menu-inner {
@@ -245,8 +278,20 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               position: relative;
             }
 
+            @media (max-width: 639px) {
+              .start-menu-inner {
+                padding: 20px 0 0 0;
+              }
+            }
+
             .search-container {
               padding: 0 32px 32px 32px;
+            }
+
+            @media (max-width: 639px) {
+              .search-container {
+                padding: 0 16px 20px 16px;
+              }
             }
 
             .search-box {
@@ -259,6 +304,13 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               gap: 12px;
             }
 
+            @media (max-width: 639px) {
+              .search-box {
+                padding: 10px 12px;
+                gap: 8px;
+              }
+            }
+
             .search-box input {
               background: transparent;
               border: none;
@@ -268,14 +320,38 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               font-size: 14px;
             }
 
+            @media (max-width: 639px) {
+              .search-box input {
+                font-size: 13px;
+              }
+            }
+
+            @media (max-width: 639px) {
+              .search-box input::placeholder {
+                font-size: 12px;
+              }
+            }
+
             .scroll-content {
               flex: 1;
               overflow-y: auto;
               padding: 0 32px;
             }
 
+            @media (max-width: 639px) {
+              .scroll-content {
+                padding: 0 16px;
+              }
+            }
+
             .section {
               margin-bottom: 32px;
+            }
+
+            @media (max-width: 639px) {
+              .section {
+                margin-bottom: 20px;
+              }
             }
 
             .section-header {
@@ -285,10 +361,22 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               margin-bottom: 16px;
             }
 
+            @media (max-width: 639px) {
+              .section-header {
+                margin-bottom: 12px;
+              }
+            }
+
             .section-header h3 {
               font-size: 13px;
               font-weight: 600;
               margin: 0;
+            }
+
+            @media (max-width: 639px) {
+              .section-header h3 {
+                font-size: 12px;
+              }
             }
 
             .section-action {
@@ -299,12 +387,56 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               padding: 4px 8px;
               border-radius: 4px;
               cursor: pointer;
+              white-space: nowrap;
+            }
+
+            @media (max-width: 639px) {
+              .section-action {
+                font-size: 11px;
+                padding: 3px 6px;
+              }
             }
 
             .apps-grid {
               display: grid;
               grid-template-columns: repeat(6, 1fr);
               gap: 8px;
+            }
+
+            /* Responsive grid columns */
+            @media (min-width: 1440px) {
+              .apps-grid {
+                grid-template-columns: repeat(7, 1fr);
+                gap: 10px;
+              }
+            }
+
+            @media (min-width: 1024px) and (max-width: 1439px) {
+              .apps-grid {
+                grid-template-columns: repeat(5, 1fr);
+                gap: 8px;
+              }
+            }
+
+            @media (min-width: 640px) and (max-width: 1023px) {
+              .apps-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 8px;
+              }
+            }
+
+            @media (max-width: 639px) {
+              .apps-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 6px;
+              }
+            }
+
+            @media (max-width: 450px) {
+              .apps-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 4px;
+              }
             }
 
             .app-btn {
@@ -318,25 +450,60 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               padding: 12px 4px;
               border-radius: 4px;
               cursor: pointer;
+              transition: background 0.2s;
             }
 
             .app-btn:hover {
               background: var(--hover-bg);
             }
 
+            @media (max-width: 639px) {
+              .app-btn {
+                gap: 6px;
+                padding: 8px 2px;
+              }
+            }
+
             .app-icon-wrapper {
               font-size: 24px;
+            }
+
+            @media (max-width: 639px) {
+              .app-icon-wrapper {
+                font-size: 20px;
+              }
             }
 
             .app-label {
               font-size: 12px;
               text-align: center;
+              line-height: 1.2;
+              max-width: 100%;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              display: -webkit-box;
+              -webkit-line-clamp: 2;
+              -webkit-box-orient: vertical;
+            }
+
+            @media (max-width: 639px) {
+              .app-label {
+                font-size: 10px;
+                -webkit-line-clamp: 1;
+              }
             }
 
             .recommended-grid {
               display: grid;
               grid-template-columns: 1fr 1fr;
               gap: 12px;
+            }
+
+            @media (max-width: 639px) {
+              .recommended-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+              }
             }
 
             .rec-item {
@@ -350,10 +517,18 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               border-radius: 4px;
               cursor: pointer;
               text-align: left;
+              transition: background 0.2s;
             }
 
             .rec-item:hover {
               background: var(--hover-bg);
+            }
+
+            @media (max-width: 639px) {
+              .rec-item {
+                gap: 8px;
+                padding: 8px 10px;
+              }
             }
 
             .rec-icon {
@@ -364,21 +539,50 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               justify-content: center;
               background: rgba(255, 255, 255, 0.05);
               border-radius: 4px;
+              flex-shrink: 0;
+            }
+
+            @media (max-width: 639px) {
+              .rec-icon {
+                width: 28px;
+                height: 28px;
+                font-size: 16px;
+              }
             }
 
             .rec-text {
               display: flex;
               flex-direction: column;
+              gap: 2px;
+              min-width: 0;
             }
 
             .rec-name {
               font-size: 12px;
               font-weight: 500;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+
+            @media (max-width: 639px) {
+              .rec-name {
+                font-size: 11px;
+              }
             }
 
             .rec-sub {
               font-size: 11px;
               opacity: 0.6;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+
+            @media (max-width: 639px) {
+              .rec-sub {
+                font-size: 10px;
+              }
             }
 
             .start-footer {
@@ -388,6 +592,14 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               justify-content: space-between;
               align-items: center;
               margin-top: 12px;
+              flex-shrink: 0;
+            }
+
+            @media (max-width: 639px) {
+              .start-footer {
+                padding: 12px 16px;
+                margin-top: 8px;
+              }
             }
 
             .user-area {
@@ -397,10 +609,18 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               padding: 4px 12px;
               border-radius: 4px;
               cursor: pointer;
+              transition: background 0.2s;
             }
 
             .user-area:hover {
               background: var(--hover-bg);
+            }
+
+            @media (max-width: 639px) {
+              .user-area {
+                gap: 8px;
+                padding: 4px 8px;
+              }
             }
 
             .user-avatar {
@@ -411,6 +631,28 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               display: flex;
               align-items: center;
               justify-content: center;
+              font-weight: bold;
+              flex-shrink: 0;
+            }
+
+            @media (max-width: 639px) {
+              .user-avatar {
+                width: 28px;
+                height: 28px;
+                font-size: 12px;
+              }
+            }
+
+            .user-name {
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+
+            @media (max-width: 639px) {
+              .user-name {
+                font-size: 12px;
+              }
             }
 
             .power-container {
@@ -431,6 +673,13 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               z-index: 1002;
             }
 
+            @media (max-width: 639px) {
+              .power-options {
+                bottom: 44px;
+                width: 140px;
+              }
+            }
+
             .power-option {
               background: transparent;
               border: none;
@@ -439,10 +688,21 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               text-align: left;
               cursor: pointer;
               width: 170px;
+              transition: background 0.2s;
+              white-space: nowrap;
+              font-size: 13px;
             }
 
             .power-option:hover {
               background: rgba(255, 255, 255, 0.1);
+            }
+
+            @media (max-width: 639px) {
+              .power-option {
+                width: 100%;
+                padding: 10px 12px;
+                font-size: 12px;
+              }
             }
 
             .power-btn {
@@ -452,10 +712,32 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
               padding: 8px;
               border-radius: 4px;
               cursor: pointer;
+              transition: background 0.2s;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-width: 32px;
+              min-height: 32px;
             }
 
             .power-btn:hover {
               background: var(--hover-bg);
+            }
+
+            @media (max-width: 639px) {
+              .power-btn {
+                min-width: 28px;
+                min-height: 28px;
+                padding: 6px;
+              }
+            }
+
+            @media (hover: none) and (pointer: coarse) {
+              .app-btn,
+              .rec-item,
+              .power-btn {
+                min-height: 44px;
+              }
             }
           `}</style>
         </motion.div>

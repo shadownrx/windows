@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# WASM and Engine compilation/cache
+.wasm-engine/
+.wasm-cache/
+.wasm-edge/
+target/
+*.wasm

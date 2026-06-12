@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useWindowManager } from "../../context/WindowManager";
+import { useWasmEngine } from "../../utils/useWasmEngine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -12,6 +13,8 @@ interface Process {
   mem: number;
   disk: number;
   icon: string;
+  rank?: number;  // 0=low 1=normal 2=high 3=critical (from WASM)
+  trend?: number; // -1 | 0 | 1
 }
 
 type Tab = "processes" | "perf" | "services" | "startup" | "details";
@@ -19,19 +22,19 @@ type Tab = "processes" | "perf" | "services" | "startup" | "details";
 // ─── Initial data ─────────────────────────────────────────────────────────────
 
 const INITIAL_PROCESSES: Omit<Process, "id">[] = [
-  { group: "Aplicaciones", name: "Microsoft Edge", pid: 4872, cpu: 3.2, mem: 312, disk: 0.1, icon: "#0078d4" },
-  { group: "Aplicaciones", name: "Explorador de archivos", pid: 6204, cpu: 0.4, mem: 48, disk: 0.0, icon: "#ffb900" },
-  { group: "Aplicaciones", name: "Configuración", pid: 5392, cpu: 0.1, mem: 36, disk: 0.0, icon: "#767676" },
-  { group: "Aplicaciones", name: "Fotos", pid: 7844, cpu: 0.0, mem: 72, disk: 0.0, icon: "#e74856" },
-  { group: "Procesos en segundo plano", name: "Antimalware Service Executable", pid: 3120, cpu: 18.4, mem: 284, disk: 2.1, icon: "#0078d4" },
-  { group: "Procesos en segundo plano", name: "Servicio de actualización de Windows", pid: 1832, cpu: 0.8, mem: 56, disk: 0.5, icon: "#0078d4" },
-  { group: "Procesos en segundo plano", name: "Búsqueda de Windows", pid: 2208, cpu: 2.1, mem: 128, disk: 8.4, icon: "#767676" },
-  { group: "Procesos en segundo plano", name: "CTF Loader", pid: 892, cpu: 0.0, mem: 14, disk: 0.0, icon: "#767676" },
-  { group: "Procesos en segundo plano", name: "Sistema de host de servicio", pid: 1104, cpu: 0.5, mem: 92, disk: 0.0, icon: "#767676" },
-  { group: "Procesos de Windows", name: "Sistema", pid: 4, cpu: 0.2, mem: 2, disk: 0.3, icon: "#767676" },
-  { group: "Procesos de Windows", name: "Tiempo de ejecución del cliente-servidor", pid: 652, cpu: 0.0, mem: 6, disk: 0.0, icon: "#767676" },
-  { group: "Procesos de Windows", name: "Administrador de ventanas de escritorio", pid: 1248, cpu: 1.1, mem: 148, disk: 0.0, icon: "#0078d4" },
-  { group: "Procesos de Windows", name: "Subsistema de Windows para aplicaciones", pid: 788, cpu: 0.0, mem: 4, disk: 0.0, icon: "#767676" },
+  { group: "Aplicaciones", name: "Microsoft Edge", pid: 4872, cpu: 3.2, mem: 312, disk: 0.1, icon: "#0078d4", rank: 1, trend: 0 },
+  { group: "Aplicaciones", name: "Explorador de archivos", pid: 6204, cpu: 0.4, mem: 48, disk: 0.0, icon: "#ffb900", rank: 0, trend: 0 },
+  { group: "Aplicaciones", name: "Configuración", pid: 5392, cpu: 0.1, mem: 36, disk: 0.0, icon: "#767676", rank: 0, trend: 0 },
+  { group: "Aplicaciones", name: "Fotos", pid: 7844, cpu: 0.0, mem: 72, disk: 0.0, icon: "#e74856", rank: 0, trend: 0 },
+  { group: "Procesos en segundo plano", name: "Antimalware Service Executable", pid: 3120, cpu: 18.4, mem: 284, disk: 2.1, icon: "#0078d4", rank: 2, trend: 1 },
+  { group: "Procesos en segundo plano", name: "Servicio de actualización de Windows", pid: 1832, cpu: 0.8, mem: 56, disk: 0.5, icon: "#0078d4", rank: 0, trend: 0 },
+  { group: "Procesos en segundo plano", name: "Búsqueda de Windows", pid: 2208, cpu: 2.1, mem: 128, disk: 8.4, icon: "#767676", rank: 1, trend: 0 },
+  { group: "Procesos en segundo plano", name: "CTF Loader", pid: 892, cpu: 0.0, mem: 14, disk: 0.0, icon: "#767676", rank: 0, trend: 0 },
+  { group: "Procesos en segundo plano", name: "Sistema de host de servicio", pid: 1104, cpu: 0.5, mem: 92, disk: 0.0, icon: "#767676", rank: 0, trend: 0 },
+  { group: "Procesos de Windows", name: "Sistema", pid: 4, cpu: 0.2, mem: 2, disk: 0.3, icon: "#767676", rank: 0, trend: 0 },
+  { group: "Procesos de Windows", name: "Tiempo de ejecución del cliente-servidor", pid: 652, cpu: 0.0, mem: 6, disk: 0.0, icon: "#767676", rank: 0, trend: 0 },
+  { group: "Procesos de Windows", name: "Administrador de ventanas de escritorio", pid: 1248, cpu: 1.1, mem: 148, disk: 0.0, icon: "#0078d4", rank: 1, trend: 0 },
+  { group: "Procesos de Windows", name: "Subsistema de Windows para aplicaciones", pid: 788, cpu: 0.0, mem: 4, disk: 0.0, icon: "#767676", rank: 0, trend: 0 },
 ];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -178,49 +181,62 @@ export default function TaskManager() {
   const [activeTab, setActiveTab] = useState<Tab>("processes");
   const [services, setServices] = useState<any[]>([]);
   const [startupApps, setStartupApps] = useState<any[]>([]);
+  const tickRef = useRef(0);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+
+  // WASM engine — replaces manual Math.random() fluctuation
+  const wasm = useWasmEngine();
 
   // History for perf charts
-  const [cpuHistory, setCpuHistory] = useState<number[]>(Array(30).fill(0));
+  const [cpuHistory, setCpuHistory] = useState<number[]>(() =>
+    Array(30).fill(0)
+  );
   const [memHistory, setMemHistory] = useState<number[]>(Array(30).fill(48));
   const [diskHistory, setDiskHistory] = useState<number[]>(Array(30).fill(0));
   const [netHistory, setNetHistory] = useState<number[]>(Array(30).fill(30));
 
-  // Fetch Services & Startup Info
+  // Track responsive breakpoint
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Fetch Services & Startup (dev-only, fallback to empty in prod/Vercel)
   useEffect(() => {
     const fetchExtra = async () => {
       try {
         const sRes = await fetch('/api/pc-services');
+        if (!sRes.ok) return;
         const sData = await sRes.json();
         setServices(sData);
 
         const stRes = await fetch('/api/pc-startup');
+        if (!stRes.ok) return;
         const stData = await stRes.json();
         setStartupApps(stData);
       } catch (e) {
-        console.error("Extra data fetch error", e);
+        // Silent in production (Vercel)
       }
     };
     fetchExtra();
-  }, [activeTab]); // Refetch when changing tabs to these
+  }, [activeTab]);
 
   const [systemInfo, setSystemInfo] = useState<any>(null);
   const [selectedStat, setSelectedStat] = useState<string>("CPU");
 
-  // Fetch Hardware Info
+  // Fetch Hardware Info (dev-only)
   useEffect(() => {
     const fetchSystem = async () => {
       try {
         const res = await fetch('/api/pc-system');
+        if (!res.ok) return;
         const data = await res.json();
         setSystemInfo(data);
-      } catch (e) {
-        console.error("Hardware fetch error", e);
-      }
+      } catch (e) { /* silent in prod */ }
     };
     fetchSystem();
   }, []);
-
-  const [wasm, setWasm] = useState<any>(null);
 
   const { windows, focusedWindowId } = useWindowManager();
 
@@ -239,7 +255,7 @@ export default function TaskManager() {
     loadWasm();
   }, []);
 
-  // Generate processes based on open windows
+  // Generate and simulate processes via WASM engine
   useEffect(() => {
     const appStats: Record<string, { mem: number, cpuBase: number, name: string, icon: string }> = {
       'chrome': { mem: 350, cpuBase: 2.5, name: 'Google Chrome', icon: '#0078d4' },
@@ -251,45 +267,67 @@ export default function TaskManager() {
       'counter-strike': { mem: 550, cpuBase: 15.0, name: 'Counter-Strike 1.6', icon: '#ffb900' },
       'control-panel': { mem: 35, cpuBase: 0.2, name: 'Configuración', icon: '#767676' },
       'devcpp-2026': { mem: 150, cpuBase: 2.0, name: 'Dev-C++', icon: '#3b82f6' },
+      'vscode': { mem: 280, cpuBase: 3.0, name: 'Visual Studio Code', icon: '#007ACC' },
+      'paint': { mem: 80, cpuBase: 0.5, name: 'Paint', icon: '#e74856' },
+      'calculator': { mem: 20, cpuBase: 0.1, name: 'Calculadora', icon: '#0078d4' },
     };
 
-    const generateProcesses = () => {
-      // Base background processes
+    const buildProcessList = () => {
       const baseProcesses: Process[] = INITIAL_PROCESSES.filter(p => p.group !== 'Aplicaciones').map((p, i) => ({
         ...p,
         id: 1000 + i,
-        cpu: Math.max(0, p.cpu + (Math.random() * 0.5 - 0.25)),
+        rank: p.rank ?? 0,
+        trend: p.trend ?? 0,
       }));
 
-      // App processes based on open windows
+      const openWindowNames = windows.filter(w => w.isOpen).map(w => w.title);
+
       const appProcesses: Process[] = windows.filter(w => w.isOpen).map((win, index) => {
         const stats = appStats[win.id.split('-')[0]] || { mem: 50, cpuBase: 1.0, name: win.title, icon: '#767676' };
-        
-        // Add some jitter to CPU and Memory
-        const activeCpu = focusedWindowId === win.id ? (stats.cpuBase * 2) : stats.cpuBase;
-        const currentCpu = Math.max(0, activeCpu + (Math.random() * activeCpu * 0.5));
-        const currentMem = stats.mem + (Math.random() * 10 - 5);
-
+        const activeCpu = focusedWindowId === win.id ? (stats.cpuBase * 2.2) : stats.cpuBase;
         return {
           id: index,
           pid: 5000 + index * 12,
           name: stats.name || win.title,
-          cpu: Number(currentCpu.toFixed(1)),
-          mem: Number(currentMem.toFixed(0)),
-          disk: Number((Math.random() * 0.5).toFixed(1)),
+          cpu: activeCpu,
+          mem: stats.mem,
+          disk: 0,
           group: "Aplicaciones",
-          icon: stats.icon
+          icon: wasm.isReady ? wasm.processColor(stats.name || win.title) : stats.icon,
+          rank: 0,
+          trend: 0,
         };
       });
 
-      setProcesses([...appProcesses, ...baseProcesses]);
+      const combined = [...appProcesses, ...baseProcesses];
+
+      // Use WASM engine for realistic simulation
+      if (wasm.isReady) {
+        const simulated = wasm.simulateProcesses(
+          combined as any,
+          tickRef.current,
+          openWindowNames
+        );
+        tickRef.current += 1;
+        return simulated.map((sp: any, idx: number) => ({
+          ...combined[idx],
+          cpu: sp.cpu,
+          mem: sp.mem,
+          disk: sp.disk,
+          rank: sp.rank,
+          trend: sp.trend,
+        }));
+      }
+
+      return combined;
     };
 
-    const interval = setInterval(generateProcesses, 2000);
-    generateProcesses(); // Initial call
+    const update = () => setProcesses(buildProcessList());
+    const interval = setInterval(update, 1800);
+    update();
 
     return () => clearInterval(interval);
-  }, [windows]);
+  }, [windows, wasm.isReady]);
 
   // Update histories
   useEffect(() => {
@@ -347,18 +385,38 @@ export default function TaskManager() {
         .tm-btn-danger:hover:not(:disabled) { background: #7a1f1f !important; }
       `}</style>
 
+      {/* WASM badge */}
+      {wasm.isReady && (
+        <div style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          background: wasm.isWasm ? 'rgba(96,205,255,0.15)' : 'rgba(255,200,0,0.1)',
+          border: `1px solid ${wasm.isWasm ? 'rgba(96,205,255,0.3)' : 'rgba(255,200,0,0.3)'}`,
+          borderRadius: 4,
+          padding: '2px 8px',
+          fontSize: 10,
+          color: wasm.isWasm ? '#60cdff' : '#ffc800',
+          fontFamily: 'monospace',
+          zIndex: 10,
+          pointerEvents: 'none',
+        }}>
+          {wasm.isWasm ? '⚙ Rust/WASM' : '⚙ JS Engine'}
+        </div>
+      )}
       <div style={{
         display: "flex",
-        height: 600,
+        height: isMobile ? '100%' : 'clamp(420px, 70vh, 680px)',
         width: "100%",
         maxWidth: 960,
         background: "#202020",
         color: "rgba(255,255,255,0.87)",
         fontFamily: "'Segoe UI', sans-serif",
-        borderRadius: 10,
+        borderRadius: isMobile ? 0 : 10,
         overflow: "hidden",
         border: "1px solid rgba(255,255,255,0.08)",
         boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+        position: 'relative',
       }}>
 
         {/* ── SIDEBAR ── */}
@@ -411,17 +469,19 @@ export default function TaskManager() {
         {/* ── MAIN ── */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
-          {/* HEADER */}
+          {/* HEADER — responsive: wraps stat boxes on mobile */}
           <div style={{
-            padding: "16px 20px 12px",
+            padding: isMobile ? "10px 12px 8px" : "16px 20px 12px",
             display: "flex",
+            flexDirection: isMobile ? 'column' : 'row',
             justifyContent: "space-between",
-            alignItems: "flex-start",
+            alignItems: isMobile ? 'stretch' : "flex-start",
             background: "#202020",
             borderBottom: "1px solid rgba(255,255,255,0.06)",
             flexShrink: 0,
+            gap: isMobile ? 8 : 0,
           }}>
-            <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ display: "flex", gap: isMobile ? 6 : 12, flexWrap: 'wrap' }}>
               <StatBox 
                 label="CPU" 
                 value={`${avgCpu.toFixed(0)}%`} 
@@ -433,7 +493,7 @@ export default function TaskManager() {
               <StatBox 
                 label="Memoria" 
                 value={`${memPct}%`} 
-                sub={`${(totalMem / 1024).toFixed(1)} / ${(totalSystemRAM / 1024 / 1024).toFixed(1)} GB`} 
+                sub={isMobile ? `${(totalMem / 1024).toFixed(1)} GB` : `${(totalMem / 1024).toFixed(1)} / ${(totalSystemRAM / 1024 / 1024).toFixed(1)} GB`} 
                 color="#c48dfb" 
                 active={selectedStat === "Memoria"}
                 onClick={() => { setSelectedStat("Memoria"); setActiveTab("perf"); }}
@@ -446,36 +506,40 @@ export default function TaskManager() {
                 active={selectedStat === "Disco"}
                 onClick={() => { setSelectedStat("Disco"); setActiveTab("perf"); }}
               />
-              <StatBox 
-                label="GPU" 
-                value={`${(Math.random() * 5).toFixed(0)}%`} 
-                sub={systemInfo?.gpu?.Name || "AMD Radeon Graphics"} 
-                color="#9bcf8f" 
-                active={selectedStat === "GPU"}
-                onClick={() => { setSelectedStat("GPU"); setActiveTab("perf"); }}
-              />
+              {!isMobile && (
+                <StatBox 
+                  label="GPU" 
+                  value={`${(Math.random() * 5).toFixed(0)}%`} 
+                  sub={systemInfo?.gpu?.Name || "GPU"} 
+                  color="#9bcf8f" 
+                  active={selectedStat === "GPU"}
+                  onClick={() => { setSelectedStat("GPU"); setActiveTab("perf"); }}
+                />
+              )}
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="tm-btn" style={{
-                padding: "6px 14px", borderRadius: 4,
-                border: "1px solid rgba(255,255,255,0.12)", background: "#323232",
-                color: "rgba(255,255,255,0.85)", fontSize: 12, cursor: "pointer",
-              }}>
-                Ejecutar nueva tarea
-              </button>
+            <div style={{ display: "flex", gap: 6, alignSelf: isMobile ? 'flex-end' : 'auto' }}>
+              {!isMobile && (
+                <button className="tm-btn" style={{
+                  padding: "6px 14px", borderRadius: 4,
+                  border: "1px solid rgba(255,255,255,0.12)", background: "#323232",
+                  color: "rgba(255,255,255,0.85)", fontSize: 12, cursor: "pointer",
+                }}>
+                  Ejecutar nueva tarea
+                </button>
+              )}
               <button
                 className="tm-btn tm-btn-danger"
                 disabled={selectedId === null}
                 onClick={handleEndTask}
                 style={{
-                  padding: "6px 14px", borderRadius: 4,
+                  padding: isMobile ? "5px 10px" : "6px 14px", borderRadius: 4,
                   border: "1px solid rgba(255,80,80,0.3)",
                   background: selectedId !== null ? "#5c1717" : "#323232",
                   color: "rgba(255,255,255,0.85)", fontSize: 12, cursor: selectedId !== null ? "pointer" : "default",
                   opacity: selectedId !== null ? 1 : 0.35, transition: "all 0.15s",
                 }}
               >
-                Finalizar tarea
+                {isMobile ? '✕ Finalizar' : 'Finalizar tarea'}
               </button>
             </div>
           </div>
@@ -512,21 +576,26 @@ export default function TaskManager() {
 
           {/* ── PROCESS TABLE ── */}
           {activeTab === "processes" && (
-            <div className="tm-scroll" style={{ flex: 1, overflowY: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <div className="tm-scroll" style={{ flex: 1, overflowY: "auto", overflowX: isMobile ? "auto" : "hidden" }}>
+              <table style={{ width: isMobile ? "max-content" : "100%", minWidth: isMobile ? 480 : undefined, borderCollapse: "collapse", fontSize: isMobile ? 11 : 12 }}>
                 <thead className="tm-thead" style={{ position: "sticky", top: 0, background: "#202020", zIndex: 5 }}>
                   <tr>
-                    {[
-                      { label: "Nombre", align: "left", width: "40%" },
+                    {(isMobile ? [
+                      { label: "Nombre", align: "left", width: "50%" },
+                      { label: "CPU", align: "right", width: "20%" },
+                      { label: "Mem", align: "right", width: "20%" },
+                      { label: "↑↓", align: "center", width: "10%" },
+                    ] : [
+                      { label: "Nombre", align: "left", width: "38%" },
                       { label: "PID", align: "right", width: "8%" },
                       { label: "Estado", align: "left", width: "10%" },
-                      { label: "CPU", align: "right", width: "14%" },
+                      { label: "CPU", align: "right", width: "16%" },
                       { label: "Memoria", align: "right", width: "14%" },
                       { label: "Disco", align: "right", width: "14%" },
-                    ].map(({ label, align, width }) => (
+                    ]).map(({ label, align, width }) => (
                       <th key={label} style={{
-                        padding: "8px 12px", fontWeight: 400,
-                        color: "rgba(255,255,255,0.45)", textAlign: align as "left" | "right",
+                        padding: isMobile ? "6px 8px" : "8px 12px", fontWeight: 400,
+                        color: "rgba(255,255,255,0.45)", textAlign: align as "left" | "right" | "center",
                         borderBottom: "1px solid rgba(255,255,255,0.07)",
                         fontSize: 11, cursor: "pointer", userSelect: "none", width,
                       }}>
@@ -539,18 +608,20 @@ export default function TaskManager() {
                   {Object.entries(groups).map(([groupName, procs]) => (
                     <>
                       <tr key={`group-${groupName}`} style={{ cursor: "default" }}>
-                        <td colSpan={6} style={{
-                          padding: "12px 12px 4px",
-                          fontSize: 11, fontWeight: 600,
+                        <td colSpan={isMobile ? 4 : 6} style={{
+                          padding: isMobile ? "8px 8px 3px" : "12px 12px 4px",
+                          fontSize: 10, fontWeight: 600,
                           color: "rgba(255,255,255,0.4)",
                           letterSpacing: "0.3px",
                           background: "#202020",
+                          textTransform: 'uppercase',
                         }}>
                           {groupName}
                         </td>
                       </tr>
                       {procs.map((p) => {
-                        const isHot = p.cpu > 10;
+                        const rankColors = ['rgba(155,207,143,0.8)', '#60cdff', '#ffb900', '#e74856'];
+                        const rankColor = rankColors[p.rank ?? 0];
                         const isSelected = selectedId === p.id;
                         return (
                           <tr
@@ -563,40 +634,57 @@ export default function TaskManager() {
                               transition: "background 0.1s",
                             }}
                           >
-                            <td style={{ padding: "6px 12px" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <td style={{ padding: isMobile ? "5px 8px" : "6px 12px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                 <div style={{
-                                  width: 14, height: 14, borderRadius: 2, flexShrink: 0,
-                                  background: p.icon + "22",
-                                  border: `1px solid ${p.icon}44`,
+                                  width: isMobile ? 8 : 14, height: isMobile ? 8 : 14, borderRadius: 2, flexShrink: 0,
+                                  background: p.icon + "33",
+                                  border: `1px solid ${p.icon}55`,
                                   display: "flex", alignItems: "center", justifyContent: "center",
                                 }}>
-                                  <svg viewBox="0 0 10 10" width={10} height={10}>
-                                    <rect x={1} y={1} width={8} height={8} rx={1} fill={p.icon} opacity={0.7} />
-                                  </svg>
+                                  {!isMobile && (
+                                    <svg viewBox="0 0 10 10" width={10} height={10}>
+                                      <rect x={1} y={1} width={8} height={8} rx={1} fill={p.icon} opacity={0.7} />
+                                    </svg>
+                                  )}
                                 </div>
-                                {p.name}
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: isMobile ? 140 : 240 }}>{p.name}</span>
                               </div>
                             </td>
-                            <td style={{ padding: "6px 12px", textAlign: "right", color: "rgba(255,255,255,0.35)" }}>
-                              {p.pid}
-                            </td>
-                            <td style={{ padding: "6px 12px" }}>
-                              <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#9bcf8f", marginRight: 6, verticalAlign: "middle" }} />
-                              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>En ejecución</span>
-                            </td>
-                            <td style={{ padding: "6px 12px", textAlign: "right", color: isHot ? "#ffb900" : "inherit" }}>
+                            {!isMobile && (
+                              <td style={{ padding: "6px 12px", textAlign: "right", color: "rgba(255,255,255,0.35)" }}>
+                                {p.pid}
+                              </td>
+                            )}
+                            {!isMobile && (
+                              <td style={{ padding: "6px 12px" }}>
+                                <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#9bcf8f", marginRight: 6, verticalAlign: "middle" }} />
+                                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>En ejecución</span>
+                              </td>
+                            )}
+                            <td style={{ padding: isMobile ? "5px 8px" : "6px 12px", textAlign: "right", color: rankColor }}>
                               {p.cpu.toFixed(1)}%
-                              <div style={{ width: 52, height: 4, background: "rgba(255,255,255,0.1)", borderRadius: 2, display: "inline-block", verticalAlign: "middle", marginLeft: 6 }}>
-                                <div style={{ width: `${Math.min(100, p.cpu)}%`, height: 4, borderRadius: 2, background: isHot ? "#ffb900" : "#60cdff", transition: "width 0.8s" }} />
-                              </div>
+                              {!isMobile && (
+                                <div style={{ width: 40, height: 3, background: "rgba(255,255,255,0.1)", borderRadius: 2, display: "inline-block", verticalAlign: "middle", marginLeft: 5 }}>
+                                  <div style={{ width: `${Math.min(100, p.cpu)}%`, height: 3, borderRadius: 2, background: rankColor, transition: "width 0.8s" }} />
+                                </div>
+                              )}
                             </td>
-                            <td style={{ padding: "6px 12px", textAlign: "right" }}>
-                              {p.mem.toFixed(0)} MB
+                            <td style={{ padding: isMobile ? "5px 8px" : "6px 12px", textAlign: "right", fontSize: isMobile ? 10 : 12 }}>
+                              {p.mem.toFixed(0)}{isMobile ? '' : ' MB'}
                             </td>
-                            <td style={{ padding: "6px 12px", textAlign: "right", color: "rgba(255,255,255,0.45)" }}>
-                              {p.disk.toFixed(1)} MB/s
-                            </td>
+                            {!isMobile && (
+                              <td style={{ padding: "6px 12px", textAlign: "right", color: "rgba(255,255,255,0.45)" }}>
+                                {p.disk.toFixed(1)} MB/s
+                              </td>
+                            )}
+                            {isMobile && (
+                              <td style={{ padding: "5px 8px", textAlign: "center" }}>
+                                <span style={{ color: p.trend === 1 ? '#e74856' : p.trend === -1 ? '#9bcf8f' : 'rgba(255,255,255,0.3)', fontSize: 12 }}>
+                                  {p.trend === 1 ? '↑' : p.trend === -1 ? '↓' : '—'}
+                                </span>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -609,24 +697,27 @@ export default function TaskManager() {
 
           {/* ── PERF PANEL ── */}
           {activeTab === "perf" && (
-            <div className="tm-scroll" style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", gap: 12, flexWrap: "wrap", alignContent: "flex-start" }}>
+            <div className="tm-scroll" style={{ flex: 1, overflowY: "auto", padding: isMobile ? 10 : 16, display: "flex", gap: isMobile ? 8 : 12, flexWrap: "wrap", alignContent: "flex-start" }}>
               {[
-                { title: "CPU", value: `${avgCpu.toFixed(0)}%`, sub: "Procesador · Datos reales", color: "#60cdff", history: cpuHistory },
-                { title: "Memoria", value: `${memPct}%`, sub: `${(totalMem / 1024).toFixed(1)} / 32.0 GB en uso`, color: "#c48dfb", history: memHistory },
-                { title: "GPU", value: `${(Math.random() * 5).toFixed(0)}%`, sub: "Gráficos · WebGPU activo", color: "#9bcf8f", history: netHistory },
-                { title: "Disco 0 (C:) SSD", value: `${totalDisk}%`, sub: "Monitoreo activo", color: "#60cdff", history: diskHistory },
+                { title: "CPU", value: `${avgCpu.toFixed(0)}%`, sub: systemInfo?.cpu?.Name || "Procesador", color: "#60cdff", history: cpuHistory },
+                { title: "Memoria", value: `${memPct}%`, sub: `${(totalMem / 1024).toFixed(1)} / ${(totalSystemRAM / 1024 / 1024).toFixed(1)} GB`, color: "#c48dfb", history: memHistory },
+                { title: "GPU", value: `${(Math.random() * 5).toFixed(0)}%`, sub: systemInfo?.gpu?.Name || "GPU", color: "#9bcf8f", history: netHistory },
+                { title: "Disco C: SSD", value: `${totalDisk}%`, sub: "Lectura/Escritura activa", color: "#60cdff", history: diskHistory },
               ].map((card) => (
                 <div key={card.title} style={{
                   background: "#2b2b2b",
                   border: "1px solid rgba(255,255,255,0.07)",
-                  borderRadius: 6, padding: 14,
-                  width: "calc(50% - 6px)", minWidth: 200,
+                  borderRadius: 6,
+                  padding: isMobile ? 10 : 14,
+                  width: isMobile ? "calc(50% - 4px)" : "calc(50% - 6px)",
+                  minWidth: isMobile ? 0 : 200,
+                  boxSizing: 'border-box',
                 }}>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>
+                  <div style={{ fontSize: isMobile ? 9 : 11, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
                     {card.title}
                   </div>
-                  <div style={{ fontSize: 28, fontWeight: 600, color: card.color }}>{card.value}</div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{card.sub}</div>
+                  <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 600, color: card.color }}>{card.value}</div>
+                  <div style={{ fontSize: isMobile ? 9 : 11, color: "rgba(255,255,255,0.35)", marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.sub}</div>
                   <MiniChart history={card.history} color={card.color} />
                 </div>
               ))}

@@ -41,6 +41,10 @@ const Taskbar: React.FC<TaskbarProps> = ({
   const [startContextMenu, setStartContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
   const [taskbarContextMenu, setTaskbarContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
   const [time, setTime] = React.useState(new Date());
+  const [isHovered, setIsHovered] = React.useState(false);
+
+  // El dock es visible si se pasa el ratón por encima, o si hay un menú importante abierto
+  const isVisible = isHovered || isStartOpen || isWidgetsOpen || startContextMenu.isOpen || taskbarContextMenu.isOpen;
 
   React.useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -61,7 +65,13 @@ const Taskbar: React.FC<TaskbarProps> = ({
   };
 
   return (
-    <footer className="taskbar-container mica gpu-accelerated">
+    <>
+      <div 
+        className={`taskbar-trigger-area ${isVisible ? 'expanded' : ''}`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <footer className={`taskbar-container mica gpu-accelerated ${isVisible ? 'visible' : ''}`}>
       <div className="taskbar-left">
         <button 
           className={`taskbar-icon ${isWidgetsOpen ? 'active' : ''}`}
@@ -86,11 +96,15 @@ const Taskbar: React.FC<TaskbarProps> = ({
           <span>Buscar</span>
         </div>
 
-        {/* PINNED APPS */}
+        {/* PINNED & OPEN APPS */}
         <div className="taskbar-apps">
           {APPS.filter(a => a.id !== 'search').map(app => {
             const isOpen = windows.some(w => w.id === app.id);
             const isFocused = focusedWindowId === app.id;
+            
+            // Si la app no está anclada ni abierta, no la mostramos en el dock
+            if (!app.isPinned && !isOpen) return null;
+
             return (
               <button 
                 key={app.id}
@@ -122,27 +136,113 @@ const Taskbar: React.FC<TaskbarProps> = ({
         
         <div className="show-desktop" onClick={() => {}} />
       </div>
+    </footer>
+    </div>
 
-      <style>{`
+    <style>{`
+        .taskbar-trigger-area {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          width: 100%;
+          height: 12px;
+          z-index: 10000;
+        }
+
+        .taskbar-trigger-area.expanded {
+          height: calc(var(--taskbar-height) + 20px);
+        }
+
         .taskbar-container {
           position: fixed;
-          bottom: 8px;
+          bottom: 12px;
           left: 50%;
-          transform: translateX(-50%);
+          transform: translateX(-50%) translateY(calc(100% + 24px));
           width: calc(100% - 16px);
-          max-width: 1400px;
+          max-width: 1600px;
           height: var(--taskbar-height);
-          background: rgba(20, 20, 20, 0.6);
-          backdrop-filter: blur(40px) saturate(200%);
-          -webkit-backdrop-filter: blur(40px) saturate(200%);
+          background: rgba(20, 20, 20, 0.45);
+          backdrop-filter: blur(60px) saturate(200%);
+          -webkit-backdrop-filter: blur(60px) saturate(200%);
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0 12px;
-          z-index: 10000;
-          border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+          padding: 0 16px;
+          border-radius: var(--win-radius-lg);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-top: 1px solid rgba(255, 255, 255, 0.2);
+          box-shadow: var(--shadow-lg);
+          transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.4s;
+          pointer-events: auto;
+        }
+
+        .taskbar-container.visible {
+          transform: translateX(-50%) translateY(0);
+        }
+
+        /* Mobile taskbar - larger height for touch */
+        @media (max-width: 639px) {
+          .taskbar-container {
+            bottom: 4px;
+            width: calc(100% - 8px);
+            height: 56px;
+            border-radius: 8px;
+            padding: 0 10px;
+            max-width: 100%;
+          }
+        }
+
+        /* Tablet taskbar */
+        @media (min-width: 640px) and (max-width: 1023px) {
+          .taskbar-container {
+            height: 48px;
+            max-width: 95%;
+            width: calc(95% - 16px);
+          }
+        }
+
+        /* Small height screens */
+        @media (max-height: 600px) {
+          .taskbar-container {
+            height: 40px;
+          }
+        }
+
+        .taskbar-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .taskbar-left .taskbar-icon {
+          width: 44px;
+          height: 44px;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: background 0.2s;
+          background: transparent;
+          border: none;
+          color: white;
+          font-size: 22px;
+        }
+
+        .taskbar-left .taskbar-icon:hover {
+          background: rgba(255,255,255,0.1);
+        }
+
+        .taskbar-left .taskbar-icon.active {
+          background: rgba(255,255,255,0.15);
+        }
+
+        @media (max-width: 639px) {
+          .taskbar-left .taskbar-icon {
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+          }
         }
 
         .taskbar-center {
@@ -152,6 +252,12 @@ const Taskbar: React.FC<TaskbarProps> = ({
           display: flex;
           align-items: center;
           gap: 4px;
+        }
+
+        @media (max-width: 639px) {
+          .taskbar-center {
+            gap: 2px;
+          }
         }
 
         .taskbar-search-pill {
@@ -166,30 +272,107 @@ const Taskbar: React.FC<TaskbarProps> = ({
           cursor: pointer;
           transition: all 0.2s;
           margin: 0 4px;
+          white-space: nowrap;
+          max-width: 300px;
         }
-        .taskbar-search-pill:hover { background: rgba(255,255,255,0.12); width: 160px; }
-        .taskbar-search-pill span { font-size: 13px; color: rgba(255,255,255,0.9); }
-        .search-pill-icon { color: var(--win-accent); font-size: 18px; }
 
-        .taskbar-apps { display: flex; align-items: center; gap: 4px; }
-        .taskbar-app-icon {
-          width: 40px;
-          height: 40px;
-          border-radius: 4px;
+        .taskbar-search-pill:hover {
+          background: rgba(255,255,255,0.12);
+        }
+
+        .taskbar-search-pill span {
+          font-size: 13px;
+          color: rgba(255,255,255,0.9);
+          white-space: nowrap;
+        }
+
+        .search-pill-icon {
+          color: var(--win-accent);
+          font-size: 18px;
+          flex-shrink: 0;
+        }
+
+        @media (max-width: 639px) {
+          .taskbar-search-pill {
+            display: none;
+          }
+        }
+
+        @media (min-width: 640px) and (max-width: 1023px) {
+          .taskbar-search-pill {
+            max-width: 200px;
+            padding: 0 16px 0 10px;
+            height: 32px;
+          }
+
+          .taskbar-search-pill span {
+            font-size: 12px;
+          }
+        }
+
+        .taskbar-apps {
           display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: nowrap;
+          max-width: calc(100vw - 280px);
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding-right: 8px;
+          scroll-behavior: smooth;
+        }
+
+        @media (max-width: 639px) {
+          .taskbar-apps {
+            max-width: calc(100vw - 140px);
+            gap: 4px;
+          }
+        }
+
+        .taskbar-app-icon {
+          width: 48px;
+          height: 48px;
+          border-radius: 8px;
+          display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
           position: relative;
           background: transparent;
           border: none;
           cursor: pointer;
-          transition: background 0.2s;
+          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+          transform-origin: bottom center;
         }
-        .taskbar-app-icon:hover { background: rgba(255,255,255,0.1); }
-        .taskbar-app-icon.focused { background: rgba(255,255,255,0.15); }
-        .app-icon-inner { font-size: 24px; transition: transform 0.2s; }
-        .taskbar-app-icon:active .app-icon-inner { transform: scale(0.85); }
-        
+
+        .taskbar-app-icon:hover {
+          background: rgba(255, 255, 255, 0.08);
+          transform: translateY(-6px) scale(1.15);
+          box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+
+        .taskbar-app-icon:active {
+          transform: translateY(-2px) scale(1.05);
+        }
+
+        .taskbar-app-icon.open {
+          background: rgba(255,255,255,0.12);
+        }
+
+        .taskbar-app-icon.focused {
+          background: rgba(255,255,255,0.15);
+        }
+
+        .app-icon-inner {
+          font-size: 26px;
+          transition: transform 0.2s;
+          color: white;
+        }
+
+        .taskbar-app-icon:active .app-icon-inner {
+          transform: scale(0.85);
+        }
+
         .app-indicator {
           position: absolute;
           bottom: 2px;
@@ -201,23 +384,107 @@ const Taskbar: React.FC<TaskbarProps> = ({
           border-radius: 2px;
           transition: width 0.2s;
         }
-        .taskbar-app-icon.focused .app-indicator { width: 12px; }
 
-        .taskbar-right { display: flex; align-items: center; gap: 4px; }
-        .system-tray, .taskbar-clock {
+        .taskbar-app-icon.focused .app-indicator {
+          width: 12px;
+        }
+
+        @media (max-width: 639px) {
+          .taskbar-app-icon {
+            width: 40px;
+            height: 40px;
+          }
+
+          .app-icon-inner {
+            font-size: 22px;
+          }
+        }
+
+        .taskbar-right {
           display: flex;
           align-items: center;
+          gap: 4px;
+          flex-shrink: 0;
+        }
+
+        .system-tray {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 8px;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background 0.2s;
+          color: rgba(255,255,255,0.8);
+          font-size: 18px;
+        }
+
+        .system-tray:hover {
+          background: rgba(255,255,255,0.1);
+        }
+
+        @media (max-width: 639px) {
+          .system-tray {
+            gap: 2px;
+            padding: 4px 6px;
+            font-size: 16px;
+          }
+        }
+
+        .taskbar-clock {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 0;
           padding: 4px 8px;
           border-radius: 4px;
           cursor: pointer;
           transition: background 0.2s;
         }
-        .system-tray:hover, .taskbar-clock:hover { background: rgba(255,255,255,0.1); }
-        .taskbar-clock { flex-direction: column; align-items: flex-end; gap: 0; }
-        .taskbar-clock .time { font-size: 12px; }
-        .taskbar-clock .date { font-size: 11px; opacity: 0.8; }
 
-        .notifications-badge-container { position: relative; margin-left: 2px; }
+        .taskbar-clock:hover {
+          background: rgba(255,255,255,0.1);
+        }
+
+        .taskbar-clock .time {
+          font-size: 12px;
+          color: rgba(255,255,255,0.9);
+        }
+
+        .taskbar-clock .date {
+          font-size: 11px;
+          opacity: 0.8;
+          color: rgba(255,255,255,0.7);
+        }
+
+        @media (max-width: 639px) {
+          .taskbar-clock .date {
+            display: none;
+          }
+
+          .taskbar-clock .time {
+            font-size: 11px;
+          }
+        }
+
+        @media (min-width: 640px) and (max-width: 1023px) {
+          .taskbar-clock .time {
+            font-size: 11px;
+          }
+
+          .taskbar-clock .date {
+            font-size: 10px;
+          }
+        }
+
+        .notifications-badge-container {
+          position: relative;
+          margin-left: 2px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
         .notifications-badge {
           position: absolute;
           top: -8px;
@@ -241,8 +508,29 @@ const Taskbar: React.FC<TaskbarProps> = ({
           border-left: 1px solid rgba(255,255,255,0.1);
           margin-left: 4px;
         }
+
+        @media (max-width: 639px) {
+          .show-desktop {
+            display: none;
+          }
+        }
+
+        /* Touch device optimizations */
+        @media (hover: none) and (pointer: coarse) {
+          .taskbar-container {
+            height: 56px;
+          }
+
+          .taskbar-app-icon,
+          .taskbar-left .taskbar-icon {
+            width: 44px;
+            height: 44px;
+            min-height: 44px;
+            min-width: 44px;
+          }
+        }
       `}</style>
-    </footer>
+    </>
   );
 };
 

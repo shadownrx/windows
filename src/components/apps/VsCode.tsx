@@ -187,7 +187,7 @@ const VsCode: React.FC = () => {
   const [files, setFiles] = useState(INITIAL_VSCODE_FILES);
   const [activeFile, setActiveFile] = useState('App.tsx');
   const [openFiles, setOpenFiles] = useState<string[]>(['App.tsx', 'index.css']);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 640);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [terminalLines, setTerminalLines] = useState<string[]>([

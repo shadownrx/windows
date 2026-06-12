@@ -1,23 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
-// --- ICONO DEL ESCRITORIO ---
-export const CounterIcon = () => (
-  <div style={{ position: 'relative', width: '32px', height: '32px' }}>
-    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="12" cy="12" r="11" fill="#1a1a1a" stroke="#ef6c00" strokeWidth="1"/>
-      <path 
-        d="M17 14l-1.5-4h-3.5v-2h1.5v-3h-3v3h1v2h-3l-1.5 4h8z" 
-        fill="#ef6c00" 
-      />
-      <rect x="8" y="15" width="8" height="2" fill="#ef6c00" />
-    </svg>
-    <span style={{ 
-      position: 'absolute', bottom: -2, right: -2, 
-      fontSize: '10px', fontWeight: 'bold', color: '#fff',
-      background: '#ef6c00', borderRadius: '2px', padding: '0 2px' 
-    }}>1.6</span>
-  </div>
-);
+import { Games24Regular } from '@fluentui/react-icons';
+
+export const CounterIcon = () => <Games24Regular primaryFill="#ef6c00" />;
 
 const CounterStrikeApp: React.FC = () => {
   const [loading, setLoading] = useState(true);

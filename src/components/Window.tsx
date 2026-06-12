@@ -13,8 +13,21 @@ interface WindowProps {
 const Window: React.FC<WindowProps> = ({ window }) => {
   const { closeWindow, minimizeWindow, maximizeWindow, snapWindow, focusWindow, focusedWindowId } = useWindowManager();
   const { neonTheme } = useSettings();
-  const [size, setSize] = useState({ width: 800, height: 600 });
-  const [position, setPosition] = useState({ x: 100, y: 50 });
+  const [size, setSize] = useState({ 
+    width: window.innerWidth < 640 ? window.innerWidth : (window.innerWidth < 1024 ? Math.min(800, window.innerWidth - 40) : 800), 
+    height: window.innerWidth < 640 ? window.innerHeight - 48 : (window.innerWidth < 1024 ? Math.min(600, window.innerHeight - 100) : 600) 
+  });
+  const [position, setPosition] = useState({ 
+    x: window.innerWidth < 640 ? 0 : Math.max(0, (window.innerWidth - 800) / 2 + (Math.random() * 40 - 20)), 
+    y: window.innerWidth < 640 ? 0 : Math.max(0, (window.innerHeight - 600) / 2 + (Math.random() * 40 - 20)) 
+  });
+
+  // Auto-maximize on mobile
+  useEffect(() => {
+    if (window.innerWidth < 640 && !window.isMaximized) {
+      maximizeWindow(window.id);
+    }
+  }, []);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [snapPreview, setSnapPreview] = useState<'maximize' | 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | null>(null);
@@ -126,7 +139,7 @@ const Window: React.FC<WindowProps> = ({ window }) => {
       transition={isDragging || isResizing ? { duration: 0 } : { type: 'spring', damping: 22, stiffness: 220, mass: 0.8 }}
       style={{ 
         zIndex: window.zIndex, 
-        position: 'absolute', 
+        position: window.isMaximized ? 'fixed' : 'absolute', 
         top: 0,
         left: 0,
         willChange: 'transform, opacity, width, height',
@@ -136,7 +149,7 @@ const Window: React.FC<WindowProps> = ({ window }) => {
       onMouseDown={() => {
         if (!window.isMinimized) focusWindow(window.id);
       }}
-      className={`window gpu-accelerated mica premium-shadow border-glow ${neonTheme !== 'none' ? 'neon-border' : ''} ${neonTheme === 'cyberpunk' ? 'scanlines' : ''} ${focusedWindowId === window.id ? 'focused' : ''}`}
+      className={`window gpu-accelerated mica premium-shadow border-glow ${window.isMaximized ? 'maximized' : ''} ${neonTheme !== 'none' ? 'neon-border' : ''} ${neonTheme === 'cyberpunk' ? 'scanlines' : ''} ${focusedWindowId === window.id ? 'focused' : ''}`}
     >
       {/* Resizers */}
       {!window.isMaximized && (
@@ -231,7 +244,11 @@ const Window: React.FC<WindowProps> = ({ window }) => {
               {window.isMaximized ? <Copy20Regular /> : <Square20Regular />}
             </button>
             {showSnapLayouts && (
-              <SnapLayoutsMenu onSnap={(s) => { snapWindow(window.id, s); setShowSnapLayouts(false); }} />
+              <SnapLayoutsMenu onSnap={(s) => {
+                if (s === 'maximize') maximizeWindow(window.id, { ...size, ...position, width: size.width, height: size.height });
+                else snapWindow(window.id, s);
+                setShowSnapLayouts(false);
+              }} />
             )}
           </div>
           <button className="close" onClick={() => closeWindow(window.id)}><Dismiss20Regular /></button>
@@ -244,6 +261,16 @@ const Window: React.FC<WindowProps> = ({ window }) => {
       </div>
 
       <style>{`
+        .window.maximized {
+          border-radius: 0 !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+        }
+
+        .window.maximized .window-content {
+          max-height: none !important;
+        }
+
         .window {
           border-radius: var(--win-radius);
           overflow: hidden;
@@ -251,6 +278,16 @@ const Window: React.FC<WindowProps> = ({ window }) => {
           flex-direction: column;
           user-select: none;
           transition: box-shadow 0.3s ease, border-color 0.3s ease;
+          min-width: 280px;
+          min-height: 200px;
+        }
+
+        @media (max-width: 639px) {
+          .window {
+            min-width: 200px;
+            min-height: 150px;
+            border-radius: 8px;
+          }
         }
         
         .window.focused {
@@ -267,6 +304,20 @@ const Window: React.FC<WindowProps> = ({ window }) => {
           background: rgba(0, 0, 0, 0.15);
           backdrop-filter: blur(10px);
           cursor: default;
+          flex-shrink: 0;
+        }
+
+        @media (max-width: 639px) {
+          .window-header {
+            height: 32px;
+            padding: 0 0 0 8px;
+          }
+        }
+
+        @media (max-height: 600px) {
+          .window-header {
+            height: 28px;
+          }
         }
 
         .window-title {
@@ -275,17 +326,37 @@ const Window: React.FC<WindowProps> = ({ window }) => {
           gap: 12px;
           font-size: 12px;
           color: rgba(255, 255, 255, 0.9);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          flex: 1;
+          min-width: 0;
+        }
+
+        @media (max-width: 639px) {
+          .window-title {
+            gap: 8px;
+            font-size: 11px;
+          }
         }
 
         .title-icon {
           font-size: 16px;
           display: flex;
           align-items: center;
+          flex-shrink: 0;
+        }
+
+        @media (max-width: 639px) {
+          .title-icon {
+            font-size: 14px;
+          }
         }
 
         .window-controls {
           display: flex;
           height: 100%;
+          flex-shrink: 0;
         }
 
         .window-controls button {
@@ -301,6 +372,24 @@ const Window: React.FC<WindowProps> = ({ window }) => {
           transition: background 0.1s;
           font-size: 14px;
           font-weight: bold;
+          min-width: 32px;
+          min-height: 32px;
+        }
+
+        @media (max-width: 639px) {
+          .window-controls button {
+            width: 28px;
+            min-width: 28px;
+            min-height: 28px;
+            font-size: 12px;
+          }
+        }
+
+        @media (max-width: 450px) {
+          .window-controls button:nth-child(1),
+          .window-controls button:nth-child(2) {
+            display: none;
+          }
         }
 
         .window-controls button:hover {
@@ -316,13 +405,20 @@ const Window: React.FC<WindowProps> = ({ window }) => {
           background: rgba(25, 25, 25, 0.4);
           overflow: auto;
           position: relative;
+          min-height: 0;
         }
 
         /* Resizers */
         .resizer {
           position: absolute;
           z-index: 10;
+          transition: background 0.1s;
         }
+
+        .resizer:hover {
+          background: rgba(96, 205, 255, 0.2);
+        }
+
         .resizer.n { top: -4px; left: 0; right: 0; height: 8px; cursor: n-resize; }
         .resizer.s { bottom: -4px; left: 0; right: 0; height: 8px; cursor: s-resize; }
         .resizer.e { top: 0; bottom: 0; right: -4px; width: 8px; cursor: e-resize; }
@@ -331,6 +427,25 @@ const Window: React.FC<WindowProps> = ({ window }) => {
         .resizer.nw { top: -4px; left: -4px; width: 12px; height: 12px; cursor: nw-resize; }
         .resizer.se { bottom: -4px; right: -4px; width: 12px; height: 12px; cursor: se-resize; }
         .resizer.sw { bottom: -4px; left: -4px; width: 12px; height: 12px; cursor: sw-resize; }
+
+        /* Touch-friendly resizers on mobile */
+        @media (hover: none) and (pointer: coarse) {
+          .resizer.n { height: 12px; top: -6px; }
+          .resizer.s { height: 12px; bottom: -6px; }
+          .resizer.e { width: 12px; right: -6px; }
+          .resizer.w { width: 12px; left: -6px; }
+          .resizer.ne { width: 16px; height: 16px; top: -8px; right: -8px; }
+          .resizer.nw { width: 16px; height: 16px; top: -8px; left: -8px; }
+          .resizer.se { width: 16px; height: 16px; bottom: -8px; right: -8px; }
+          .resizer.sw { width: 16px; height: 16px; bottom: -8px; left: -8px; }
+        }
+
+        /* Hide resizers on very small screens */
+        @media (max-width: 450px) {
+          .resizer {
+            display: none;
+          }
+        }
 
         .snap-layouts-menu {
           position: absolute;
@@ -346,6 +461,17 @@ const Window: React.FC<WindowProps> = ({ window }) => {
           gap: 12px;
           z-index: 2000;
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+          max-height: 90vh;
+          overflow-y: auto;
+        }
+
+        @media (max-width: 639px) {
+          .snap-layouts-menu {
+            top: 32px;
+            padding: 8px;
+            gap: 8px;
+            grid-template-columns: 1fr;
+          }
         }
 
         .snap-group {
@@ -354,6 +480,14 @@ const Window: React.FC<WindowProps> = ({ window }) => {
           display: grid;
           gap: 4px;
           cursor: pointer;
+        }
+
+        @media (max-width: 639px) {
+          .snap-group {
+            width: 100%;
+            height: 60px;
+            gap: 2px;
+          }
         }
 
         .snap-zone {
@@ -366,6 +500,48 @@ const Window: React.FC<WindowProps> = ({ window }) => {
         .snap-zone:hover {
           background: var(--win-accent);
           border-color: white;
+        }
+
+        @media (max-width: 639px) {
+          .snap-zone:active {
+            background: var(--win-accent);
+            border-color: white;
+          }
+        }
+
+        .snap-group {
+          width: 80px;
+          height: 50px;
+          display: grid;
+          gap: 4px;
+          cursor: pointer;
+        }
+
+        @media (max-width: 639px) {
+          .snap-group {
+            width: 100%;
+            height: 60px;
+            gap: 2px;
+          }
+        }
+
+        .snap-zone {
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 2px;
+          transition: all 0.2s;
+        }
+
+        .snap-zone:hover {
+          background: var(--win-accent);
+          border-color: white;
+        }
+
+        @media (max-width: 639px) {
+          .snap-zone:active {
+            background: var(--win-accent);
+            border-color: white;
+          }
         }
       `}</style>
     </motion.div>

@@ -153,6 +153,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options, actio
       <style>{`
         .ctx-menu {
           min-width: 260px;
+          max-width: 90vw;
           background: rgba(36, 36, 36, 0.92);
           backdrop-filter: blur(60px) saturate(200%);
           border: 1px solid rgba(255,255,255,0.12);
@@ -164,6 +165,15 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options, actio
             inset 0 1px 0 rgba(255,255,255,0.06);
           animation: ctx-in 0.12s cubic-bezier(0.2, 0, 0, 1);
           transform-origin: top left;
+        }
+
+        @media (max-width: 639px) {
+          .ctx-menu {
+            min-width: 220px;
+            max-width: 85vw;
+            border-radius: 6px;
+            padding: 2px;
+          }
         }
 
         @keyframes ctx-in {
@@ -185,6 +195,17 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options, actio
           position: relative;
           transition: background 0.08s;
           letter-spacing: 0.01em;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        @media (max-width: 639px) {
+          .ctx-item {
+            font-size: 11px;
+            padding: 8px 8px 8px 6px;
+            min-height: 36px;
+          }
         }
 
         .ctx-item:hover {
@@ -212,9 +233,20 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options, actio
           font-size: 15px;
         }
 
+        @media (max-width: 639px) {
+          .ctx-icon {
+            width: 20px;
+            height: 20px;
+            font-size: 16px;
+          }
+        }
+
         .ctx-label {
           flex: 1;
           white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-width: 0;
         }
 
         .ctx-shortcut {
@@ -222,12 +254,26 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options, actio
           color: rgba(255,255,255,0.38);
           margin-left: 24px;
           white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        @media (max-width: 639px) {
+          .ctx-shortcut {
+            display: none;
+          }
         }
 
         .ctx-arrow {
           font-size: 14px;
           color: rgba(255,255,255,0.5);
           margin-left: 6px;
+          flex-shrink: 0;
+        }
+
+        @media (max-width: 639px) {
+          .ctx-arrow {
+            font-size: 12px;
+          }
         }
 
         .ctx-divider {
@@ -255,6 +301,17 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options, actio
           border-radius: 4px;
           cursor: pointer;
           transition: background 0.1s;
+          min-width: 36px;
+          min-height: 36px;
+        }
+
+        @media (max-width: 639px) {
+          .ctx-action-btn {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            min-height: 40px;
+          }
         }
 
         .ctx-action-btn:hover {
@@ -262,15 +319,27 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options, actio
           color: white;
         }
 
+        .ctx-action-btn:active {
+          background: rgba(255,255,255,0.15);
+        }
+
         .ctx-action-btn svg {
           width: 18px;
           height: 18px;
+        }
+
+        @media (max-width: 639px) {
+          .ctx-action-btn svg {
+            width: 20px;
+            height: 20px;
+          }
         }
 
         .ctx-submenu {
           position: absolute;
           z-index: 10000;
           min-width: 200px;
+          max-width: 90vw;
           background: rgba(36, 36, 36, 0.95);
           backdrop-filter: blur(60px) saturate(200%);
           border: 1px solid rgba(255,255,255,0.12);
@@ -280,6 +349,14 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, options, actio
             0 2px 4px rgba(0,0,0,0.15),
             0 8px 24px rgba(0,0,0,0.4);
           animation: ctx-in 0.1s cubic-bezier(0.2, 0, 0, 1);
+        }
+
+        @media (max-width: 639px) {
+          .ctx-submenu {
+            left: -10px !important;
+            top: -10px !important;
+            min-width: 200px;
+          }
         }
       `}</style>
     </>,

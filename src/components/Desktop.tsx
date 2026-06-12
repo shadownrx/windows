@@ -36,7 +36,7 @@ import {
   Delete20Regular,
   ShieldCheckmark24Regular,
 } from '@fluentui/react-icons';
-import { Play24Filled } from '@fluentui/react-icons';
+import { Code24Regular } from '@fluentui/react-icons';
 
 
 
@@ -93,7 +93,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     } else if (normalized === 'defender' || normalized === 'ms-settings:windowsdefender') {
       openWindow('defender', 'defender', 'Seguridad de Windows', <ShieldCheckmark24Regular />);
     } else if (normalized === 'devcpp' || normalized === 'dev-cpp') {
-      openWindow('devcpp-2026', 'devcpp-2026', 'Dev-C++ 2026', <Play24Filled />);
+      openWindow('devcpp-2026', 'devcpp-2026', 'Dev-C++ 2026', <Code24Regular primaryFill="#3b82f6" />);
     } else if (normalized === 'shutdown') {
       onShutdown();
     } else {
@@ -258,16 +258,15 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
 
   return (
     <div 
-      className="relative w-full h-full overflow-hidden bg-cover bg-center"
-      onContextMenu={handleContextMenu}
-      onClick={closeAllMenus}
+      className="w-full h-full relative overflow-hidden"
       style={{
-        backgroundImage: neonTheme === 'none' ? `url("${wallpaper}")` : 'none',
-        backgroundColor: neonTheme === 'none' ? 'transparent' : 'transparent',
+        backgroundImage: `url(/wallpaper-premium.png)`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        zIndex: 1
+        backgroundRepeat: 'no-repeat'
       }}
+      onContextMenu={handleContextMenu}
+      onClick={closeAllMenus}
     >
       <div 
         className="w-full h-full relative" 
@@ -462,12 +461,28 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     position: relative;
     width: 100%;
     height: calc(100% - var(--taskbar-height));
-    overflow: hidden;
-    padding: 10px; /* Un poco de margen para que no toquen el borde */
+    overflow: auto;
+    padding: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 10px;
+  }
+
+  /* Desktop mode - absolute positioning */
+  @media (min-width: 1024px) {
+    .desktop-icons {
+      display: block;
+      overflow: hidden;
+    }
+
+    .desktop-icon {
+      position: absolute !important;
+    }
   }
 
   .desktop-icon {
-    width: 90px; /* Aumentamos un poco el ancho para que el texto respire */
+    width: 90px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -476,7 +491,23 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     cursor: grab;
     transition: background 0.2s, transform 0.1s;
     color: white;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.9); /* Sombra más definida para leer sobre cualquier fondo */
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    flex-shrink: 0;
+  }
+
+  /* Responsive icon sizes */
+  @media (max-width: 639px) {
+    .desktop-icon {
+      width: 60px;
+      padding: 8px 4px;
+    }
+  }
+
+  @media (min-width: 640px) and (max-width: 1023px) {
+    .desktop-icon {
+      width: 75px;
+      padding: 9px 4px;
+    }
   }
 
   .desktop-icon.dragging {
@@ -488,7 +519,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
 
   .desktop-icon:hover {
     background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(4px); /* Sutil toque de desenfoque al pasar el mouse */
+    backdrop-filter: blur(4px);
   }
 
   .desktop-icon.selected {
@@ -499,7 +530,21 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
   .icon-wrapper {
     font-size: 32px;
     margin-bottom: 6px;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); /* Sombra al icono para que resalte */
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  }
+
+  @media (max-width: 639px) {
+    .icon-wrapper {
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+  }
+
+  @media (min-width: 640px) and (max-width: 1023px) {
+    .icon-wrapper {
+      font-size: 28px;
+      margin-bottom: 5px;
+    }
   }
 
   .icon-label {
@@ -507,17 +552,23 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     text-align: center;
     line-height: 1.2;
     max-width: 100%;
-    /* CORRECCIÓN DE TEXTO: */
-    word-break: normal; /* Cambiado de break-all para no romper palabras */
-    overflow-wrap: break-word; /* Permite saltos de línea naturales */
+    word-break: normal;
+    overflow-wrap: break-word;
     display: -webkit-box;
-    -webkit-line-clamp: 2; /* Máximo 2 líneas de texto */
+    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
     padding: 0 2px;
   }
 
-  /* --- PANELES Y WIDGETS (MANTENIENDO TU ESTILO) --- */
+  @media (max-width: 639px) {
+    .icon-label {
+      font-size: 9px;
+      -webkit-line-clamp: 1;
+    }
+  }
+
+  /* --- PANELES Y WIDGETS (RESPONSIVE) --- */
   .widgets-panel {
     position: fixed;
     top: 0;
@@ -534,6 +585,23 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     display: flex;
     flex-direction: column;
     gap: 20px;
+    overflow-y: auto;
+  }
+
+  @media (max-width: 639px) {
+    .widgets-panel {
+      width: 100%;
+      height: 100%;
+      padding: 20px 16px;
+      gap: 16px;
+    }
+  }
+
+  @media (min-width: 640px) and (max-width: 1023px) {
+    .widgets-panel {
+      width: 350px;
+      padding: 32px 20px;
+    }
   }
 
   .widgets-header {
@@ -561,10 +629,23 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     font-weight: 700;
   }
 
+  @media (max-width: 639px) {
+    .widgets-panel h3 {
+      font-size: 14px;
+    }
+  }
+
   .widget-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
+  }
+
+  @media (max-width: 639px) {
+    .widget-grid {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
   }
 
   .widget-card {
@@ -575,6 +656,14 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     color: white;
     font-size: 12px;
     border: 1px solid rgba(255,255,255,0.05);
+  }
+
+  @media (max-width: 639px) {
+    .widget-card {
+      padding: 12px;
+      min-height: 60px;
+      font-size: 11px;
+    }
   }
 
   .virtual-desktop-strip {
@@ -591,6 +680,16 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     border: 1px solid rgba(255,255,255,0.14);
     backdrop-filter: blur(10px);
     z-index: 1100;
+    max-width: 90vw;
+    overflow-x: auto;
+  }
+
+  @media (max-width: 639px) {
+    .virtual-desktop-strip {
+      bottom: calc(var(--taskbar-height) + 50px);
+      gap: 6px;
+      padding: 4px 8px;
+    }
   }
 
   .desktop-switch {
@@ -602,6 +701,14 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     cursor: pointer;
     font-size: 12px;
     transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 639px) {
+    .desktop-switch {
+      padding: 4px 10px;
+      font-size: 11px;
+    }
   }
 
   .desktop-switch.active {
@@ -624,6 +731,15 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     align-items: center;
     justify-content: center;
     transition: background 0.2s;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 639px) {
+    .desktop-add {
+      width: 24px;
+      height: 24px;
+      font-size: 14px;
+    }
   }
   
   .desktop-add:hover {

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { Globe24Regular } from '@fluentui/react-icons';
 
 // --- Helpers de Lógica de Navegación ---
 const YOUTUBE_REGEX = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
@@ -19,14 +20,7 @@ function resolveUrl(raw: string): string {
   return `https://www.bing.com/search?q=${encodeURIComponent(input)}`;
 }
 
-// --- ICONO EXPORTADO (FUERA DEL COMPONENTE) ---
-export const IEIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24">
-    <path fill="#2c89db" d="M12 3a9 9 0 00-6.73 14.99c2.02-3.4 5.2-5.71 8.94-6.38a7.03 7.03 0 01-4.21-3.61c-2.36.93-4.32 2.89-5.25 5.25A9 9 0 1112 3z" />
-    <path fill="#2c89db" d="M14 6c2.5 0 4.5 2 4.5 4.5S16.5 15 14 15c-1.2 0-2.3-.4-3.1-1.1a7.1 7.1 0 006.1-5.9C16.6 6.8 15.4 6 14 6z"/>
-    <path fill="#f3da3b" d="M3.5 12c0-.5.8-2 2-3a9.5 9.5 0 0113 0c1.2 1 2 2.5 2 3s-.8 2-2 3a9.5 9.5 0 01-13 0c-1.2-1-2-2.5-2-3z" opacity="0.6"/>
-  </svg>
-);
+export const IEIcon = () => <Globe24Regular primaryFill="#0078d4" />;
 
 const IEApp: React.FC = () => {
   const [history, setHistory] = useState<string[]>(['https://www.google.com/webhp?igu=1']);

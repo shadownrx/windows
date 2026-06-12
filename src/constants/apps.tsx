@@ -31,12 +31,14 @@ export interface AppItem {
   appId: string;
   icon: React.ReactNode;
   label: string;
+  /** Whether the app should be pinned to the taskbar permanently */
+  isPinned?: boolean;
 }
 
 export const APPS: AppItem[] = [
   { id: 'search', appId: 'search', icon: <Search24Regular />, label: 'Buscar' },
-  { id: 'files', appId: 'file-explorer', icon: <Folder24Regular />, label: 'Explorador de archivos' },
-  { id: 'chrome', appId: 'chrome', icon: <ChromeIcon />, label: 'Google Chrome' },
+  { id: 'files', appId: 'file-explorer', icon: <Folder24Regular />, label: 'Explorador de archivos', isPinned: true },
+  { id: 'chrome', appId: 'chrome', icon: <ChromeIcon />, label: 'Google Chrome', isPinned: true },
   {
     id: 'vscode',
     appId: 'vscode',
@@ -49,9 +51,10 @@ export const APPS: AppItem[] = [
       </svg>
     ),
     label: 'VS Code',
+    isPinned: true
   },
   { id: 'paint', appId: 'paint', icon: <Edit24Regular />, label: 'Paint' },
-  { id: 'control-panel', appId: 'control-panel', icon: <Settings24Regular />, label: 'Configuración' },
+  { id: 'control-panel', appId: 'control-panel', icon: <Settings24Regular />, label: 'Configuración', isPinned: true },
   { id: 'wordpad', appId: 'wordpad', icon: <Document24Regular />, label: 'WordPad' },
   { id: 'task-manager', appId: 'taskmanager', icon: <Apps24Regular />, label: 'Administrador de tareas' },
   { id: 'calendar', appId: 'calendar', icon: <Calendar24Regular />, label: 'Calendario' },
@@ -63,8 +66,9 @@ export const APPS: AppItem[] = [
     appId: 'terminal',
     icon: <span style={{ fontFamily: 'Consolas, monospace', fontSize: 16 }}>C:\\</span>,
     label: 'Terminal',
+    isPinned: true
   },
   { id: 'clock', appId: 'clock', icon: <Clock24Regular />, label: 'Reloj' },
   { id: 'photos', appId: 'photos', icon: <Image24Regular />, label: 'Fotos' },
-  { id: 'spotify', appId: 'spotify', icon: <MusicNote2Regular />, label: 'Spotify' },
+  { id: 'spotify', appId: 'spotify', icon: <MusicNote2Regular />, label: 'Spotify', isPinned: true },
 ];

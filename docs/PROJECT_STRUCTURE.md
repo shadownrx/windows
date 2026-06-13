@@ -10,13 +10,14 @@ Esta documentación explica la organización de archivos y carpetas del proyecto
 windows/
 ├── src/                       # Código fuente principal
 ├── assembly/                  # Código WebAssembly (AssemblyScript)
+├── wasm-engine/               # Código WebAssembly (Rust)
 ├── public/                    # Archivos estáticos
 ├── docs/                      # Documentación
 ├── dist/                      # Build compilado (generado por npm run build)
 │
 ├── package.json               # Dependencias y scripts
 ├── tsconfig.json              # Configuración de TypeScript
-├── vite.config.ts             # Configuración de Vite + PWA + puente PowerShell
+├── vite.config.ts             # Configuración de Vite + PWA
 ├── tailwind.config.js         # Temas y tokens de color
 ├── eslint.config.js           # Reglas de linting
 ├── asconfig.json              # Configuración de AssemblyScript
@@ -58,7 +59,10 @@ src/
 │
 ├── utils/
 │   ├── cppEngine.ts           # Motor de compilación C++ (llama a g++)
-│   └── gpuCharts.ts           # Gráficos WebGPU para Task Manager
+│   ├── gpuCharts.ts           # Gráficos para Task Manager
+│   ├── useWasmEngine.ts       # Hook para usar el motor WASM (con fallback JS)
+│   ├── id.ts                  # Generador de IDs únicos
+│   └── browserUrls.ts         # URLs predefinidas para el navegador
 │
 ├── assets/                    # Imágenes, íconos, sonidos
 ├── App.tsx                    # Componente raíz + máquina de estados del OS
@@ -187,7 +191,7 @@ Almacena y persiste preferencias del usuario en `localStorage`.
 
 ### `FileSystemContext.tsx`
 
-Sistema de archivos virtual en memoria con soporte para crear, leer y actualizar archivos `.txt`.
+Sistema de archivos virtual en memoria con soporte para crear, leer, actualizar y eliminar archivos/carpetas. Al borrar una carpeta, se eliminan todos sus archivos y subcarpetas de forma recursiva.
 
 ### `DesktopContext.tsx`
 
@@ -217,18 +221,27 @@ Para agregar una nueva app: 1) crear el componente en `apps/`, 2) importarlo aqu
 
 ---
 
-## ⚙️ WebAssembly (`assembly/`)
+## ⚙️ WebAssembly (`assembly/` y `wasm-engine/`)
 
+### AssemblyScript (`assembly/`)
 ```
 assembly/
-├── index.ts        # Funciones exportadas (calculateMetrics, processData…)
+├── index.ts        # Funciones exportadas (calculateLoad, getRank…)
 └── tsconfig.json   # Configuración TS para AssemblyScript
 ```
 
 Compila con:
 ```bash
-npm run asbuild
+npm run build:as
 # Genera: public/process_utils.js + public/process_utils.wasm
+```
+
+### Rust (`wasm-engine/`)
+```
+wasm-engine/
+├── src/lib.rs      # Motor WASM completo en Rust: calculos, procesos, transpiler C++
+├── Cargo.toml      # Configuración del proyecto Rust
+└── Cargo.lock      # Bloqueo de dependencias
 ```
 
 ---

@@ -106,8 +106,8 @@ cd windows
 # Instalar dependencias
 npm install
 
-# Compilar módulos de WASM (opcional — para Task Manager real)
-npm run asbuild
+# Compilar módulos de AssemblyScript (opcional)
+npm run build:as
 
 # Iniciar servidor de desarrollo
 npm run dev

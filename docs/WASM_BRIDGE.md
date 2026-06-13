@@ -1,6 +1,6 @@
-# 🌉 El Puente WASM: AssemblyScript en WebOS
+# 🌉 El Puente WASM: AssemblyScript y Rust en WebOS
 
-Para lograr un rendimiento premium, WebOS delega cálculos intensivos a **WebAssembly (WASM)**. Utilizamos **AssemblyScript** para escribir estos módulos, lo que nos permite mantener una sintaxis familiar a TypeScript mientras obtenemos beneficios de rendimiento significativos.
+Para lograr un rendimiento premium, WebOS delega cálculos intensivos a **WebAssembly (WASM)**. Utilizamos **AssemblyScript** (sintaxis similar a TypeScript) y **Rust** para escribir estos módulos, y contamos con un **fallback en JavaScript puro** para garantizar compatibilidad en cualquier navegador.
 
 ---
 
@@ -196,12 +196,37 @@ npm install --save-dev assemblyscript
 Si realizas cambios en `/assembly/index.ts`, debes recompilar:
 
 ```bash
-npm run asbuild
+npm run build:as
 ```
 
 Este comando generará:
-- `public/process_utils.wasm` - Binario compilado
+- `public/process_utils.js` - Módulo compilado
 - `public/process_utils.d.ts` - Tipos TypeScript
+
+## 🔌 Usar WASM con el Hook `useWasmEngine`
+
+El proyecto incluye un hook personalizado que maneja la carga del módulo WASM y fallback automático a JavaScript:
+
+```typescript
+import { useWasmEngine } from '../utils/useWasmEngine';
+
+export const MyComponent = () => {
+  const { isReady, isWasm, calculateLoad, getRank } = useWasmEngine();
+
+  if (!isReady) return <div>Cargando...</div>;
+
+  const load = calculateLoad(0.7, 0.4, 0.2);
+  const rank = getRank(load);
+
+  return (
+    <div>
+      <p>Carga: {load.toFixed(2)}%</p>
+      <p>Rank: {rank}</p>
+      <p>Motor: {isWasm ? 'WASM' : 'JS Fallback'}</p>
+    </div>
+  );
+};
+```
 
 ### Configuración en `asconfig.json`
 
@@ -430,26 +455,13 @@ export function returnsArray(): Float64Array {
 ```
 1. Editar assembly/index.ts
    ↓
-2. npm run asbuild (compilar)
+2. npm run build:as (compilar)
    ↓
 3. Test en navegador
    ↓
 4. Si hay error, volver a paso 1
    ↓
 5. npm run build (compilar proyecto)
-```
-
-### Configurar Auto-rebuild
-
-```bash
-# Instalar watcher
-npm install --save-dev watch
-
-# Agregar a package.json scripts:
-"watch:wasm": "watch 'npm run asbuild' assembly"
-
-# En otra terminal:
-npm run watch:wasm
 ```
 
 ---

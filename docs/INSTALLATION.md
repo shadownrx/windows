@@ -50,7 +50,7 @@ cd windows
 npm install
 
 # 3. (Opcional) Si necesitas recompilar WASM
-npm run asbuild
+npm run build:as
 
 # 4. Iniciar servidor de desarrollo
 npm run dev
@@ -97,7 +97,6 @@ Después de `npm install`, se crearán las siguientes carpetas:
 ```
 node_modules/          # Todas las dependencias
 dist/                  # Compilación de producción (se genera con 'npm run build')
-build/                 # Módulos WASM compilados (se genera con 'npm run asbuild')
 ```
 
 ---
@@ -141,10 +140,10 @@ Los archivos compilados se encuentran en la carpeta `dist/`
 Si necesitas modificar el código de AssemblyScript en `assembly/`, debes recompilarlo:
 
 ```bash
-npm run asbuild
+npm run build:as
 ```
 
-Esto generará los archivos `.wasm` en `public/` o según lo configurado en `asconfig.json`.
+Esto generará los archivos compilados en `public/` según lo configurado en `asconfig.json`.
 
 ---
 
@@ -176,7 +175,7 @@ npm run dev -- --port 3000
 ### ❌ Error: "WASM module not found"
 **Solución:** Recompila los módulos:
 ```bash
-npm run asbuild
+npm run build:as
 npm run build
 ```
 

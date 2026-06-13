@@ -182,7 +182,7 @@ export function calculateCPULoad(processes: u32): f64 {
 ### Compilar WASM
 
 ```bash
-npm run asbuild
+npm run build:as
 ```
 
 ### Usar WASM en Componentes
@@ -368,10 +368,10 @@ const apiUrl = import.meta.env.VITE_API_URL;
 
 ```bash
 npm run dev       # Iniciar desarrollo
-npm run build     # Compilar para producción
+npm run build     # Compilar para producción (incluye WASM)
+npm run build:as  # Compilar WebAssembly
 npm run preview   # Preview del build
 npm run lint      # Ejecutar ESLint
-npm run asbuild   # Compilar WebAssembly
 ```
 
 ---

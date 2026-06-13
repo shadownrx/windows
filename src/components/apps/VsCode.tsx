@@ -292,33 +292,46 @@ const VsCode: React.FC = () => {
 
       const pushLines = (lines: string[]) => setTerminalLines(prev => [...prev, ...lines]);
 
-      if (cmd === 'npm run dev' || cmd === 'npm start') {
+      // Detect package manager
+      const isPnpm = cmd.startsWith('pnpm');
+      const isNpm = cmd.startsWith('npm');
+      const isYarn = cmd.startsWith('yarn');
+      const pkgManager = isPnpm ? 'pnpm' : isNpm ? 'npm' : isYarn ? 'yarn' : 'npm';
+      
+      // Helper to get package manager specific prefix
+      const getPkgCmd = (base: string) => {
+        if (isPnpm) return base.replace('npm', 'pnpm').replace('npx', 'pnpm dlx');
+        if (isYarn) return base.replace('npm', 'yarn').replace('npx', 'yarn dlx');
+        return base;
+      };
+
+      if (cmd.includes('run dev') || cmd.includes('start')) {
         const pkgJson = files['package.json']?.content || '';
         if (pkgJson.includes('next dev')) {
-            pushLines(['> next dev']);
+            pushLines([getPkgCmd('> next dev')]);
             setTimeout(() => {
                 pushLines(['ready - started server on 0.0.0.0:3000, url: http://localhost:3000', 'event - compiled client and server successfully']);
                 setPreviewOpen(true);
             }, 1000);
         } else {
-            pushLines(['> vite', '', 'VITE v5.4.2  ready in 312 ms', '  ➜  Local:   http://localhost:5173/']);
+            pushLines([getPkgCmd('> vite'), '', 'VITE v5.4.2  ready in 312 ms', '  ➜  Local:   http://localhost:5173/']);
             if (files['App.tsx']?.content.includes('error') || (files['App.tsx'] && !files['App.tsx'].content.includes('return'))) {
                 pushLines(['', '[vite] Internal server error: Failed to parse source for /src/App.tsx', '  1 |  import React from "react";', '  > 2 |  const App = () => { error }']);
             } else {
                 setTimeout(() => setPreviewOpen(true), 500);
             }
         }
-      } else if (cmd.startsWith('npm install') || cmd.startsWith('npm i')) {
-        pushLines(['> npm install']);
+      } else if (cmd.includes('install') || cmd.startsWith('npm i') || cmd.startsWith('pnpm i') || cmd.startsWith('yarn ')) {
+        pushLines([getPkgCmd('> ' + pkgManager + ' install')]);
         setTimeout(() => {
           if (cmd.includes('next')) {
             pushLines([
-              'added 254 packages, and audited 255 packages in 3s',
+              isPnpm ? 'Packages: +254' : 'added 254 packages, and audited 255 packages in 3s',
               '103 packages are looking for funding',
-              '  run `npm fund` for details',
+              isPnpm ? '' : '  run `npm fund` for details',
               '',
               'found 0 vulnerabilities'
-            ]);
+            ].filter(Boolean));
             try {
               const currentPkgJson = JSON.parse(files['package.json']?.content || '{}');
               if (!currentPkgJson.dependencies) currentPkgJson.dependencies = {};
@@ -333,15 +346,15 @@ const VsCode: React.FC = () => {
             } catch (err) {}
           } else {
             pushLines([
-              'added 120 packages, and audited 121 packages in 2s',
+              isPnpm ? 'Packages: +120' : 'added 120 packages, and audited 121 packages in 2s',
               '50 packages are looking for funding',
-              '  run `npm fund` for details',
+              isPnpm ? '' : '  run `npm fund` for details',
               '',
               'found 0 vulnerabilities'
-            ]);
+            ].filter(Boolean));
           }
         }, 1500);
-      } else if (cmd.startsWith('npx create-next-app')) {
+      } else if (cmd.startsWith('npx create-next-app') || cmd.startsWith('pnpm dlx create-next-app') || cmd.startsWith('yarn dlx create-next-app')) {
         pushLines(['Creating a new Next.js app...', 'Installing dependencies:']);
         setTimeout(() => pushLines(['- react', '- react-dom', '- next']), 800);
         setTimeout(() => {
@@ -362,14 +375,14 @@ const VsCode: React.FC = () => {
             }
           }));
         }, 2000);
-      } else if (cmd === 'npm run build') {
+      } else if (cmd.includes('run build')) {
         const pkgJson = files['package.json']?.content || '';
         if (pkgJson.includes('next build')) {
-            pushLines(['> next build', 'info  - Linting and checking validity of types...']);
+            pushLines([getPkgCmd('> next build'), 'info  - Linting and checking validity of types...']);
             setTimeout(() => pushLines(['info  - Creating an optimized production build...', 'info  - Compiled successfully']), 1000);
             setTimeout(() => pushLines(['info  - Collecting page data...', 'info  - Generating static pages (3/3)', 'info  - Finalizing page optimization...']), 2000);
         } else {
-            pushLines(['> vite build', 'vite v5.4.2 building for production...', '✓ 34 modules transformed.', 'dist/index.html  0.45 kB', 'dist/assets/index-BvM0w.css  1.20 kB', 'dist/assets/index-CqN.js  145.2 kB']);
+            pushLines([getPkgCmd('> vite build'), 'vite v5.4.2 building for production...', '✓ 34 modules transformed.', 'dist/index.html  0.45 kB', 'dist/assets/index-BvM0w.css  1.20 kB', 'dist/assets/index-CqN.js  145.2 kB']);
         }
       } else if (cmd === 'ls' || cmd === 'dir') {
         pushLines([Object.keys(files).join('  ')]);

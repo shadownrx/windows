@@ -158,7 +158,7 @@ npm run dev
 
 ## License
 MIT`
-  }
+  },
 };
 
 const LANG_COLORS: Record<string, string> = {
@@ -272,6 +272,7 @@ const VsCode: React.FC = () => {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const [activePanel, setActivePanel] = useState('explorer');
+  const [installedExtensions, setInstalledExtensions] = useState(['Prettier - Code formatter', 'GitLens — Git supercharged']);
 
   const getPreviewHtml = () => {
     let code = '';
@@ -570,10 +571,10 @@ const VsCode: React.FC = () => {
         {/* Activity bar */}
         <div className="vsc-actbar">
           {[
-            { id: 'explorer', icon: '🗂️', title: 'Explorer' },
+            { id: 'explorer', icon: '📁', title: 'Explorer' },
             { id: 'search', icon: '🔍', title: 'Search' },
-            { id: 'sourceControl', icon: '🔄', title: 'Source Control' },
-            { id: 'debug', icon: '🐛', title: 'Run and Debug' },
+            { id: 'sourceControl', icon: '🔀', title: 'Source Control' },
+            { id: 'debug', icon: '▶️', title: 'Run and Debug' },
             { id: 'extensions', icon: '🧩', title: 'Extensions' }
           ].map((panel) => (
             <button 
@@ -669,7 +670,7 @@ const VsCode: React.FC = () => {
             )}
             
             {activePanel === 'extensions' && (
-              <div className="vsc-sidebar-section" style={{ padding: 10 }}>
+              <div className="vsc-sidebar-section" style={{ padding: 10, overflowY: 'auto' }}>
                 <div style={{ 
                   background: '#3c3c3c', 
                   border: '1px solid #3c3c3c', 
@@ -689,8 +690,83 @@ const VsCode: React.FC = () => {
                     }}
                   />
                 </div>
-                <div style={{ fontSize: 12, marginBottom: 8, fontWeight: 'bold' }}>INSTALLED</div>
-                <div style={{ fontSize: 12, color: '#858585' }}>No extensions installed yet</div>
+                
+                <div style={{ fontSize: 11, fontWeight: 'bold', color: '#cccccc', marginBottom: 8, textTransform: 'uppercase' }}>Recommended</div>
+                
+                {[
+                  { name: 'Python', author: 'Microsoft', downloads: '100M+', rating: '⭐⭐⭐⭐' },
+                  { name: 'ES7+ React/Redux/React-Native snippets', author: 'dsznajder', downloads: '30M+', rating: '⭐⭐⭐⭐' },
+                  { name: 'Pylance', author: 'Microsoft', downloads: '80M+', rating: '⭐⭐⭐⭐' },
+                  { name: 'Prettier - Code formatter', author: 'Prettier', downloads: '60M+', rating: '⭐⭐⭐⭐' },
+                  { name: 'GitLens — Git supercharged', author: 'GitKraken', downloads: '20M+', rating: '⭐⭐⭐⭐' },
+                  { name: 'Error Lens', author: 'Alexander', downloads: '10M+', rating: '⭐⭐⭐⭐' },
+                ].map((ext, i) => {
+                  const isInstalled = installedExtensions.includes(ext.name);
+                  return (
+                    <div key={i} style={{ 
+                      display: 'flex', 
+                      alignItems: 'flex-start', 
+                      gap: 10, 
+                      padding: '8px 0', 
+                      borderBottom: '1px solid #2b2b2b',
+                      cursor: 'pointer'
+                    }} onMouseOver={(e) => e.currentTarget.style.background = '#2a2d2e'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
+                      <div style={{ 
+                        width: 48, 
+                        height: 48, 
+                        background: '#007acc', 
+                        borderRadius: 4,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 20,
+                        flexShrink: 0
+                      }}>
+                        {ext.name.includes('Python') ? '🐍' : ext.name.includes('React') ? '⚛️' : ext.name.includes('Pylance') ? '🐍' : ext.name.includes('Prettier') ? '✨' : ext.name.includes('GitLens') ? '🔀' : '❌'}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, color: '#cccccc', fontWeight: 500 }}>{ext.name}</div>
+                        <div style={{ fontSize: 11, color: '#858585', marginTop: 2 }}>{ext.author}</div>
+                        <div style={{ fontSize: 11, color: '#858585', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span>{ext.downloads}</span>
+                          <span>{ext.rating}</span>
+                        </div>
+                      </div>
+                      <button 
+                        style={{
+                          background: isInstalled ? '#3c3c3c' : '#007acc',
+                          border: 'none',
+                          color: 'white',
+                          padding: '4px 12px',
+                          borderRadius: 3,
+                          fontSize: 12,
+                          cursor: isInstalled ? 'default' : 'pointer',
+                          flexShrink: 0,
+                          marginTop: 8
+                        }}
+                        onClick={() => {
+                          if (!isInstalled) {
+                            setInstalledExtensions([...installedExtensions, ext.name]);
+                          }
+                        }}
+                      >
+                        {isInstalled ? '✓ Installed' : 'Install'}
+                      </button>
+                    </div>
+                  );
+                })}
+                
+                <div style={{ fontSize: 12, marginBottom: 8, fontWeight: 'bold', marginTop: 20, color: '#cccccc' }}>INSTALLED</div>
+                <div style={{ fontSize: 12, color: '#858585' }}>
+                  {installedExtensions.map((ext, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                      <span style={{ fontSize: 16 }}>
+                        {ext.includes('Prettier') ? '✨' : ext.includes('GitLens') ? '🔀' : ext.includes('Python') ? '🐍' : ext.includes('React') ? '⚛️' : ext.includes('Pylance') ? '🐍' : ext.includes('Error') ? '⚠️' : '📦'}
+                      </span>
+                      <span>{ext}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -788,7 +864,7 @@ const VsCode: React.FC = () => {
                   
                   {/* Minimap */}
                   <div style={{ 
-                    width: 60, 
+                    width: 80, 
                     background: '#1e1e1e', 
                     borderLeft: '1px solid #2b2b2b',
                     overflow: 'hidden',
@@ -797,14 +873,14 @@ const VsCode: React.FC = () => {
                   }}>
                     <div style={{ 
                       flex: 1, 
-                      transform: 'scale(0.1)', 
+                      transform: 'scale(0.12)', 
                       transformOrigin: 'top right',
-                      width: '1000%',
-                      height: '1000%',
+                      width: '833%',
+                      height: '833%',
                       padding: 4,
                       fontSize: 3,
                       lineHeight: 1,
-                      color: 'rgba(255,255,255,0.2)'
+                      color: 'rgba(255,255,255,0.18)'
                     }}>
                       {file.content.split('\n').map((line, i) => (
                         <div key={i} style={{ margin: 0, padding: 0, whiteSpace: 'pre' }}>{line}</div>
@@ -993,7 +1069,7 @@ const VsCode: React.FC = () => {
           display: flex;
           flex-direction: column;
           height: 100%;
-          background: #181818;
+          background: #000000;
           color: #cccccc;
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
           overflow: hidden;
@@ -1125,6 +1201,7 @@ const VsCode: React.FC = () => {
         .vsc-tab-active {
           background: #1e1e1e !important;
           color: #ffffff;
+          border-top: 1px solid #007acc;
         }
         .vsc-tab-close {
           margin-left: auto;

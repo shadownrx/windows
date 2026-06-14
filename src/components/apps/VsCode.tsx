@@ -548,7 +548,6 @@ const VsCode: React.FC = () => {
           <svg viewBox="0 0 100 100" width="18" height="18" style={{ marginRight: 8 }}>
             <path d="M74.9 10.4L50 35.3l-11-11L10 42.8v14.4l11-8.2 11 11 28-28.9V74l-11-8-11 11 28.9 13L90 79V21z" fill="#007acc" />
           </svg>
-          <span>Visual Studio Code</span>
         </div>
         
         {['File', 'Edit', 'Selection', 'View', 'Go', 'Run', 'Terminal', 'Help'].map((item) => (
@@ -571,11 +570,32 @@ const VsCode: React.FC = () => {
         {/* Activity bar */}
         <div className="vsc-actbar">
           {[
-            { id: 'explorer', icon: '📁', title: 'Explorer' },
-            { id: 'search', icon: '🔍', title: 'Search' },
-            { id: 'sourceControl', icon: '🔀', title: 'Source Control' },
-            { id: 'debug', icon: '▶️', title: 'Run and Debug' },
-            { id: 'extensions', icon: '🧩', title: 'Extensions' }
+            { id: 'explorer', icon: (
+              <svg viewBox="0 0 16 16" width="24" height="24" fill="currentColor" style={{ padding: 4 }}>
+                <path d="M2 1.5A1.5 1.5 0 0 1 3.5 0h6a.5.5 0 0 1 .35.15l2 2A.5.5 0 0 1 12 2.5v12a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 2 14.5v-13zM3.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 .5-.5V2.707L9.793 1.5H3.5z"/>
+                <path fillRule="evenodd" d="M6 3.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5zm0 3a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5zm0 3a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z"/>
+              </svg>
+            ), title: 'Explorer' },
+            { id: 'search', icon: (
+              <svg viewBox="0 0 16 16" width="24" height="24" fill="currentColor" style={{ padding: 4 }}>
+                <path fillRule="evenodd" d="M15.707 14.293L11.914 10.5A5.5 5.5 0 1 0 10.5 11.914l3.793 3.793a1 1 0 0 0 1.414-1.414zM7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"/>
+              </svg>
+            ), title: 'Search' },
+            { id: 'sourceControl', icon: (
+              <svg viewBox="0 0 16 16" width="24" height="24" fill="currentColor" style={{ padding: 4 }}>
+                <path fillRule="evenodd" d="M10.5 7.5a2.5 2.5 0 0 1-2.45 2h-.1a2.501 2.501 0 0 1-2.35-1.75.5.5 0 1 0-.96.28A3.5 3.5 0 0 0 7.95 10h.1a3.5 3.5 0 1 0 2.45-6zM7 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zm6 9a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/>
+              </svg>
+            ), title: 'Source Control' },
+            { id: 'debug', icon: (
+              <svg viewBox="0 0 16 16" width="24" height="24" fill="currentColor" style={{ padding: 4 }}>
+                <path d="M4.5 1.5A1.5 1.5 0 0 1 6 0h4a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-1.5 1.5H6a1.5 1.5 0 0 1-1.5-1.5v-13zM6 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-13A.5.5 0 0 0 10 1H6zm3 6.414V4.5a.5.5 0 0 0-1 0v2.914L6.354 5.768a.5.5 0 0 0-.708.707l2.5 2.5a.5.5 0 0 0 .708 0l2.5-2.5a.5.5 0 0 0-.708-.707L9 7.414z"/>
+              </svg>
+            ), title: 'Run and Debug' },
+            { id: 'extensions', icon: (
+              <svg viewBox="0 0 16 16" width="24" height="24" fill="currentColor" style={{ padding: 4 }}>
+                <path d="M8 0a.5.5 0 0 1 .45.28l2.7 4.5H15a.5.5 0 0 1 .35.85l-4.55 3.25L11.9 14a.5.5 0 0 1-.78.58L8 12.45l-3.12 2.13a.5.5 0 0 1-.78-.58l1.1-5.12L.65 5.63A.5.5 0 0 1 1 5h3.85l2.7-4.5A.5.5 0 0 1 8 0z"/>
+              </svg>
+            ), title: 'Extensions' }
           ].map((panel) => (
             <button 
               key={panel.id}
@@ -583,7 +603,7 @@ const VsCode: React.FC = () => {
               title={panel.title} 
               onClick={() => setActivePanel(panel.id)}
             >
-              <span style={{ fontSize: 20 }}>{panel.icon}</span>
+              {panel.icon}
             </button>
           ))}
           <div style={{ flex: 1 }} />
@@ -592,7 +612,9 @@ const VsCode: React.FC = () => {
             title="Toggle Terminal" 
             onClick={() => setTerminalOpen(t => !t)}
           >
-            <span style={{ fontSize: 20 }}>⌨️</span>
+            <svg viewBox="0 0 16 16" width="24" height="24" fill="currentColor" style={{ padding: 4 }}>
+              <path fillRule="evenodd" d="M1.5 2A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13zm0 1a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5h-13zm1 3.5a.5.5 0 0 0-.38.814L4.63 8 2.12 9.686a.5.5 0 0 0 .76.628l3-2a.5.5 0 0 0 0-.828l-3-2A.5.5 0 0 0 2.5 5.5zM7 7.5a.5.5 0 0 0 0 1h4a.5.5 0 0 0 0-1H7z"/>
+            </svg>
           </button>
         </div>
 
@@ -719,10 +741,40 @@ const VsCode: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: 20,
                         flexShrink: 0
                       }}>
-                        {ext.name.includes('Python') ? '🐍' : ext.name.includes('React') ? '⚛️' : ext.name.includes('Pylance') ? '🐍' : ext.name.includes('Prettier') ? '✨' : ext.name.includes('GitLens') ? '🔀' : '❌'}
+                        {ext.name.includes('Python') ? (
+                          <svg viewBox="0 0 24 24" width="32" height="32" fill="white">
+                            <path d="M6.898 2.353c.386-.39.918-.67 1.5-.778L12 1l3.602.576c.581.108 1.113.388 1.5.778l.008.009.026.026c.238.243.42.53.54.835L19 4.14v2.792h-3.586v3.333H19v4.75l-.69.927a1.97 1.97 0 0 1-.539.848l-.026.026-.009.009c-.387.39-.919.67-1.5.778L12 18l-3.602-.576a1.97 1.97 0 0 1-1.5-.778l-.009-.009-.026-.026a1.97 1.97 0 0 1-.54-.835L5 15.015V4.141l.689-.917a1.97 1.97 0 0 1 .54-.835l.026-.026.01-.01zM7.5 5.333a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm9 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+                            <path d="M14.077 11.333h3.756L20 12.5v3.141l-.689.917a1.97 1.97 0 0 1-.54.835l-.026.026-.009.009c-.387.39-.919.67-1.5.778L12 19l-3.602-.576a1.97 1.97 0 0 1-1.5-.778l-.009-.009-.026-.026a1.97 1.97 0 0 1-.54-.835L6 15.64V12.5l2.167-1.167h4.5v1.334H7.75L7 13.5v1.57l.689.917a.47.47 0 0 0 .131.197l.026.026a.47.47 0 0 0 .361.186L12 17l3.793-.607a.47.47 0 0 0 .361-.186l.026-.026a.47.47 0 0 0 .131-.197L17 15.07V13.5l-.75-.667H14.5v-1.5zM10.5 14.667a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+                          </svg>
+                        ) : ext.name.includes('React') ? (
+                          <svg viewBox="-11.5 -10.23174 23 20.46348" width="32" height="32" fill="#61dafb">
+                            <circle cx="0" cy="0" r="2.05"/>
+                            <g stroke="#61dafb" strokeWidth="1" fill="none">
+                              <ellipse rx="11" ry="4.2"/>
+                              <ellipse rx="11" ry="4.2" transform="rotate(60)"/>
+                              <ellipse rx="11" ry="4.2" transform="rotate(120)"/>
+                            </g>
+                          </svg>
+                        ) : ext.name.includes('Prettier') ? (
+                          <svg viewBox="0 0 24 24" width="32" height="32">
+                            <circle cx="12" cy="12" r="10" fill="#f7b93e"/>
+                            <path fill="#1a1b1f" d="M7.5 11.5h9a.5.5 0 0 1 .5.5v.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5zM7.5 14h7a.5.5 0 0 1 .5.5v.5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5zM7.5 9h4a.5.5 0 0 1 .5.5v.5a.5.5 0 0 1-.5.5h-4a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5z"/>
+                          </svg>
+                        ) : ext.name.includes('GitLens') ? (
+                          <svg viewBox="0 0 24 24" width="32" height="32" fill="#f05032">
+                            <path d="M17 14a1 1 0 0 1-1 1H12v4a1 1 0 1 1-2 0v-4H8a1 1 0 1 1 0-2h2v-4H8a1 1 0 1 1 0-2h2V4a1 1 0 0 1 2 0v4h2a1 1 0 0 1 0 2h-2v4h4a1 1 0 0 1 1 1z"/>
+                          </svg>
+                        ) : ext.name.includes('Error') ? (
+                          <svg viewBox="0 0 24 24" width="32" height="32" fill="#ff5555">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" width="32" height="32" fill="#569cd6">
+                            <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                          </svg>
+                        )}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, color: '#cccccc', fontWeight: 500 }}>{ext.name}</div>
@@ -761,7 +813,38 @@ const VsCode: React.FC = () => {
                   {installedExtensions.map((ext, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
                       <span style={{ fontSize: 16 }}>
-                        {ext.includes('Prettier') ? '✨' : ext.includes('GitLens') ? '🔀' : ext.includes('Python') ? '🐍' : ext.includes('React') ? '⚛️' : ext.includes('Pylance') ? '🐍' : ext.includes('Error') ? '⚠️' : '📦'}
+                        {ext.includes('Prettier') ? (
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="#f7b93e">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path fill="#1a1b1f" d="M7.5 11.5h9a.5.5 0 0 1 .5.5v.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5zM7.5 14h7a.5.5 0 0 1 .5.5v.5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5zM7.5 9h4a.5.5 0 0 1 .5.5v.5a.5.5 0 0 1-.5.5h-4a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5z"/>
+                          </svg>
+                        ) : ext.includes('GitLens') ? (
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="#f05032">
+                            <path d="M17 14a1 1 0 0 1-1 1H12v4a1 1 0 1 1-2 0v-4H8a1 1 0 1 1 0-2h2v-4H8a1 1 0 1 1 0-2h2V4a1 1 0 0 1 2 0v4h2a1 1 0 0 1 0 2h-2v4h4a1 1 0 0 1 1 1z"/>
+                          </svg>
+                        ) : ext.includes('Python') ? (
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="#3776ab">
+                            <path d="M6.898 2.353c.386-.39.918-.67 1.5-.778L12 1l3.602.576c.581.108 1.113.388 1.5.778l.008.009.026.026c.238.243.42.53.54.835L19 4.14v2.792h-3.586v3.333H19v4.75l-.69.927a1.97 1.97 0 0 1-.539.848l-.026.026-.009.009c-.387.39-.919.67-1.5.778L12 18l-3.602-.576a1.97 1.97 0 0 1-1.5-.778l-.009-.009-.026-.026a1.97 1.97 0 0 1-.54-.835L5 15.015V4.141l.689-.917a1.97 1.97 0 0 1 .54-.835l.026-.026.01-.01zM7.5 5.333a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm9 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+                            <path d="M14.077 11.333h3.756L20 12.5v3.141l-.689.917a1.97 1.97 0 0 1-.54.835l-.026.026-.009.009c-.387.39-.919.67-1.5.778L12 19l-3.602-.576a1.97 1.97 0 0 1-1.5-.778l-.009-.009-.026-.026a1.97 1.97 0 0 1-.54-.835L6 15.64V12.5l2.167-1.167h4.5v1.334H7.75L7 13.5v1.57l.689.917a.47.47 0 0 0 .131.197l.026.026a.47.47 0 0 0 .361.186L12 17l3.793-.607a.47.47 0 0 0 .361-.186l.026-.026a.47.47 0 0 0 .131-.197L17 15.07V13.5l-.75-.667H14.5v-1.5zM10.5 14.667a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+                          </svg>
+                        ) : ext.includes('React') ? (
+                          <svg viewBox="-11.5 -10.23174 23 20.46348" width="16" height="16" fill="#61dafb">
+                            <circle cx="0" cy="0" r="2.05"/>
+                            <g stroke="#61dafb" strokeWidth="1" fill="none">
+                              <ellipse rx="11" ry="4.2"/>
+                              <ellipse rx="11" ry="4.2" transform="rotate(60)"/>
+                              <ellipse rx="11" ry="4.2" transform="rotate(120)"/>
+                            </g>
+                          </svg>
+                        ) : ext.includes('Error') ? (
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="#ff5555">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="#569cd6">
+                            <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                          </svg>
+                        )}
                       </span>
                       <span>{ext}</span>
                     </div>
@@ -895,7 +978,6 @@ const VsCode: React.FC = () => {
                       <path d="M74.9 10.4L50 35.3l-11-11L10 42.8v14.4l11-8.2 11 11 28-28.9V74l-11-8-11 11 28.9 13L90 79V21z" fill="#007acc" />
                     </svg>
                   </div>
-                  <div style={{ fontSize: 28, color: '#cccccc', marginBottom: 20 }}>Visual Studio Code</div>
                   <div style={{ fontSize: 14, color: '#858585', maxWidth: 400, textAlign: 'center' }}>
                     Start by opening a file or creating a new project.
                   </div>
@@ -1247,7 +1329,7 @@ const VsCode: React.FC = () => {
           padding: 16px 0;
           padding-left: 64px;
           background: transparent;
-          color: transparent;
+          color: #d4d4d4;
           caret-color: #aeafad;
           border: none;
           outline: none;
@@ -1259,6 +1341,11 @@ const VsCode: React.FC = () => {
           overflow: auto;
           z-index: 2;
           box-sizing: border-box;
+          -webkit-text-fill-color: transparent;
+        }
+        .vsc-textarea::selection {
+          background: rgba(0, 122, 204, 0.4);
+          -webkit-text-fill-color: #d4d4d4;
         }
         .vsc-highlight {
           position: absolute;

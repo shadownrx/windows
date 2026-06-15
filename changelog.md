@@ -7,12 +7,12 @@ Historial oficial de cambios, optimizaciones y lanzamientos del sistema operativ
 ## [Season 4] — Desarrollo Actual (Junio 2026)
 
 ### 📊 Telemetría y Rendimiento Base
-* **[Agregado] Telemetría síncrona en tiempo real:** Implementación exitosa del puente de datos de hardware. El Administrador de Tareas de Nex OS ahora refleja con total fidelidad el uso de CPU, GPU, lectura de disco y consumo de memoria RAM del sistema nativo (Ryzen 5 5500U).
+* **[Agregado] Telemetría síncrona en tiempo real:** Implementación exitosa del puente de datos de hardware. El Administrador de Tareas de Nex OS ahora refleja con total fidelidad el uso de CPU, GPU, lectura de disco y consumo de memoria RAM del sistema nativo (Ryzen 5 5500U). ✅
 * **[Optimizado] Gestión de Memoria en el Navegador:** Reducción drástica del *footprint* de memoria del lado del cliente. El entorno base reporta apenas un **7% (~0.8 GB)** en comparación con la carga del sistema operativo tradicional.
 * **[Optimizado] Renderizado de Gráficas de Recursos:** Rediseño del motor de dibujado de las curvas de rendimiento en tiempo real (60 FPS estables) sin penalizar el hilo principal del navegador.
 
 ### 🎨 Interfaz y UX
-* **[Agregado] Barra de herramientas de desarrollo:** Accesos directos optimizados en la sección superior para agilizar el flujo de trabajo en la inspección de código y procesos.
+* **[Agregado] Barra de herramientas de desarrollo:** Accesos directos optimizados en la sección superior para agilizar el flujo de trabajo en la inspección de código y procesos. ✅
 * **[Mejorado] Modo Oscuro Nativo:** Refinamiento visual en las tonalidades del panel del Administrador de Tareas para una consistencia estética superior frente a entornos de sistemas modernos.
 
 ---

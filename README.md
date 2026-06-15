@@ -85,6 +85,7 @@ User Interaction → Component → Hook (useWindowManager / useSettings…) → 
 | **Framer Motion** | 12.x | Animaciones fluidas y transiciones de ventanas. |
 | **Three.js / R3F** | 0.183 | Fondos 3D dinámicos con aceleración GPU. |
 | **AssemblyScript** | 0.28 | Compilación a WASM para procesamiento intensivo. |
+| **RUST** | 22.1.2 | Compilación para leer los componentes |
 | **@fluentui/react-icons** | 2.x | Iconografía del sistema estilo Fluent Design. |
 | **vite-plugin-pwa** | 1.x | Instalación como PWA con soporte offline. |
 

@@ -16,6 +16,12 @@ import {
   FullScreenMinimize24Regular,
   Play24Regular,
   SlideLayout24Regular,
+  MoreVertical24Regular,
+  History24Regular,
+  DocumentArrowDown24Regular,
+  Bookmark24Regular,
+  Settings24Regular,
+  QuestionCircle24Regular,
 } from '@fluentui/react-icons';
 import {
   resolveBrowserUrl,
@@ -160,6 +166,7 @@ export const BrowserApp: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [iframeError, setIframeError] = useState(false);
   const [contentFullscreen, setContentFullscreen] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => {
     const saved = localStorage.getItem('nex_browser_bookmarks_v2');
     if (saved) {
@@ -175,6 +182,7 @@ export const BrowserApp: React.FC = () => {
   const nextIdCounter = useRef(Date.now());
   const contentRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const currentTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
 
   useEffect(() => {
@@ -190,6 +198,16 @@ export const BrowserApp: React.FC = () => {
     setIframeError(false);
     setLoading(!!currentTab?.iframeUrl);
   }, [activeTabId, currentTab?.iframeUrl]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const applyEntryToTab = (entry: HistoryEntry): Partial<Tab> => ({
     displayUrl: entry.displayUrl,
@@ -229,6 +247,7 @@ export const BrowserApp: React.FC = () => {
         }),
       );
       setAddressVal('');
+      setShowMenu(false);
     },
     [activeTabId],
   );
@@ -271,6 +290,7 @@ export const BrowserApp: React.FC = () => {
     setTabs((prev) => [...prev, createTab(id)]);
     setActiveTabId(id);
     setAddressVal('');
+    setShowMenu(false);
   };
 
   const closeTab = (e: React.MouseEvent, id: string) => {
@@ -301,11 +321,13 @@ export const BrowserApp: React.FC = () => {
         },
       ]);
     }
+    setShowMenu(false);
   };
 
   const openInRealBrowser = () => {
     const url = currentTab.displayUrl || currentTab.iframeUrl;
     if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    setShowMenu(false);
   };
 
   const toggleContentFullscreen = async () => {
@@ -317,6 +339,7 @@ export const BrowserApp: React.FC = () => {
       await document.exitFullscreen();
       setContentFullscreen(false);
     }
+    setShowMenu(false);
   };
 
   useEffect(() => {
@@ -386,7 +409,6 @@ export const BrowserApp: React.FC = () => {
         </div>
 
         <div className="omnibox-wrap">
-          {loading && <div className="omnibox-progress" />}
           <div className="omnibox">
             {currentTab.displayUrl.startsWith('https://') ? (
               <LockClosed16Regular className="omnibox-icon secure" />
@@ -406,6 +428,7 @@ export const BrowserApp: React.FC = () => {
               {isBookmarked ? <Star24Filled className="starred" /> : <Star24Regular />}
             </button>
           </div>
+          {loading && <div className="omnibox-progress" />}
         </div>
 
         <div className="toolbar-right">
@@ -427,12 +450,49 @@ export const BrowserApp: React.FC = () => {
               </button>
             </>
           )}
-          <button className="nav-btn" onClick={toggleContentFullscreen} title="Pantalla completa">
-            {contentFullscreen ? <FullScreenMinimize24Regular /> : <FullScreenMaximize24Regular />}
-          </button>
-          <button className="nav-btn" onClick={openInRealBrowser} title="Abrir en navegador real">
-            <Open24Regular />
-          </button>
+          <div className="chrome-menu-container" ref={menuRef}>
+            <button className="nav-btn" onClick={() => setShowMenu(!showMenu)} title="Menú de Chrome">
+              <MoreVertical24Regular />
+            </button>
+            {showMenu && (
+              <div className="chrome-menu">
+                <div className="menu-item" onClick={addTab}>
+                  <Add24Regular />
+                  <span>Nueva pestaña</span>
+                </div>
+                <div className="menu-item" onClick={toggleBookmark}>
+                  <Bookmark24Regular />
+                  <span>{isBookmarked ? 'Quitar marcador' : 'Marcar esta página'}</span>
+                </div>
+                <div className="menu-item" onClick={() => {}} style={{ opacity: 0.5, cursor: 'default' }}>
+                  <History24Regular />
+                  <span>Historial</span>
+                </div>
+                <div className="menu-item" onClick={() => {}} style={{ opacity: 0.5, cursor: 'default' }}>
+                  <DocumentArrowDown24Regular />
+                  <span>Descargas</span>
+                </div>
+                <div className="menu-divider" />
+                <div className="menu-item" onClick={toggleContentFullscreen}>
+                  <FullScreenMaximize24Regular />
+                  <span>Pantalla completa</span>
+                </div>
+                <div className="menu-item" onClick={openInRealBrowser}>
+                  <Open24Regular />
+                  <span>Abrir en navegador real</span>
+                </div>
+                <div className="menu-divider" />
+                <div className="menu-item" onClick={() => {}} style={{ opacity: 0.5, cursor: 'default' }}>
+                  <Settings24Regular />
+                  <span>Configuración</span>
+                </div>
+                <div className="menu-item" onClick={() => {}} style={{ opacity: 0.5, cursor: 'default' }}>
+                  <QuestionCircle24Regular />
+                  <span>Ayuda</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -450,40 +510,46 @@ export const BrowserApp: React.FC = () => {
       <div className="chrome-content" ref={contentRef}>
         {!currentTab.displayUrl ? (
           <div className="ntp">
-            <div className="ntp-logo">
-              <span className="g">G</span>
-              <span className="o1">o</span>
-              <span className="o2">o</span>
-              <span className="g2">g</span>
-              <span className="l">l</span>
-              <span className="e">e</span>
-            </div>
-            <div className="ntp-search">
-              <Search24Regular />
-              <input
-                autoFocus
-                placeholder="Busca en Google o escribe una URL"
-                onKeyDown={(e) => e.key === 'Enter' && navigate((e.target as HTMLInputElement).value)}
-              />
-            </div>
-            <div className="ntp-hints">
-              <p>Pega un enlace de Google Slides para presentar aquí:</p>
-              <code>docs.google.com/presentation/d/…/edit</code>
-            </div>
-            <div className="ntp-shortcuts">
-              {bookmarks.slice(0, 8).map((b) => (
-                <button key={b.url} className="ntp-shortcut" onClick={() => navigate(b.url)}>
-                  <div className="shortcut-icon">
-                    <img src={b.favicon} alt="" />
-                  </div>
-                  <span>{b.label}</span>
-                </button>
-              ))}
+            <div className="ntp-background" />
+            <div className="ntp-content">
+              <div className="ntp-logo">
+                <span className="g">G</span>
+                <span className="o1">o</span>
+                <span className="o2">o</span>
+                <span className="g2">g</span>
+                <span className="l">l</span>
+                <span className="e">e</span>
+              </div>
+              <div className="ntp-search">
+                <Search24Regular />
+                <input
+                  autoFocus
+                  placeholder="Busca en Google o escribe una URL"
+                  onKeyDown={(e) => e.key === 'Enter' && navigate((e.target as HTMLInputElement).value)}
+                />
+              </div>
+              <div className="ntp-hints">
+                <p>Pega un enlace de Google Slides para presentar aquí:</p>
+                <code>docs.google.com/presentation/d/…/edit</code>
+              </div>
+              <div className="ntp-shortcuts">
+                {bookmarks.slice(0, 8).map((b) => (
+                  <button key={b.url} className="ntp-shortcut" onClick={() => navigate(b.url)}>
+                    <div className="shortcut-icon">
+                      <img src={b.favicon} alt="" />
+                    </div>
+                    <span>{b.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : blocked ? (
           <div className="blocked-view">
             <div className="blocked-card">
+              <div className="blocked-icon">
+                <Globe24Regular />
+              </div>
               <h2>No se puede mostrar este sitio</h2>
               <p>
                 <strong>{currentTab.title}</strong> bloquea la visualización embebida por políticas de seguridad.
@@ -496,6 +562,9 @@ export const BrowserApp: React.FC = () => {
         ) : iframeError ? (
           <div className="blocked-view">
             <div className="blocked-card">
+              <div className="blocked-icon">
+                <Info24Regular />
+              </div>
               <h2>No se pudo cargar la página</h2>
               <p>
                 {showSlides
@@ -551,21 +620,21 @@ export const BrowserApp: React.FC = () => {
           display: flex;
           flex-direction: column;
           height: 100%;
-          background: #fff;
+          background: #f1f3f4;
           color: #202124;
-          font-family: 'Segoe UI', system-ui, sans-serif;
+          font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
           user-select: none;
         }
 
         /* Tab strip */
         .chrome-tabstrip {
-          background: #dee1e6;
+          background: #f1f3f4;
           padding: 8px 8px 0;
         }
 
         .chrome-tabs {
           display: flex;
-          gap: 4px;
+          gap: 0;
           overflow-x: auto;
           align-items: flex-end;
         }
@@ -577,32 +646,55 @@ export const BrowserApp: React.FC = () => {
           align-items: center;
           gap: 8px;
           min-width: 160px;
-          max-width: 220px;
-          height: 34px;
-          padding: 0 10px;
-          background: #c3c6ca;
-          border-radius: 8px 8px 0 0;
+          max-width: 240px;
+          height: 36px;
+          padding: 0 12px;
+          background: #dadce0;
+          border-radius: 10px 10px 0 0;
           cursor: pointer;
-          font-size: 12px;
-          color: #3c4043;
+          font-size: 13px;
+          color: #5f6368;
           transition: background 0.15s;
+          position: relative;
+        }
+
+        .chrome-tab::before {
+          content: '';
+          position: absolute;
+          left: -8px;
+          bottom: 0;
+          width: 8px;
+          height: 8px;
+          background: radial-gradient(circle at 0 100%, transparent 0, transparent 8px, #f1f3f4 8px);
+        }
+
+        .chrome-tab::after {
+          content: '';
+          position: absolute;
+          right: -8px;
+          bottom: 0;
+          width: 8px;
+          height: 8px;
+          background: radial-gradient(circle at 100% 100%, transparent 0, transparent 8px, #f1f3f4 8px);
         }
 
         .chrome-tab.active {
           background: #fff;
           color: #202124;
+          z-index: 1;
         }
 
-        .chrome-tab:not(.active):hover { background: #dadcde; }
+        .chrome-tab:not(.active):hover { background: #e8eaed; }
 
         .tab-fav { width: 16px; height: 16px; flex-shrink: 0; }
-        .icon-muted { color: #5f6368; width: 16px; height: 16px; }
+        .icon-muted { color: #9aa0a6; width: 16px; height: 16px; }
 
         .tab-title {
           flex: 1;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          font-size: 13px;
         }
 
         .tab-close {
@@ -611,9 +703,13 @@ export const BrowserApp: React.FC = () => {
           color: #5f6368;
           cursor: pointer;
           display: flex;
-          padding: 2px;
+          padding: 4px;
           border-radius: 50%;
+          opacity: 0;
+          transition: opacity 0.1s, background 0.1s;
         }
+
+        .chrome-tab:hover .tab-close { opacity: 1; }
 
         .tab-close:hover { background: rgba(0,0,0,0.1); color: #202124; }
         .tab-close svg { width: 14px; height: 14px; }
@@ -623,7 +719,7 @@ export const BrowserApp: React.FC = () => {
           border: none;
           color: #5f6368;
           cursor: pointer;
-          padding: 6px;
+          padding: 8px;
           border-radius: 50%;
           margin-bottom: 4px;
         }
@@ -635,9 +731,10 @@ export const BrowserApp: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 6px 10px;
+          padding: 8px 12px;
           background: #fff;
           border-bottom: 1px solid #e8eaed;
+          position: relative;
         }
 
         .nav-btns, .toolbar-right {
@@ -651,7 +748,7 @@ export const BrowserApp: React.FC = () => {
           border: none;
           color: #5f6368;
           cursor: pointer;
-          padding: 6px;
+          padding: 8px;
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -678,29 +775,29 @@ export const BrowserApp: React.FC = () => {
 
         .omnibox-progress {
           position: absolute;
-          top: 0;
+          bottom: -8px;
           left: 0;
           right: 0;
-          height: 2px;
-          background: #1a73e8;
-          animation: progress 1.2s ease-in-out infinite;
+          height: 3px;
+          background: linear-gradient(90deg, #4285f4, #ea4335, #fbbc05, #34a853);
+          animation: progress 1.5s ease-in-out infinite;
           border-radius: 2px;
           z-index: 2;
         }
 
         @keyframes progress {
           0% { width: 0; opacity: 1; }
-          50% { width: 70%; opacity: 1; }
+          50% { width: 60%; opacity: 1; }
           100% { width: 100%; opacity: 0; }
         }
 
         .omnibox {
           display: flex;
           align-items: center;
-          gap: 8px;
-          background: #f1f3f4;
-          border-radius: 20px;
-          padding: 6px 14px;
+          gap: 10px;
+          background: #e8eaed;
+          border-radius: 24px;
+          padding: 8px 16px;
           transition: background 0.2s, box-shadow 0.2s;
         }
 
@@ -728,16 +825,53 @@ export const BrowserApp: React.FC = () => {
           cursor: pointer;
           color: #5f6368;
           display: flex;
-          padding: 2px;
+          padding: 4px;
         }
 
         .starred { color: #f4b400; }
 
+        /* Chrome menu */
+        .chrome-menu-container {
+          position: relative;
+        }
+
+        .chrome-menu {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          margin-top: 4px;
+          background: #fff;
+          border-radius: 8px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.16);
+          padding: 8px 0;
+          min-width: 200px;
+          z-index: 100;
+        }
+
+        .menu-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 16px;
+          cursor: pointer;
+          font-size: 13px;
+          color: #202124;
+        }
+
+        .menu-item:hover { background: #f1f3f4; }
+        .menu-item svg { width: 18px; height: 18px; color: #5f6368; }
+
+        .menu-divider {
+          height: 1px;
+          background: #e8eaed;
+          margin: 6px 0;
+        }
+
         /* Bookmarks */
         .bookmarks-bar {
           display: flex;
-          gap: 4px;
-          padding: 4px 12px;
+          gap: 2px;
+          padding: 4px 14px;
           background: #fff;
           border-bottom: 1px solid #e8eaed;
           overflow-x: auto;
@@ -746,13 +880,13 @@ export const BrowserApp: React.FC = () => {
         .bookmark-chip {
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 8px;
           background: none;
           border: none;
           font-size: 12px;
           color: #5f6368;
           cursor: pointer;
-          padding: 4px 8px;
+          padding: 6px 10px;
           border-radius: 4px;
           white-space: nowrap;
         }
@@ -796,8 +930,8 @@ export const BrowserApp: React.FC = () => {
         .loading-bar-inner {
           height: 100%;
           width: 40%;
-          background: #1a73e8;
-          animation: loadSlide 1s ease-in-out infinite;
+          background: linear-gradient(90deg, #4285f4, #ea4335, #fbbc05, #34a853);
+          animation: loadSlide 1.2s ease-in-out infinite;
         }
 
         @keyframes loadSlide {
@@ -807,16 +941,16 @@ export const BrowserApp: React.FC = () => {
 
         .slides-banner {
           position: absolute;
-          bottom: 16px;
+          bottom: 20px;
           left: 50%;
           transform: translateX(-50%);
           display: flex;
           align-items: center;
           gap: 10px;
-          background: rgba(32,33,36,0.88);
+          background: rgba(32,33,36,0.9);
           color: #fff;
-          padding: 10px 16px;
-          border-radius: 24px;
+          padding: 12px 20px;
+          border-radius: 28px;
           font-size: 13px;
           box-shadow: 0 4px 16px rgba(0,0,0,0.3);
           z-index: 4;
@@ -831,12 +965,12 @@ export const BrowserApp: React.FC = () => {
           background: #1a73e8;
           color: #fff;
           border: none;
-          border-radius: 16px;
-          padding: 6px 14px;
-          font-size: 12px;
-          font-weight: 600;
+          border-radius: 18px;
+          padding: 8px 16px;
+          font-size: 13px;
+          font-weight: 500;
           cursor: pointer;
-          margin-left: 4px;
+          margin-left: 6px;
         }
 
         .slides-banner button:hover { background: #1765cc; }
@@ -846,18 +980,35 @@ export const BrowserApp: React.FC = () => {
         .ntp {
           height: 100%;
           display: flex;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .ntp-background {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+        }
+
+        .ntp-content {
+          flex: 1;
+          display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
           padding: 24px;
-          background: #fff;
+          position: relative;
+          z-index: 1;
         }
 
         .ntp-logo {
-          font-size: 56px;
+          font-size: 64px;
           font-weight: 500;
           letter-spacing: -2px;
-          margin-bottom: 28px;
+          margin-bottom: 32px;
           font-family: 'Product Sans', 'Segoe UI', sans-serif;
         }
 
@@ -869,15 +1020,15 @@ export const BrowserApp: React.FC = () => {
         .ntp-logo .e { color: #EA4335; }
 
         .ntp-search {
-          width: min(560px, 90%);
+          width: min(580px, 90%);
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 14px;
           background: #fff;
           border: 1px solid #dfe1e5;
-          border-radius: 24px;
-          padding: 12px 20px;
-          box-shadow: 0 1px 6px rgba(32,33,36,0.12);
+          border-radius: 28px;
+          padding: 14px 22px;
+          box-shadow: 0 1px 6px rgba(32,33,36,0.1);
         }
 
         .ntp-search:focus-within {
@@ -897,7 +1048,7 @@ export const BrowserApp: React.FC = () => {
         }
 
         .ntp-hints {
-          margin-top: 20px;
+          margin-top: 24px;
           text-align: center;
           color: #5f6368;
           font-size: 13px;
@@ -905,46 +1056,51 @@ export const BrowserApp: React.FC = () => {
 
         .ntp-hints code {
           display: inline-block;
-          margin-top: 6px;
-          background: #f1f3f4;
-          padding: 4px 10px;
-          border-radius: 4px;
+          margin-top: 8px;
+          background: #fff;
+          padding: 6px 14px;
+          border-radius: 6px;
           font-size: 12px;
           color: #3c4043;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
         }
 
         .ntp-shortcuts {
           display: flex;
           flex-wrap: wrap;
           justify-content: center;
-          gap: 20px;
-          margin-top: 36px;
+          gap: 24px;
+          margin-top: 40px;
         }
 
         .ntp-shortcut {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 8px;
+          gap: 10px;
           background: none;
           border: none;
           cursor: pointer;
-          width: 80px;
+          width: 88px;
         }
 
         .shortcut-icon {
-          width: 48px;
-          height: 48px;
-          background: #f1f3f4;
+          width: 56px;
+          height: 56px;
+          background: #fff;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: background 0.15s;
+          transition: background 0.15s, box-shadow 0.15s;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
 
-        .ntp-shortcut:hover .shortcut-icon { background: #e8eaed; }
-        .shortcut-icon img { width: 24px; height: 24px; }
+        .ntp-shortcut:hover .shortcut-icon { 
+          background: #f8f9fa; 
+          box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        }
+        .shortcut-icon img { width: 28px; height: 28px; }
         .ntp-shortcut span { font-size: 12px; color: #5f6368; }
 
         /* Blocked / error */
@@ -954,25 +1110,42 @@ export const BrowserApp: React.FC = () => {
           align-items: center;
           justify-content: center;
           padding: 32px;
-          background: #f8f9fa;
+          background: #fff;
         }
 
         .blocked-card {
           background: #fff;
-          border-radius: 12px;
-          padding: 32px;
-          max-width: 480px;
+          border-radius: 16px;
+          padding: 40px;
+          max-width: 520px;
           text-align: center;
-          box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+          box-shadow: 0 4px 24px rgba(0,0,0,0.08);
           border: 1px solid #e8eaed;
         }
 
-        .blocked-card h2 { color: #202124; margin-bottom: 12px; font-size: 18px; }
-        .blocked-card p { color: #5f6368; margin-bottom: 20px; font-size: 14px; line-height: 1.5; }
+        .blocked-icon {
+          width: 72px;
+          height: 72px;
+          border-radius: 50%;
+          background: #f8f9fa;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 20px;
+        }
+
+        .blocked-icon svg {
+          width: 32px;
+          height: 32px;
+          color: #5f6368;
+        }
+
+        .blocked-card h2 { color: #202124; margin-bottom: 12px; font-size: 20px; font-weight: 500; }
+        .blocked-card p { color: #5f6368; margin-bottom: 24px; font-size: 14px; line-height: 1.6; }
 
         .blocked-actions {
           display: flex;
-          gap: 10px;
+          gap: 12px;
           justify-content: center;
           flex-wrap: wrap;
         }
@@ -981,8 +1154,8 @@ export const BrowserApp: React.FC = () => {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          padding: 10px 20px;
-          border-radius: 8px;
+          padding: 12px 24px;
+          border-radius: 10px;
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;

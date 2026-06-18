@@ -32,14 +32,12 @@
 | 🗂️ **File Explorer** | Navegación de archivos virtuales con vista árbol/lista y arrastrar-y-soltar. |
 | 🌐 **NexBrowser Pro** | Navegador integrado con soporte para YouTube, historial por pestaña y modo privado. |
 | 💻 **Dev-C++ 2026** | IDE con resaltado de sintaxis, compilación real con `g++` y ejecución de binarios. |
-| 🖼️ **VS Code** | Editor de código completo con soporte para múltiples lenguajes y temas. |
+| 🖼️ **Nex Code** | Editor de código completo con soporte para la creación de software interno|
 | 📝 **Notepad 2.0** | Editor de texto avanzado con barra de menús, zoom, fuentes, contador de palabras y status bar. |
 | 🕐 **Reloj** | Reloj analógico + digital, cronómetro con vueltas, temporizador circular y zonas horarias mundiales. |
 | 📷 **Fotos** | Galería de imágenes con lightbox, zoom, rotación, tira de miniaturas y soporte de URLs personalizadas. |
-| 🎵 **Spotify Mini** | Reproductor de música simulado con playlist, controles, shuffle, repeat y ecualizador animado. |
 | 📊 **Task Manager** | Monitoreo en tiempo real (WASM) de CPU, memoria, procesos y servicios reales del sistema. |
 | 🎨 **Paint** | Editor de dibujo con herramientas, paleta de colores y lienzo exportable. |
-| 🛡️ **Windows Defender** | Simulación de seguridad del sistema con escaneo animado. |
 | 🖩 **Calculadora** | Calculadora funcional con historial de operaciones. |
 | 📅 **Calendario** | Vista mensual con eventos y selector de fecha. |
 | 💬 **Símbolo del Sistema** | Terminal con comandos simulados (`dir`, `echo`, `cls`, etc.). |

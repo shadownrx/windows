@@ -31,7 +31,6 @@
 | :--- | :--- |
 | 🗂️ **File Explorer** | Navegación de archivos virtuales con vista árbol/lista y arrastrar-y-soltar. |
 | 🌐 **NexBrowser Pro** | Navegador integrado con soporte para YouTube, historial por pestaña y modo privado. |
-| 💻 **Dev-C++ 2026** | IDE con resaltado de sintaxis, compilación real con `g++` y ejecución de binarios. |
 | 🖼️ **Nex Code** | Editor de código completo con soporte para la creación de software interno|
 | 📝 **Notepad 2.0** | Editor de texto avanzado con barra de menús, zoom, fuentes, contador de palabras y status bar. |
 | 🕐 **Reloj** | Reloj analógico + digital, cronómetro con vueltas, temporizador circular y zonas horarias mundiales. |

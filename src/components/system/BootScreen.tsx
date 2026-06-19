@@ -17,7 +17,7 @@ const BootScreen: React.FC = () => {
   return (
     <div className="w-full h-full bg-black flex flex-col items-center justify-center relative font-mono text-white">
       <div className="flex flex-col items-center gap-2 mb-12 animate-in fade-in zoom-in duration-1000">
-        <div className="w-24 h-24 border-4 border-white flex items-center justify-center text-4xl font-black italic shadow-[0_0_30px_rgba(255,255,255,0.2)]">
+        <div className="w-24 h-30 border-4 border-white flex items-center justify-center text-4xl font-black italic shadow-[0_0_30px_rgba(255,255,255,0.2)]">
           NEX OS
         </div>
         <div className="text-xs tracking-[0.4em] font-bold opacity-80"></div>

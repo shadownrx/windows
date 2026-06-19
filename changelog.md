@@ -22,7 +22,7 @@ Historial oficial de cambios, optimizaciones y lanzamientos del sistema operativ
 ## [Próximos Hitos] — Hacia la Beta Pública
 
 ### 💻 Nex Code (Beta Release — Agosto 23)
-* **[Planificado] Nex Code** Herarramienta nueva de desarrollo, para crear internamente apps.
+* **[Planificado] Nex Code** Herarramienta nueva de desarrollo, para crear apps internamente.
 
 ---
 

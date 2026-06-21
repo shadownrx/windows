@@ -27,9 +27,11 @@ import {
   resolveBrowserUrl,
   isBlockedByIframe,
   isGoogleSlides,
+  isYouTube,
   getFavicon,
   type SlidesMode,
 } from '../../utils/browserUrls';
+import { YouTubeSearch } from '../youtube/YouTubeSearch';
 
 interface HistoryEntry {
   displayUrl: string;
@@ -285,6 +287,36 @@ export const BrowserApp: React.FC = () => {
     navigate(currentTab.displayUrl, true, mode);
   };
 
+  // El reproductor de YouTube embebido carga "bien" (no dispara onError del
+  // iframe) incluso cuando el dueño del video deshabilitó la incrustación:
+  // en ese caso YouTube muestra su propio mensaje de error DENTRO del
+  // reproductor. La única forma de detectarlo desde afuera es escuchando
+  // los eventos que manda via postMessage (IFrame Player API). Los códigos
+  // 101 y 150 significan exactamente "embedding no permitido por el dueño".
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.origin.includes('youtube')) return;
+
+      let data: unknown = event.data;
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch {
+          return;
+        }
+      }
+
+      const payload = data as { event?: string; info?: number };
+      if (payload?.event === 'onError' && (payload.info === 101 || payload.info === 150)) {
+        setIframeError(true);
+        setLoading(false);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   const addTab = () => {
     const id = `tab-${nextIdCounter.current++}`;
     setTabs((prev) => [...prev, createTab(id)]);
@@ -348,8 +380,45 @@ export const BrowserApp: React.FC = () => {
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
 
+  // Usuario eligió un video/playlist desde el buscador propio de YouTube.
+  // Esto navega directo al iframe de embed (youtube-nocookie.com), sin
+  // pasar por resolveBrowserUrl porque la URL de embed ya viene armada.
+  const handleYoutubePlay = (embedUrl: string, title: string) => {
+    setIframeError(false);
+    setLoading(true);
+
+    const entry: HistoryEntry = {
+      displayUrl: currentTab.displayUrl, // mantiene youtube.com en la omnibox
+      iframeUrl: embedUrl,
+      titleHint: title,
+      contentType: 'youtube',
+    };
+
+    setTabs((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTabId) return t;
+        const newStack = t.history.stack.slice(0, t.history.index + 1);
+        newStack.push(entry);
+        return {
+          ...t,
+          iframeUrl: embedUrl,
+          titleHint: title,
+          title,
+          contentType: 'youtube',
+          history: { index: newStack.length - 1, stack: newStack },
+        };
+      }),
+    );
+  };
+
   const showSlides = isGoogleSlides(currentTab.displayUrl);
   const blocked = isBlockedByIframe(currentTab.displayUrl || currentTab.iframeUrl);
+
+  // YouTube sin video cargado todavía (home, búsqueda, canal) -> mostramos
+  // el buscador propio en vez de intentar embeber youtube.com, que está
+  // bloqueado para iframes.
+  const showYoutubeSearch =
+    !!currentTab.displayUrl && isYouTube(currentTab.displayUrl) && !currentTab.iframeUrl;
 
   return (
     <div className="chrome-root">
@@ -508,6 +577,52 @@ export const BrowserApp: React.FC = () => {
 
       {/* Content */}
       <div className="chrome-content" ref={contentRef}>
+        {/*
+          Capa de iframes persistentes: se renderiza SIEMPRE, fuera de
+          cualquier condicional de la tab activa. Un iframe por cada tab
+          que tenga contenido cargado, todos montados en simultáneo, y se
+          oculta con CSS el que no corresponde a la tab activa.
+
+          Por qué fuera del condicional: si esta capa estuviera anidada
+          dentro de la rama "else" de blocked/showYoutubeSearch/iframeError,
+          cada vez que la TAB ACTIVA cae en alguna de esas otras ramas (ej.
+          activás la tab de Google mientras tenés YouTube en otra tab), todo
+          este bloque desaparece del árbol — destruyendo TODOS los iframes,
+          incluido el de YouTube en la otra tab. Al volver, todo se vuelve a
+          montar desde cero. Por eso debe vivir siempre presente, y los
+          overlays (NTP, buscador YouTube, bloqueado, error) se dibujan
+          ENCIMA con z-index, no en lugar de esta capa.
+
+          Nota: el navegador igual puede pausar/throttlear un iframe oculto
+          en algunos casos para ahorrar batería/CPU (normal, no se puede
+          desactivar desde el código), pero ya no se reinicia desde cero.
+        */}
+        {tabs
+          .filter((t) => t.iframeUrl)
+          .map((t) => (
+            <iframe
+              key={t.id}
+              ref={t.id === activeTabId ? iframeRef : undefined}
+              src={t.iframeUrl}
+              title={t.title}
+              className="chrome-iframe"
+              style={{
+                display: t.id === activeTabId && !blocked && !showYoutubeSearch && !iframeError ? 'block' : 'none',
+              }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture; presentation"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads"
+              onLoad={() => {
+                if (t.id === activeTabId) setLoading(false);
+              }}
+              onError={() => {
+                if (t.id === activeTabId) {
+                  setLoading(false);
+                  setIframeError(true);
+                }
+              }}
+            />
+          ))}
+
         {!currentTab.displayUrl ? (
           <div className="ntp">
             <div className="ntp-background" />
@@ -544,6 +659,8 @@ export const BrowserApp: React.FC = () => {
               </div>
             </div>
           </div>
+        ) : showYoutubeSearch ? (
+          <YouTubeSearch searchEndpoint="/api/youtube/search" onPlay={handleYoutubePlay} />
         ) : blocked ? (
           <div className="blocked-view">
             <div className="blocked-card">
@@ -569,7 +686,9 @@ export const BrowserApp: React.FC = () => {
               <p>
                 {showSlides
                   ? 'Asegúrate de que la presentación esté compartida como "Cualquier persona con el enlace puede ver".'
-                  : 'El sitio puede bloquear la visualización embebida.'}
+                  : currentTab.contentType === 'youtube'
+                    ? 'El propietario de este video desactivó la reproducción incrustada. Solo se puede ver directamente en YouTube.'
+                    : 'El sitio puede bloquear la visualización embebida.'}
               </p>
               <div className="blocked-actions">
                 <button onClick={() => navigate(currentTab.displayUrl, false, currentTab.slidesMode)} className="retry-btn">
@@ -588,20 +707,6 @@ export const BrowserApp: React.FC = () => {
                 <div className="loading-bar-inner" />
               </div>
             )}
-            <iframe
-              ref={iframeRef}
-              key={`${currentTab.iframeUrl}-${currentTab.slidesMode}`}
-              src={currentTab.iframeUrl}
-              title={currentTab.title}
-              className="chrome-iframe"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture; presentation"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads"
-              onLoad={() => setLoading(false)}
-              onError={() => {
-                setLoading(false);
-                setIframeError(true);
-              }}
-            />
             {showSlides && currentTab.slidesMode !== 'present' && (
               <div className="slides-banner">
                 <SlideLayout24Regular />
@@ -978,10 +1083,13 @@ export const BrowserApp: React.FC = () => {
 
         /* New tab page */
         .ntp {
+          position: absolute;
+          inset: 0;
           height: 100%;
           display: flex;
-          position: relative;
           overflow: hidden;
+          background: #fff;
+          z-index: 2;
         }
 
         .ntp-background {
@@ -1105,12 +1213,15 @@ export const BrowserApp: React.FC = () => {
 
         /* Blocked / error */
         .blocked-view {
+          position: absolute;
+          inset: 0;
           height: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 32px;
           background: #fff;
+          z-index: 2;
         }
 
         .blocked-card {

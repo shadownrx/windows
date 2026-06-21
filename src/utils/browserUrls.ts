@@ -9,12 +9,38 @@ export interface ResolvedUrl {
   titleHint: string;
   contentType: 'slides' | 'docs' | 'sheets' | 'youtube' | 'generic';
   slidesMode?: SlidesMode;
+  /**
+   * true cuando displayUrl es un dominio de YouTube pero NO apunta a un
+   * video/short/playlist concreto (ej: la home, /results de búsqueda).
+   * BrowserApp usa esto para mostrar el buscador propio en vez de intentar
+   * embeber la página de YouTube (que está bloqueada para iframes).
+   */
+  needsYoutubeSearch?: boolean;
 }
 
 const SLIDES_ID_RE = /docs\.google\.com\/presentation\/d\/([a-zA-Z0-9_-]+)/;
 const DOCS_ID_RE = /docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/;
 const SHEETS_ID_RE = /docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/;
-const YOUTUBE_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
+
+// Soporta: youtube.com/watch?v=ID, youtu.be/ID, m.youtube.com/watch?v=ID,
+// youtube.com/shorts/ID, youtube.com/embed/ID, youtube.com/live/ID,
+// con o sin www., y parámetro opcional de tiempo (t= o start=).
+const YOUTUBE_VIDEO_RE =
+  /(?:m\.|www\.)?youtu(?:be\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|\.be\/)([a-zA-Z0-9_-]{6,})/;
+const YOUTUBE_PLAYLIST_RE = /youtube\.com\/playlist\?(?:.*&)?list=([a-zA-Z0-9_-]+)/;
+const YOUTUBE_DOMAIN_RE = /(?:^|\/\/)(?:www\.|m\.)?youtu(?:be\.com|\.be)/;
+
+function parseTimeParam(url: string): number | undefined {
+  const match = url.match(/[?&](?:t|start)=([0-9hms]+)/);
+  if (!match) return undefined;
+  const value = match[1];
+  if (/^\d+$/.test(value)) return parseInt(value, 10);
+  const parts = value.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/);
+  if (!parts) return undefined;
+  const [, h, m, s] = parts;
+  if (!h && !m && !s) return undefined;
+  return (parseInt(h || '0', 10) * 3600) + (parseInt(m || '0', 10) * 60) + parseInt(s || '0', 10);
+}
 
 function normalizeInput(raw: string): string {
   const input = raw.trim();
@@ -53,13 +79,40 @@ export function resolveBrowserUrl(raw: string, options?: { slidesMode?: SlidesMo
     return { displayUrl: '', iframeUrl: '', titleHint: 'Nueva pestaña', contentType: 'generic' };
   }
 
-  const ytMatch = displayUrl.match(YOUTUBE_RE);
+  // Video o short puntual -> sí se puede embeber, vía youtube-nocookie.com
+  const ytMatch = displayUrl.match(YOUTUBE_VIDEO_RE);
   if (ytMatch) {
+    const startSeconds = parseTimeParam(displayUrl);
+    const params = new URLSearchParams({ rel: '0', modestbranding: '1', enablejsapi: '1' });
+    if (startSeconds) params.set('start', String(startSeconds));
     return {
       displayUrl,
-      iframeUrl: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=0`,
+      iframeUrl: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?${params.toString()}`,
       titleHint: 'YouTube',
       contentType: 'youtube',
+    };
+  }
+
+  // Playlist puntual
+  const ytPlaylistMatch = displayUrl.match(YOUTUBE_PLAYLIST_RE);
+  if (ytPlaylistMatch) {
+    return {
+      displayUrl,
+      iframeUrl: `https://www.youtube-nocookie.com/embed/videoseries?list=${ytPlaylistMatch[1]}&rel=0&modestbranding=1&enablejsapi=1`,
+      titleHint: 'YouTube — Lista de reproducción',
+      contentType: 'youtube',
+    };
+  }
+
+  // Dominio de YouTube sin video/playlist específico (home, /results, canal, etc.)
+  // No se puede embeber: BrowserApp debe mostrar el buscador propio en este caso.
+  if (YOUTUBE_DOMAIN_RE.test(displayUrl)) {
+    return {
+      displayUrl,
+      iframeUrl: '',
+      titleHint: 'YouTube',
+      contentType: 'youtube',
+      needsYoutubeSearch: true,
     };
   }
 
@@ -120,6 +173,10 @@ export function isGoogleSlides(url: string): boolean {
   return SLIDES_ID_RE.test(url);
 }
 
+export function isYouTube(url: string): boolean {
+  return YOUTUBE_DOMAIN_RE.test(url);
+}
+
 export function getSlidesPresentUrl(url: string): string | null {
   const match = url.match(SLIDES_ID_RE);
   if (!match) return null;
@@ -143,6 +200,10 @@ const BLOCKED_SITES = [
 
 export function isBlockedByIframe(url: string): boolean {
   if (!url) return false;
+  // YouTube nunca se marca "bloqueado": para videos puntuales se resuelve
+  // con youtube-nocookie.com en resolveBrowserUrl; para la home/búsqueda,
+  // BrowserApp muestra el buscador propio en vez de esta pantalla.
+  if (isYouTube(url)) return false;
   const lower = url.toLowerCase();
   return BLOCKED_SITES.some((site) => lower.includes(site));
 }

@@ -3,7 +3,20 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
+// Proxy: durante `npm run dev`, las llamadas a /api/* se reenvían al servidor
+// de Vercel local (`vercel dev` en el puerto 3000). Así el frontend de Vite
+// y las funciones serverless corren juntos sin CORS ni rutas 404.
 export default defineConfig({
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        // Si usás vercel dev en el 3000, esto redirige /api/groq/chat → http://localhost:3000/api/groq/chat
+      },
+    },
+  },
   plugins: [
     react(), 
     VitePWA({

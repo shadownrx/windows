@@ -50,7 +50,7 @@ export const APPS: AppItem[] = [
         />
       </svg>
     ),
-    label: 'VS Code',
+    label: 'NEX Code',
     isPinned: true
   },
   { id: 'paint', appId: 'paint', icon: <Edit24Regular />, label: 'Paint' },

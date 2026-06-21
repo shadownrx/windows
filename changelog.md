@@ -6,6 +6,10 @@ Historial oficial de cambios, optimizaciones y lanzamientos del sistema operativ
 
 ## [Season 4] — Desarrollo Actual (Junio 2026)
 
+### ⚡ Motor NEX Runtime
+* **[Agregado] Soporte de NPM & PNPM interactivos:** Implementación de un motor de ejecución simulada para inicializar proyectos (`npm init`), instalar paquetes virtuales (`npm install`/`pnpm add`), desinstalar dependencias y ejecutar scripts configurados en package.json de forma totalmente interactiva en las aplicaciones CMD y Terminal. ✅
+* **[Agregado] Ejecución nativa de binarios `.nex`:** Creación del sistema de lanzadores `.nex` (análogos a `.exe` en Windows). El Explorador de Archivos (doble clic), el diálogo Ejecutar (`Win + R`) y la consola pueden lanzar programas del sistema directamente desde archivos ejecutables `.nex`. ✅
+
 ### 📊 Telemetría y Rendimiento Base
 * **[Agregado] Telemetría síncrona en tiempo real:** Implementación exitosa del puente de datos de hardware. El Administrador de Tareas de Nex OS ahora refleja con total fidelidad el uso de CPU, GPU, lectura de disco y consumo de memoria RAM del sistema nativo (Ryzen 5 5500U). ✅
 * **[Optimizado] Gestión de Memoria en el Navegador:** Reducción drástica del *footprint* de memoria del lado del cliente. El entorno base reporta apenas un **7% (~0.8 GB)** en comparación con la carga del sistema operativo tradicional.

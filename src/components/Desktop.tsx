@@ -14,6 +14,7 @@ import { useWindowManager } from '../context/WindowManager';
 import { useDesktop, type DesktopIcon } from '../context/DesktopContext';
 import { useFileSystem } from '../context/FileSystemContext';
 import { useUI } from '../context/UIContext';
+import { useNexRuntime } from '../context/NexRuntimeContext';
 import { 
   Document24Regular, 
   Delete24Regular,
@@ -35,8 +36,26 @@ import {
   Rename24Regular,
   Delete20Regular,
   ShieldCheckmark24Regular,
+  Globe24Regular,
 } from '@fluentui/react-icons';
 import { Code24Regular, Person24Regular } from '@fluentui/react-icons';
+
+const NEX_ICONS: Record<string, React.ReactNode> = {
+  notepad:       <Document24Regular />,
+  cmd:           <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 'bold', fontSize: 16 }}>C:\</span>,
+  terminal:      <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 'bold', fontSize: 16 }}>C:\</span>,
+  chrome:        <Globe24Regular />,
+  'file-explorer': <Folder24Regular />,
+  paint:         <span style={{ fontSize: 18 }}>🎨</span>,
+  calculator:    <Calculator24Regular />,
+  taskmanager:   <Apps24Regular />,
+  spotify:       <span style={{ fontSize: 18 }}>🎵</span>,
+  settings:      <Settings24Regular />,
+  wordpad:       <Document24Regular />,
+  defender:      <ShieldCheckmark24Regular />,
+  mediaplayer:   <span style={{ fontSize: 18 }}>▶️</span>,
+  'devcpp-2026': <Code24Regular style={{ color: '#3b82f6' }} />,
+};
 
 
 
@@ -50,6 +69,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
   const { desktopIcons, addDesktopIcon, updateDesktopIcon, removeDesktopIcon, sortDesktopIcons, currentDesktopId, virtualDesktops, switchDesktop, addDesktop } = useDesktop();
   const { isStartOpen, toggleStart, closeStart, isWidgetsOpen, toggleWidgets, closeWidgets, isDesktopSwitcherOpen } = useUI();
   const { createFile } = useFileSystem();
+  const { resolveNex } = useNexRuntime();
 
   const { isTaskViewOpen, setIsTaskViewOpen, addNotification, userName, wallpaper, setWallpaper, neonTheme } = useSettings();
 
@@ -80,6 +100,17 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     }
 
     setRunError('');
+
+    // Check .nex execution via runtime registry
+    const nexApp = resolveNex(normalized);
+    if (nexApp) {
+      const appIcon = NEX_ICONS[nexApp.appId] || <span style={{ fontSize: 18 }}>⚡</span>;
+      openWindow(nexApp.appId, nexApp.appId, nexApp.title, appIcon);
+      setRunDialogOpen(false);
+      setRunCommand('');
+      return;
+    }
+
     if (normalized === 'cmd' || normalized === 'cmd.exe' || normalized === 'terminal') {
       openWindow('cmd', 'cmd', 'Terminal', <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>);
     } else if (normalized === 'explorer' || normalized === 'file explorer' || normalized === 'files') {

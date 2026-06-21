@@ -14,6 +14,7 @@
 ## ✨ Características Destacadas
 
 ### 🚀 Ingeniería de Alto Rendimiento
+- **NEX Runtime (NPM, PNPM, .nex):** Motor de runtime interactivo simulado en memoria que permite instalar paquetes virtuales, correr scripts y ejecutar binarios virtuales (`.nex`) en el sistema operativo.
 - **Ensamblado con WASM:** Lógica de cálculo crítico (Administrador de Tareas) optimizada con **AssemblyScript** para ejecución a velocidad nativa.
 - **Motor 3D Dinámico:** Fondos tridimensionales en tiempo real impulsados por **Three.js / @react-three/fiber** que reaccionan al tema seleccionado.
 - **Arquitectura de Micro-Frontends:** Cada aplicación opera en su propio contexto aislado bajo un orquestador central (`WindowManager`).
@@ -29,7 +30,7 @@
 
 | Aplicación | Descripción |
 | :--- | :--- |
-| 🗂️ **File Explorer** | Navegación de archivos virtuales con vista árbol/lista y arrastrar-y-soltar. |
+| 🗂️ **File Explorer** | Navegación de archivos virtuales con vista árbol/lista, arrastrar-y-soltar y soporte de ejecutables `.nex`. |
 | 🌐 **NexBrowser Pro** | Navegador integrado con soporte para YouTube, historial por pestaña y modo privado. |
 | 🖼️ **Nex Code** | Editor de código completo con soporte para la creación de software interno|
 | 📝 **Notepad 2.0** | Editor de texto avanzado con barra de menús, zoom, fuentes, contador de palabras y status bar. |
@@ -39,7 +40,7 @@
 | 🎨 **Paint** | Editor de dibujo con herramientas, paleta de colores y lienzo exportable. |
 | 🖩 **Calculadora** | Calculadora funcional con historial de operaciones. |
 | 📅 **Calendario** | Vista mensual con eventos y selector de fecha. |
-| 💬 **Símbolo del Sistema** | Terminal con comandos simulados (`dir`, `echo`, `cls`, etc.). |
+| 💬 **Símbolo del Sistema** | Terminales (CMD y Bash) con soporte nativo de comandos npm, pnpm y ejecución de archivos .nex. |
 | ⚙️ **Panel de Control** | Configuración completa: wallpaper, tema neon, brillo, volumen, acento de color. |
 
 ---

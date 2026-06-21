@@ -13,6 +13,10 @@ export interface FileItem {
   used?: string;
   parentId: string | null;
   content?: string;
+  /** For .nex executables: which app to open and optional args */
+  nexPayload?: { appId: string; title: string; args?: string[] };
+  /** Special folder types for visual distinctions */
+  folderType?: 'node_modules' | 'program_files' | 'normal';
 }
 
 interface FileSystemContextType {
@@ -39,6 +43,25 @@ const INITIAL_FILES: FileItem[] = [
   { id: 'projects', name: 'Proyectos', type: 'folder', modified: '26/03/2026', parentId: 'documents' },
   { id: 'readme', name: 'README.txt', type: 'file', ext: 'txt', size: '2 KB', modified: '25/03/2026', parentId: 'documents' },
   { id: 'wallpaper', name: 'wallpaper.jpg', type: 'file', ext: 'jpg', size: '4.2 MB', modified: '01/03/2026', imageUrl: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=800', parentId: 'pictures' },
+  // ── Program Files ────────────────────────────────────────────────────────
+  { id: 'program-files', name: 'Program Files', type: 'folder', folderType: 'program_files', modified: '10/01/2026', parentId: 'c-drive' },
+  { id: 'pf-nex', name: 'NEX', type: 'folder', folderType: 'program_files', modified: '10/01/2026', parentId: 'program-files' },
+  // .nex executables inside C:\Program Files\NEX\
+  { id: 'nex-notepad',     name: 'notepad',     type: 'file', ext: 'nex', size: '12 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'notepad',      title: 'Notepad' } },
+  { id: 'nex-cmd',         name: 'cmd',         type: 'file', ext: 'nex', size: '28 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'cmd',          title: 'Terminal' } },
+  { id: 'nex-browser',     name: 'browser',     type: 'file', ext: 'nex', size: '54 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'chrome',       title: 'Navegador' } },
+  { id: 'nex-vscode',      name: 'vscode',      type: 'file', ext: 'nex', size: '89 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'vscode',       title: 'Visual Studio Code' } },
+  { id: 'nex-explorer',    name: 'explorer',    type: 'file', ext: 'nex', size: '36 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'file-explorer', title: 'Explorador de archivos' } },
+  { id: 'nex-paint',       name: 'paint',       type: 'file', ext: 'nex', size: '41 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'paint',        title: 'Paint' } },
+  { id: 'nex-calc',        name: 'calc',        type: 'file', ext: 'nex', size: '8 KB',   modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'calculator',   title: 'Calculadora' } },
+  { id: 'nex-taskmanager', name: 'taskmanager', type: 'file', ext: 'nex', size: '22 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'taskmanager',  title: 'Administrador de tareas' } },
+  { id: 'nex-spotify',     name: 'spotify',     type: 'file', ext: 'nex', size: '67 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'spotify',      title: 'Spotify' } },
+  { id: 'nex-settings',    name: 'settings',    type: 'file', ext: 'nex', size: '18 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'settings',     title: 'Configuración' } },
+  { id: 'nex-wordpad',     name: 'wordpad',     type: 'file', ext: 'nex', size: '31 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'wordpad',      title: 'WordPad' } },
+  { id: 'nex-defender',    name: 'defender',    type: 'file', ext: 'nex', size: '44 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'defender',     title: 'Seguridad de Windows' } },
+  { id: 'nex-mediaplayer', name: 'mediaplayer', type: 'file', ext: 'nex', size: '29 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'mediaplayer',  title: 'Reproductor multimedia' } },
+  { id: 'nex-devcpp',      name: 'devcpp',      type: 'file', ext: 'nex', size: '73 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'devcpp-2026',  title: 'Dev-C++ 2026' } },
+  { id: 'nex-terminal',    name: 'terminal',    type: 'file', ext: 'nex', size: '28 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'terminal',     title: 'Terminal' } },
 ];
 
 export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

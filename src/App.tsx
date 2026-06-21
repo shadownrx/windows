@@ -37,7 +37,7 @@ function AppContent() {
     if (systemState === 'DESKTOP' && !hasLoggedInRef.current) {
       if (osType === 'windows') {
         playSound('startup');
-        addNotification('Bienvenido', 'Windows 11 está listo para usarse.', <Info24Regular />);
+        addNotification('Bienvenido', 'Nex OS esta listo para usarse', <Info24Regular />);
       } else {
         // Sonido o notificación para NEX OS si se desea
       }
@@ -101,18 +101,21 @@ function AppContent() {
 import { FileSystemProvider } from './context/FileSystemContext';
 import { DesktopProvider } from './context/DesktopContext';
 import { UIProvider } from './context/UIContext';
+import { NexRuntimeProvider } from './context/NexRuntimeContext';
 
 function App() {
   return (
     <SettingsProvider>
       <FileSystemProvider>
-        <DesktopProvider>
-          <UIProvider>
-            <WindowManagerProvider>
-              <AppContent />
-            </WindowManagerProvider>
-          </UIProvider>
-        </DesktopProvider>
+        <NexRuntimeProvider>
+          <DesktopProvider>
+            <UIProvider>
+              <WindowManagerProvider>
+                <AppContent />
+              </WindowManagerProvider>
+            </UIProvider>
+          </DesktopProvider>
+        </NexRuntimeProvider>
       </FileSystemProvider>
     </SettingsProvider>
   );

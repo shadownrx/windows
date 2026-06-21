@@ -316,6 +316,62 @@ const cyberpunkTheme = {
 
 ---
 
+## ⚡ NEX Runtime: Motor de NPM, PNPM y Ejecutables .nex
+
+NEX OS incluye un subsistema de ejecución simulado en memoria (`NexRuntimeContext`) que actúa como un entorno de runtime interactivo.
+
+### Arquitectura de NEX Runtime
+
+```
+┌──────────────────────────┐
+│        NEX OS            │
+└────────────┬─────────────┘
+             │
+             ▼
+┌──────────────────────────┐
+│      NEX Runtime         │
+├──────────────────────────┤
+│ Package Manager          │
+│ Process Manager          │
+│ NEX Loader (.nex)        │
+│ Service Registry         │
+└────────────┬─────────────┘
+             │
+     ┌───────┼────────┐
+     ▼       ▼        ▼
+ WindowMgr  VFS   Telemetry
+     │       │        │
+     └───┬───┴────────┘
+         ▼
+      Apps
+```
+
+```
+NexRuntimeProvider (Estado central del runtime)
+ ├── packages   ← Mapa de dependencias instaladas por directorio virtual
+ ├── projects   ← Estructura de package.json virtuales
+ ├── processes  ← PIDs simulados y telemetría de ejecución de subprocesos
+ └── Métodos    ← npmRun(), pnpmRun(), resolveNex()
+```
+
+### Ejecución de Archivos .nex
+
+Los archivos `.nex` son ejecutables virtuales (análogos a `.exe` en Windows) que permiten lanzar aplicaciones registradas en el sistema.
+
+- **Doble clic en FileExplorer**: Detecta la extensión `.nex`, lee la metadata (`nexPayload`) y utiliza `openWindow` del `WindowManager` para iniciar la aplicación correcta con su respectivo icono.
+- **Diálogo Ejecutar (Win+R)**: Permite lanzar archivos `.nex` de forma directa o implícita (p. ej. escribir `notepad` resuelve a `notepad.nex` usando `resolveNex`).
+- **Llamadas desde Terminal/CMD**: El comando `./vscode.nex` o `vscode.nex` busca en la ruta actual o en `C:\Program Files\NEX\` para lanzar la aplicación directamente en el entorno de ventanas.
+
+### Flujo de Comandos de Paquetes (NPM y PNPM)
+
+Cuando el usuario ejecuta un comando en `Terminal.tsx` o `Cmd.tsx`, la petición se procesa como un generador asíncrono (`AsyncGenerator`) que produce líneas de salida simuladas con tiempos de espera realistas:
+
+1. **Resolución**: Se procesan los argumentos (p. ej. `install`, `run`, `create`).
+2. **Mutación VFS**: Los archivos como `package.json`, `package-lock.json` y carpetas `node_modules/` son creados/modificados en el sistema de archivos virtual (`FileSystemContext`).
+3. **Persistencia**: Las dependencias instaladas se registran en el estado local de paquetes del directorio actual.
+
+---
+
 ## 🧩 Patrones de Arquitectura
 
 ### 1. **Contexto + Hooks**

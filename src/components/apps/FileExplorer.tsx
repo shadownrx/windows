@@ -27,6 +27,13 @@ import {
   ChevronRight12Regular,
   DocumentPdf20Regular,
   TableSimple20Regular,
+  Flash20Regular,
+  Globe20Regular,
+  Calculator20Regular,
+  Apps20Regular,
+  Settings20Regular,
+  ShieldCheckmark20Regular,
+  Code20Regular,
 } from '@fluentui/react-icons';
 
 import { useWindowManager } from '../../context/WindowManager';
@@ -34,10 +41,28 @@ import { useFileSystem, type FileItem } from '../../context/FileSystemContext';
 import { useSettings } from '../../context/SettingsContext';
 import ContextMenu from '../ContextMenu';
 
+const NEX_ICONS: Record<string, React.ReactNode> = {
+  notepad:       <Document20Regular />,
+  cmd:           <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 'bold', fontSize: 14 }}>C:\</span>,
+  terminal:      <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 'bold', fontSize: 14 }}>C:\</span>,
+  chrome:        <Globe20Regular />,
+  'file-explorer': <Folder20Filled style={{ color: '#f0c040' }} />,
+  paint:         <span style={{ fontSize: 16 }}>🎨</span>,
+  calculator:    <Calculator20Regular />,
+  taskmanager:   <Apps20Regular />,
+  spotify:       <span style={{ fontSize: 16 }}>🎵</span>,
+  settings:      <Settings20Regular />,
+  wordpad:       <Document20Regular />,
+  defender:      <ShieldCheckmark20Regular />,
+  mediaplayer:   <span style={{ fontSize: 16 }}>▶️</span>,
+  'devcpp-2026': <Code20Regular style={{ color: '#3b82f6' }} />,
+};
+
 const getFileIcon = (item: FileItem, small = false) => {
   const sz = small ? 16 : 20;
   if (item.type === 'drive') return <HardDrive20Regular style={{ color: '#7fa4f1', fontSize: sz }} />;
   if (item.type === 'folder') return <Folder20Filled style={{ color: '#f0c040', fontSize: sz }} />;
+  if (item.ext === 'nex') return <Flash20Regular style={{ color: '#00ffff', fontSize: sz }} />;
   if ((item.ext === 'jpg' || item.ext === 'png') && item.imageUrl) {
     return <img src={item.imageUrl} alt={item.name}
       style={{ width: small ? 20 : 40, height: small ? 20 : 40, objectFit: 'cover', borderRadius: 3 }} />;
@@ -125,6 +150,10 @@ const FileExplorer: React.FC = () => {
         <Document20Regular />,
         { fileId: item.id }
       );
+    } else if (item.ext === 'nex' && item.nexPayload) {
+      const payload = item.nexPayload;
+      const appIcon = NEX_ICONS[payload.appId] || <Flash20Regular style={{ color: '#00ffff' }} />;
+      openWindow(payload.appId, payload.appId, payload.title, appIcon);
     }
   };
 

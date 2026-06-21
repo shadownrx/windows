@@ -14,6 +14,7 @@ Historial oficial de cambios, optimizaciones y lanzamientos del sistema operativ
 
 ### 🎨 Interfaz y UX
 * **[Agregado] Barra de herramientas de desarrollo:** Accesos directos optimizados en la sección superior para agilizar el flujo de trabajo en la inspección de código y procesos. ✅
+* **[Corregido] Youtube y BrowserApp** El sistema puede ejecutar videos de youtube, puedes moverte entre ventanas sin que se pare la música ✅
 * **[Agregado] Agregar nuevos usuarios** Ahora puedes agregar un nuevo usuaio. ✅
 * **[Mejorado] Modo Oscuro Nativo:** Refinamiento visual en las tonalidades del panel del Administrador de Tareas para una consistencia estética superior frente a entornos de sistemas modernos.
 

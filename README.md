@@ -2,10 +2,12 @@
 
 # 🌌 NEX-OS Operating System
 
-**WebOS** es una experiencia de computación de próxima generación construida enteramente para la web. No es simplemente un clon de una interfaz; es un ecosistema de aplicaciones de alto rendimiento desarrollado con **React 19**, **TypeScript**, **AssemblyScript (WASM)** y **Three.js**. WebOS redefine lo que es posible en un navegador, fusionando estética *Premium* con ingeniería de sistemas avanzada.
+**NEX-OS** es una experiencia de computación de próxima generación construida enteramente para la web. No es simplemente un clon de una interfaz; es un ecosistema de aplicaciones de alto rendimiento desarrollado con **React 19**, **TypeScript**, **AssemblyScript (WASM)** y **Three.js**. WebOS redefine lo que es posible en un navegador, fusionando estética *Premium* con ingeniería de sistemas avanzada.
 
 > [!TIP]
 > **🌐 Demo en Vivo:** [https://windows-seven-rose.vercel.app/](https://windows-seven-rose.vercel.app/)
+>
+> **🌐 Website Oficial:** [https://nexos-coral.vercel.app/](https://nexos-coral.vercel.app/)
 >
 > **📖 Documentación Completa:** Consulta la carpeta [docs/](./docs/) para guías detalladas.
 

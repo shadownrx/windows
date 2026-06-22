@@ -111,7 +111,7 @@ const ManualApp: React.FC = () => {
         {activeTab === 'custom' && (
           <section className="manual-content animate-in">
             <h1>Experiencia Neon</h1>
-            <p className="lead">NEX OS 2.0 introduce un sistema de temas dinámicos con renderizado de bordes brillantes.</p>
+            <p className="lead">NEX OS 3.0 introduce un sistema de temas dinámicos con renderizado de bordes brillantes.</p>
             
             <div className="feature-grid">
               <div className="feature-card">
@@ -187,13 +187,12 @@ const ManualApp: React.FC = () => {
             <h1>Acerca de NEX</h1>
             <div className="about-branding">
               <div className="logo-placeholder">NEX</div>
-              <p>NEX Web Operating System</p>
-              <p className="sub">Build 2026.04.15</p>
+              <p>NEX OS</p>
+              <p className="sub">Build 2026.6.21</p>
             </div>
 
             <div className="credits">
               <p>Desarrollado con ❤️ por Salvador juarez</p>
-              <p>Este proyecto es una demostración técnica de capacidades frontend avanzadas.</p>
             </div>
           </section>
         )}

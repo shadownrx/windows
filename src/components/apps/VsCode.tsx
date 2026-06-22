@@ -227,6 +227,7 @@ Editor de código con IA integrada (Groq) y soporte de temas de vscodethemes.com
 
 ## Atajos
 - **Ctrl+Shift+P** — Paleta de comandos
+- **Ctrl+P** — Abrir archivo rápido
 - **Ctrl+K Ctrl+T** — Cambiar de tema
 - **Tab** — Aceptar sugerencia de NEX AI
 - **Esc** — Descartar sugerencia
@@ -281,6 +282,45 @@ function tokenize(code: string, lang: string, p: any) {
   });
 }
 
+function isErrorLine(line: string): boolean {
+  return /error/i.test(line) || /no se reconoce/i.test(line) || /no se encuentra/i.test(line) || line.includes('❌');
+}
+
+/* ---------- Fuzzy matching para la paleta de comandos / quick open ----------
+   Coincidencia de subsecuencia (igual que VS Code): las letras del query
+   tienen que aparecer en orden dentro del texto, no necesariamente juntas.
+   Devuelve un score (más bajo = mejor) y los índices que coincidieron, para
+   poder resaltarlos en negrita en el render. */
+function fuzzyMatch(query: string, text: string): { score: number; indices: number[] } | null {
+  if (!query) return { score: 0, indices: [] };
+  const q = query.toLowerCase();
+  const t = text.toLowerCase();
+  const indices: number[] = [];
+  let qi = 0;
+  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+    if (t[ti] === q[qi]) { indices.push(ti); qi++; }
+  }
+  if (qi < q.length) return null;
+  // Premia coincidencias consecutivas y que empiecen temprano en el texto.
+  const span = indices[indices.length - 1] - indices[0];
+  let gaps = 0;
+  for (let k = 1; k < indices.length; k++) if (indices[k] - indices[k - 1] > 1) gaps++;
+  const score = span + gaps * 2 + indices[0] * 0.5;
+  return { score, indices };
+}
+
+function HighlightedLabel({ text, indices, accent }: { text: string; indices: number[]; accent: string }) {
+  if (!indices || indices.length === 0) return <>{text}</>;
+  const set = new Set(indices);
+  return (
+    <>
+      {text.split('').map((ch, i) => set.has(i)
+        ? <b key={i} style={{ color: accent, fontWeight: 700 }}>{ch}</b>
+        : <React.Fragment key={i}>{ch}</React.Fragment>)}
+    </>
+  );
+}
+
 /* ---------- Cliente del backend NEX AI (Vercel Serverless Functions en /api) ----------
    Antes esta función llamaba directo a https://api.groq.com desde el navegador,
    lo que exponía la API key en el cliente. Ahora habla con funciones serverless
@@ -333,14 +373,42 @@ export default function NexCode() {
   const [customThemes, setCustomThemes] = useState<Record<string, any>>({});
   const allThemes: Record<string, any> = { ...BUILTIN_THEMES, ...customThemes };
   const p = allThemes[themeName] || BUILTIN_THEMES['NEX Dark+ (default)'];
+  const themeNames = useMemo(() => Object.keys(allThemes), [allThemes]);
 
-  // Command palette / theme picker
+  const cycleTheme = (dir: 1 | -1) => {
+    const idx = themeNames.indexOf(themeName);
+    const next = (idx + dir + themeNames.length) % themeNames.length;
+    setThemeName(themeNames[next]);
+  };
+
+  // Command palette / theme picker / quick open
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [paletteMode, setPaletteMode] = useState('commands'); // commands | themes | files
+  const [paletteMode, setPaletteMode] = useState('commands'); // commands | themes | files | themeImport | groqStatus | groqModel
   const [paletteQuery, setPaletteQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [recentCommandIds, setRecentCommandIds] = useState<string[]>([]);
   const [themeJsonInput, setThemeJsonInput] = useState('');
   const [themeImportError, setThemeImportError] = useState('');
+  const [themeImportMode, setThemeImportMode] = useState<'json' | 'ai'>('json');
+  const [themeGenPrompt, setThemeGenPrompt] = useState('');
+  const [themeGenLoading, setThemeGenLoading] = useState(false);
+  const [themeGenError, setThemeGenError] = useState('');
+  const [themeGenPreviewName, setThemeGenPreviewName] = useState<string | null>(null);
+  const themeBeforeGenRef = useRef<string>('NEX Dark+ (default)');
   const [settingsTabOpen, setSettingsTabOpen] = useState(false);
+  const paletteListRef = useRef<HTMLDivElement>(null);
+
+  // Edición inline con IA (estilo Cmd+K): seleccionás código, escribís una
+  // instrucción y NEX AI reescribe ese fragmento ahí mismo, con preview
+  // antes de aplicar.
+  const [inlineEdit, setInlineEdit] = useState<{
+    open: boolean; instruction: string; loading: boolean; error: string;
+    original: string; result: string; selStart: number; selEnd: number;
+  }>({ open: false, instruction: '', loading: false, error: '', original: '', result: '', selStart: 0, selEnd: 0 });
+
+  const openPalette = (mode: string, query = '') => {
+    setPaletteMode(mode); setPaletteQuery(query); setSelectedIndex(0); setPaletteOpen(true);
+  };
 
   // Backend NEX AI (Vercel Serverless Functions en /api) — ya no se pide ni se guarda la API key en el cliente.
   const [groqModel, setGroqModel] = useState('llama-3.3-70b-versatile');
@@ -379,7 +447,11 @@ export default function NexCode() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
-        e.preventDefault(); setPaletteMode('commands'); setPaletteQuery(''); setPaletteOpen(true);
+        e.preventDefault(); openPalette('commands');
+      } else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault(); openPalette('files');
+      } else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'k' && document.activeElement === editorRef.current) {
+        e.preventDefault(); openInlineEdit();
       } else if (e.key === 'Escape' && paletteOpen) {
         setPaletteOpen(false);
       } else if (e.ctrlKey && e.key.toLowerCase() === '`') {
@@ -388,7 +460,7 @@ export default function NexCode() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [paletteOpen]);
+  }, [paletteOpen, file]);
 
   useEffect(() => { if (termRef.current) termRef.current.scrollTop = termRef.current.scrollHeight; }, [terminalLines]);
   useEffect(() => { if (chatBoxRef.current) chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight; }, [chatMessages, chatLoading]);
@@ -493,6 +565,7 @@ export default function NexCode() {
   };
 
   const pushTerm = (lines: string[]) => setTerminalLines(prev => [...prev, ...lines]);
+  const clearTerminal = () => { setTerminalLines([]); };
   const handleTermInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter') return;
     const cmd = termInput.trim();
@@ -506,7 +579,7 @@ export default function NexCode() {
       pushTerm(['']);
       setTimeout(() => pushTerm(['added 142 packages in 2.1s', '', 'found 0 vulnerabilities']), 900);
     } else if (cmd === 'cls' || cmd === 'clear') {
-      setTerminalLines([]);
+      clearTerminal();
     } else if (cmd === 'dir' || cmd === 'ls') {
       pushTerm(Object.keys(files).map(f => `    ${f}`));
     } else if (cmd.startsWith('cat ') || cmd.startsWith('type ')) {
@@ -518,19 +591,19 @@ export default function NexCode() {
     }
   };
 
-  const sendChat = async () => {
-    const text = chatInput.trim();
-    if (!text) return;
+  const sendChatMessage = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
     if (!backendStatus.online) {
-      setChatMessages(p2 => [...p2, { role: 'user', content: text }, { role: 'assistant', content: '⚠️ No puedo conectarme a las funciones serverless (/api). Si estás en local corré "vercel dev"; si está desplegado, revisá los logs de la función en el dashboard de Vercel.' }]);
-      setChatInput(''); return;
+      setChatMessages(p2 => [...p2, { role: 'user', content: trimmed }, { role: 'assistant', content: '⚠️ No puedo conectarme a las funciones serverless (/api). Si estás en local corré "vercel dev"; si está desplegado, revisá los logs de la función en el dashboard de Vercel.' }]);
+      return;
     }
     if (!backendStatus.groqConfigured) {
-      setChatMessages(p2 => [...p2, { role: 'user', content: text }, { role: 'assistant', content: '⚠️ Las funciones están arriba pero falta GROQ_API_KEY en las variables de entorno de Vercel.' }]);
-      setChatInput(''); return;
+      setChatMessages(p2 => [...p2, { role: 'user', content: trimmed }, { role: 'assistant', content: '⚠️ Las funciones están arriba pero falta GROQ_API_KEY en las variables de entorno de Vercel.' }]);
+      return;
     }
-    const newMsgs = [...chatMessages, { role: 'user', content: text }];
-    setChatMessages(newMsgs); setChatInput(''); setChatLoading(true);
+    const newMsgs = [...chatMessages, { role: 'user', content: trimmed }];
+    setChatMessages(newMsgs); setChatLoading(true);
     try {
       const sysMsg = { role: 'system', content: `Sos NEX AI, asistente integrado de NEX CODE. Archivo activo: "${activeFile}" (${file?.language}).\n\n${file?.content?.slice(0, 4000)}\n\nRespondé en español, conciso, con bloques de código si corresponde.` };
       const reply = await callNexAI([sysMsg, ...newMsgs.slice(-10)], { model: groqModel, maxTokens: 800 });
@@ -538,6 +611,104 @@ export default function NexCode() {
     } catch (err: any) {
       setChatMessages(p2 => [...p2, { role: 'assistant', content: `❌ Error: ${err.message}` }]);
     } finally { setChatLoading(false); }
+  };
+
+  const sendChat = () => {
+    const text = chatInput;
+    setChatInput('');
+    sendChatMessage(text);
+  };
+
+  /* ---- "Preguntale a NEX AI" desde la paleta de comandos (fallback cuando no hay match) ---- */
+  const askNexAIFromPalette = (text: string) => {
+    setAiPanelOpen(true);
+    setPaletteOpen(false);
+    sendChatMessage(text);
+  };
+
+  /* ---- Explicar un error de la terminal con un click ---- */
+  const explainTerminalError = (line: string) => {
+    setAiPanelOpen(true);
+    sendChatMessage(`Explicá este error de la terminal y sugerí cómo solucionarlo. Archivo activo: "${activeFile}".\n\n${line}`);
+  };
+
+  /* ---- Edición inline con IA (estilo Cmd+K) ---- */
+  const openInlineEdit = () => {
+    const ta = editorRef.current;
+    if (!ta || !file) return;
+    let s = ta.selectionStart, en = ta.selectionEnd;
+    if (s === en) { s = 0; en = file.content.length; } // sin selección: usa todo el archivo
+    setInlineEdit({ open: true, instruction: '', loading: false, error: '', original: file.content.slice(s, en), result: '', selStart: s, selEnd: en });
+  };
+
+  const submitInlineEdit = async () => {
+    if (!inlineEdit.instruction.trim() || inlineEdit.loading) return;
+    if (!backendStatus.online || !backendStatus.groqConfigured) {
+      setInlineEdit(s => ({ ...s, error: 'El backend de NEX AI no está disponible (revisá /api en Vercel y GROQ_API_KEY).' }));
+      return;
+    }
+    setInlineEdit(s => ({ ...s, loading: true, error: '' }));
+    try {
+      const reply = await callNexAI([
+        { role: 'system', content: 'Sos un editor de código integrado en NEX CODE. Te dan un fragmento de código y una instrucción en español. Devolvé SOLO el fragmento completo reescrito según la instrucción, sin explicaciones, sin comentarios extra, sin marcas de markdown ni comillas de bloque.' },
+        { role: 'user', content: `LENGUAJE: ${file?.language}\nINSTRUCCIÓN: ${inlineEdit.instruction}\n--- CÓDIGO ---\n${inlineEdit.original}` },
+      ], { model: groqModel, maxTokens: 1200 });
+      setInlineEdit(s => ({ ...s, loading: false, result: reply.replace(/```[\w]*\n?|```/g, '').trim() }));
+    } catch (err: any) {
+      setInlineEdit(s => ({ ...s, loading: false, error: err.message }));
+    }
+  };
+
+  const acceptInlineEdit = () => {
+    if (!inlineEdit.result || !file) return;
+    const newContent = file.content.slice(0, inlineEdit.selStart) + inlineEdit.result + file.content.slice(inlineEdit.selEnd);
+    setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: newContent } }));
+    setDirty(d => ({ ...d, [activeFile]: true }));
+    setInlineEdit({ open: false, instruction: '', loading: false, error: '', original: '', result: '', selStart: 0, selEnd: 0 });
+  };
+
+  const discardInlineEdit = () => {
+    setInlineEdit({ open: false, instruction: '', loading: false, error: '', original: '', result: '', selStart: 0, selEnd: 0 });
+  };
+
+  /* ---- Generar un tema completo a partir de una descripción en lenguaje natural ---- */
+  const generateThemeFromPrompt = async () => {
+    if (!themeGenPrompt.trim() || themeGenLoading) return;
+    if (!backendStatus.online || !backendStatus.groqConfigured) {
+      setThemeGenError('El backend de NEX AI no está disponible (revisá /api en Vercel y GROQ_API_KEY).');
+      return;
+    }
+    setThemeGenLoading(true); setThemeGenError('');
+    if (!themeGenPreviewName) themeBeforeGenRef.current = themeName;
+    const keys = 'bg,bgAlt,sidebar,activitybar,titlebar,border,text,textDim,accent,accentHover,accentText,selection,lineHL,statusbar,tabActiveBorder,scrollbar,kw,str,com,fn,num,type,prop,tag,bracket';
+    try {
+      const reply = await callNexAI([
+        { role: 'system', content: `Sos un generador de paletas de colores para un editor de código tipo VS Code. Respondé SOLO con un objeto JSON plano (sin texto adicional, sin markdown) con exactamente estas claves: ${keys}. Todas deben ser colores hexadecimales "#rrggbb", excepto selection, lineHL y scrollbar que deben ser "rgba(r,g,b,a)" con alpha bajo (0.15 a 0.5). El tema tiene que tener buen contraste entre bg y text, y estar inspirado fielmente en la descripción que te da el usuario.` },
+        { role: 'user', content: themeGenPrompt },
+      ], { model: groqModel, maxTokens: 700 });
+      const cleaned = reply.replace(/```json\n?|```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      const baseName = themeGenPreviewName || `IA: ${themeGenPrompt.slice(0, 28)}${themeGenPrompt.length > 28 ? '…' : ''}`;
+      setCustomThemes(t => {
+        const next = { ...t };
+        if (themeGenPreviewName && themeGenPreviewName !== baseName) delete next[themeGenPreviewName];
+        next[baseName] = { ...BUILTIN_THEMES['NEX Dark+ (default)'], ...parsed };
+        return next;
+      });
+      setThemeName(baseName);
+      setThemeGenPreviewName(baseName);
+    } catch {
+      setThemeGenError('No se pudo generar el tema. Probá describirlo de otra forma o con menos detalle.');
+    } finally { setThemeGenLoading(false); }
+  };
+
+  const discardGeneratedTheme = () => {
+    if (themeGenPreviewName) {
+      setThemeName(themeBeforeGenRef.current);
+      setCustomThemes(t => { const c = { ...t }; delete c[themeGenPreviewName]; return c; });
+      setThemeGenPreviewName(null);
+    }
+    setThemeGenError(''); setThemeGenPrompt('');
   };
 
   const explainSelection = async () => {
@@ -573,16 +744,25 @@ export default function NexCode() {
 
   /* ---- comandos de la paleta ---- */
   const commands = useMemo(() => ([
-    { id: 'theme', label: 'Preferencias: Cambiar tema de color', action: () => { setPaletteMode('themes'); setPaletteQuery(''); } },
-    { id: 'theme-import', label: 'NEX CODE: Importar tema desde vscodethemes.com', action: () => { setPaletteMode('themeImport'); } },
-    { id: 'groq-status', label: 'NEX AI: Ver estado de las funciones (/api en Vercel)', action: () => { setPaletteMode('groqStatus'); } },
-    { id: 'groq-model', label: 'NEX AI: Elegir modelo de Groq', action: () => { setPaletteMode('groqModel'); } },
-    { id: 'toggle-terminal', label: 'Ver: Alternar terminal integrada', action: () => setTerminalOpen(t => !t) },
-    { id: 'toggle-ai', label: 'Ver: Alternar panel NEX AI', action: () => setAiPanelOpen(o => !o) },
-    { id: 'toggle-preview', label: 'NEX CODE: Alternar vista previa', action: () => setPreviewOpen(v => !v) },
-    { id: 'save', label: 'Archivo: Guardar (Ctrl+S)', action: saveFile },
-    { id: 'settings', label: 'Preferencias: Abrir configuración', action: () => { setSettingsTabOpen(true); setPaletteOpen(false); } },
-  ]), []);
+    { id: 'quick-open', label: 'Archivo: Abrir rápido', keybind: 'Ctrl+P', action: () => openPalette('files') },
+    { id: 'theme', label: 'Preferencias: Cambiar tema de color', keybind: '', action: () => openPalette('themes') },
+    { id: 'theme-next', label: 'Preferencias: Tema siguiente', keybind: '', action: () => cycleTheme(1) },
+    { id: 'theme-prev', label: 'Preferencias: Tema anterior', keybind: '', action: () => cycleTheme(-1) },
+    { id: 'theme-import', label: 'NEX CODE: Importar tema desde vscodethemes.com', keybind: '', action: () => { setThemeImportMode('json'); openPalette('themeImport'); } },
+    { id: 'theme-generate-ai', label: 'NEX AI: Generar tema a partir de una descripción', keybind: '', action: () => { setThemeImportMode('ai'); openPalette('themeImport'); } },
+    { id: 'groq-status', label: 'NEX AI: Ver estado de las funciones (/api en Vercel)', keybind: '', action: () => openPalette('groqStatus') },
+    { id: 'groq-model', label: 'NEX AI: Elegir modelo de Groq', keybind: '', action: () => openPalette('groqModel') },
+    { id: 'toggle-terminal', label: 'Ver: Alternar terminal integrada', keybind: 'Ctrl+`', action: () => setTerminalOpen(t => !t) },
+    { id: 'clear-terminal', label: 'Terminal: Limpiar', keybind: '', action: clearTerminal },
+    { id: 'toggle-ai', label: 'Ver: Alternar panel NEX AI', keybind: '', action: () => setAiPanelOpen(o => !o) },
+    { id: 'toggle-preview', label: 'NEX CODE: Alternar vista previa', keybind: '', action: () => setPreviewOpen(v => !v) },
+    { id: 'save', label: 'Archivo: Guardar', keybind: 'Ctrl+S', action: saveFile },
+    { id: 'explorer-view', label: 'Ver: Mostrar explorador', keybind: '', action: () => setActivityView('explorer') },
+    { id: 'search-view', label: 'Ver: Mostrar búsqueda', keybind: '', action: () => setActivityView('search') },
+    { id: 'git-view', label: 'Ver: Mostrar control de código', keybind: '', action: () => setActivityView('git') },
+    { id: 'settings', label: 'Preferencias: Abrir configuración', keybind: '', action: () => { setSettingsTabOpen(true); setPaletteOpen(false); } },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ]), [themeNames, themeName]);
 
   const ext = activeFile.split('.').pop() || '';
 
@@ -620,13 +800,74 @@ export default function NexCode() {
     );
   });
 
+  /* ---------- listas filtradas con fuzzy match para la paleta ---------- */
   const commandsFiltered = useMemo(() => {
-    return commands.filter(c => c.label.toLowerCase().includes(paletteQuery.toLowerCase()));
-  }, [commands, paletteQuery]);
+    const ranked = commands
+      .map(c => ({ c, m: fuzzyMatch(paletteQuery, c.label) }))
+      .filter(x => x.m) as { c: typeof commands[number]; m: { score: number; indices: number[] } }[];
+    if (!paletteQuery) {
+      // sin query: comandos recientes primero, después el resto en orden original
+      ranked.sort((a, b) => {
+        const ra = recentCommandIds.indexOf(a.c.id), rb = recentCommandIds.indexOf(b.c.id);
+        if (ra === -1 && rb === -1) return 0;
+        if (ra === -1) return 1;
+        if (rb === -1) return -1;
+        return ra - rb;
+      });
+    } else {
+      ranked.sort((a, b) => a.m.score - b.m.score);
+    }
+    return ranked;
+  }, [commands, paletteQuery, recentCommandIds]);
 
   const themesFiltered = useMemo(() => {
-    return Object.keys(allThemes).filter(t => t.toLowerCase().includes(paletteQuery.toLowerCase()));
+    return Object.keys(allThemes)
+      .map(name => ({ name, m: fuzzyMatch(paletteQuery, name) }))
+      .filter(x => x.m)
+      .sort((a, b) => (a.m as any).score - (b.m as any).score) as { name: string; m: { score: number; indices: number[] } }[];
   }, [allThemes, paletteQuery]);
+
+  const filesFiltered = useMemo(() => {
+    return Object.keys(files)
+      .map(path => ({ path, m: fuzzyMatch(paletteQuery, path) }))
+      .filter(x => x.m)
+      .sort((a, b) => (a.m as any).score - (b.m as any).score) as { path: string; m: { score: number; indices: number[] } }[];
+  }, [files, paletteQuery]);
+
+  // Cantidad de filas de la lista activa, para acotar la navegación con flechas.
+  const activeListLength = paletteMode === 'commands' ? commandsFiltered.length
+    : paletteMode === 'themes' ? themesFiltered.length
+    : paletteMode === 'files' ? filesFiltered.length : 0;
+
+  useEffect(() => { setSelectedIndex(0); }, [paletteQuery, paletteMode]);
+
+  useEffect(() => {
+    if (!paletteListRef.current) return;
+    const row = paletteListRef.current.querySelector<HTMLElement>(`[data-row-index="${selectedIndex}"]`);
+    row?.scrollIntoView({ block: 'nearest' });
+  }, [selectedIndex, paletteMode, paletteQuery]);
+
+  const runCommand = (c: typeof commands[number]) => {
+    setRecentCommandIds(r => [c.id, ...r.filter(id => id !== c.id)].slice(0, 6));
+    c.action();
+    if (!['theme', 'groq-status', 'groq-model', 'theme-import', 'quick-open'].includes(c.id)) setPaletteOpen(false);
+  };
+
+  const selectTheme = (name: string) => { setThemeName(name); setPaletteOpen(false); };
+  const selectFile = (path: string) => { openFile(path); setPaletteOpen(false); };
+
+  const confirmSelection = () => {
+    if (paletteMode === 'commands' && commandsFiltered[selectedIndex]) runCommand(commandsFiltered[selectedIndex].c);
+    else if (paletteMode === 'themes' && themesFiltered[selectedIndex]) selectTheme(themesFiltered[selectedIndex].name);
+    else if (paletteMode === 'files' && filesFiltered[selectedIndex]) selectFile(filesFiltered[selectedIndex].path);
+  };
+
+  const onPaletteInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(i => Math.min(i + 1, Math.max(activeListLength - 1, 0))); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(i => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter') { e.preventDefault(); confirmSelection(); }
+    else if (e.key === 'Escape') { e.preventDefault(); setPaletteOpen(false); }
+  };
 
   const tokenized = useMemo(() => file ? tokenize(file.content, file.language, p) : [], [file?.content, file?.language, p]);
 
@@ -660,11 +901,11 @@ export default function NexCode() {
           <div key={item} style={{ padding: '5px 9px', color: p.textDim, cursor: 'pointer', borderRadius: 3 }}
             onMouseEnter={e => e.currentTarget.style.background = p.selection}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            onClick={() => { if (item === 'Ver') { setPaletteMode('commands'); setPaletteOpen(true); } }}
+            onClick={() => { if (item === 'Ver') openPalette('commands'); else if (item === 'Archivo') openPalette('files'); }}
           >{item}</div>
         ))}
         <div style={{ flex: 1 }} />
-        <div onClick={() => { setPaletteMode('commands'); setPaletteQuery(''); setPaletteOpen(true); }}
+        <div onClick={() => openPalette('commands')}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: p.bgAlt, border: `1px solid ${p.border}`, borderRadius: 4, padding: '2px 10px', margin: '0 10px', fontSize: 11.5, color: p.textDim, cursor: 'pointer', minWidth: 280, justifyContent: 'space-between' }}>
           <span>nex-code-app</span><span>Ctrl+Shift+P</span>
         </div>
@@ -689,7 +930,7 @@ export default function NexCode() {
             </button>
           ))}
           <div style={{ flex: 1 }} />
-          <button onClick={() => { setPaletteMode('groqStatus'); setPaletteOpen(true); }} title="Estado del backend NEX AI"
+          <button onClick={() => openPalette('groqStatus')} title="Estado del backend NEX AI"
             style={{ width: 48, height: 42, background: 'transparent', border: 'none', cursor: 'pointer', color: backendStatus.online && backendStatus.groqConfigured ? '#4ec9b0' : p.textDim, fontSize: 18 }}>⚙</button>
         </div>
 
@@ -866,12 +1107,23 @@ export default function NexCode() {
                   <span key={id} onClick={() => setTerminalTab(id)} style={{ fontSize: 11, letterSpacing: 0.4, cursor: 'pointer', color: terminalTab === id ? p.text : p.textDim, borderBottom: terminalTab === id ? `1px solid ${p.text}` : 'none', paddingBottom: 8 }}>{label}</span>
                 ))}
                 <div style={{ flex: 1 }} />
-                <button onClick={() => setTerminalLines([])} style={{ background: 'transparent', border: 'none', color: p.textDim, cursor: 'pointer', fontSize: 13 }} title="Limpiar">🗑</button>
+                <button onClick={clearTerminal} style={{ background: 'transparent', border: 'none', color: p.textDim, cursor: 'pointer', fontSize: 13 }} title="Limpiar">🗑</button>
                 <button onClick={() => setTerminalOpen(false)} style={{ background: 'transparent', border: 'none', color: p.textDim, cursor: 'pointer' }}>✕</button>
               </div>
               {terminalTab === 'terminal' ? (
                 <div ref={termRef} className="nex-scroll" style={{ flex: 1, overflowY: 'auto', padding: '8px 14px', fontSize: 13, fontFamily: "'Cascadia Code',Consolas,monospace", lineHeight: 1.5 }}>
-                  {terminalLines.map((l, i) => <div key={i} style={{ whiteSpace: 'pre-wrap', color: l.includes('vulnerabilit') ? '#4ec9b0' : p.text }}>{l}</div>)}
+                  {terminalLines.map((l, i) => {
+                    const isErr = isErrorLine(l);
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                        <span style={{ flex: 1, whiteSpace: 'pre-wrap', color: l.includes('vulnerabilit') ? '#4ec9b0' : (isErr ? '#f44747' : p.text) }}>{l}</span>
+                        {isErr && (
+                          <button onClick={() => explainTerminalError(l)} title="Explicar con NEX AI"
+                            style={{ background: 'transparent', border: `1px solid ${p.border}`, borderRadius: 3, color: p.accent, cursor: 'pointer', fontSize: 11, padding: '0 6px', flexShrink: 0, whiteSpace: 'nowrap' }}>✨ Explicar</button>
+                        )}
+                      </div>
+                    );
+                  })}
                   <div style={{ display: 'flex', alignItems: 'center' }}>
                     <span style={{ color: p.accent }}>PS C:\nex-code-app&gt;</span>
                     <input value={termInput} onChange={e => setTermInput(e.target.value)} onKeyDown={handleTermInput}
@@ -898,38 +1150,85 @@ export default function NexCode() {
           <span>Espacios: 2</span>
           <span>UTF-8</span>
           <span>{LANG_META[ext]?.label || 'Texto'}</span>
-          <span onClick={() => { setPaletteMode('themes'); setPaletteOpen(true); }} style={{ cursor: 'pointer' }}>🎨 {themeName}</span>
-          <span onClick={() => { setPaletteMode('groqStatus'); setPaletteOpen(true); }} style={{ cursor: 'pointer' }}>
+          <span onClick={() => openPalette('themes')} style={{ cursor: 'pointer' }}>🎨 {themeName}</span>
+          <span onClick={() => openPalette('groqStatus')} style={{ cursor: 'pointer' }}>
             {backendStatus.online && backendStatus.groqConfigured ? `Groq ✓ ${groqModel}` : backendStatus.online ? 'Backend ✓ / sin key' : 'Backend desconectado'}
           </span>
         </div>
       </div>
 
-      {/* ---------- Command palette ---------- */}
+      {/* ---------- Command palette / Quick Open / Theme picker ---------- */}
       {paletteOpen && (
         <div onClick={() => setPaletteOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', paddingTop: 90 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: 560, maxHeight: 420, background: p.sidebar, border: `1px solid ${p.border}`, borderRadius: 6, boxShadow: '0 8px 30px rgba(0,0,0,0.5)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            {(paletteMode === 'commands' || paletteMode === 'themes') && (
+            {(paletteMode === 'commands' || paletteMode === 'themes' || paletteMode === 'files') && (
               <>
-                <input autoFocus value={paletteQuery} onChange={e => setPaletteQuery(e.target.value)}
-                  placeholder={paletteMode === 'commands' ? '> Escribí un comando...' : 'Seleccioná un tema...'}
+                <input
+                  autoFocus
+                  value={paletteQuery}
+                  onChange={e => setPaletteQuery(e.target.value)}
+                  onKeyDown={onPaletteInputKeyDown}
+                  placeholder={paletteMode === 'commands' ? '> Escribí un comando...' : paletteMode === 'files' ? 'Escribí el nombre de un archivo...' : 'Seleccioná un tema...'}
                   style={{ padding: '12px 14px', background: 'transparent', border: 'none', borderBottom: `1px solid ${p.border}`, color: p.text, fontSize: 14, outline: 'none' }} />
-                <div className="nex-scroll" style={{ overflowY: 'auto', maxHeight: 340 }}>
-                  {paletteMode === 'commands' && commandsFiltered.map((c: any) => (
-                    <div key={c.id} onClick={() => { c.action(); if (c.id !== 'theme' && c.id !== 'groq-status' && c.id !== 'groq-model' && c.id !== 'theme-import') setPaletteOpen(false); }}
-                      style={{ padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
-                      onMouseEnter={e => e.currentTarget.style.background = p.selection} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      {c.label}
+                <div ref={paletteListRef} className="nex-scroll" style={{ overflowY: 'auto', maxHeight: 340 }}>
+                  {paletteMode === 'commands' && commandsFiltered.length === 0 && (
+                    <div style={{ padding: '14px', fontSize: 12.5, color: p.textDim }}>Ningún comando coincide.</div>
+                  )}
+                  {paletteMode === 'commands' && commandsFiltered.map(({ c, m }, i) => (
+                    <div key={c.id} data-row-index={i}
+                      onClick={() => runCommand(c)}
+                      onMouseEnter={() => setSelectedIndex(i)}
+                      style={{
+                        padding: '8px 14px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                        background: i === selectedIndex ? p.selection : 'transparent',
+                      }}>
+                      <span style={{ flex: 1, color: p.text }}>
+                        <HighlightedLabel text={c.label} indices={m.indices} accent={p.accent} />
+                      </span>
+                      {!paletteQuery && recentCommandIds.includes(c.id) && (
+                        <span style={{ fontSize: 10, color: p.textDim, border: `1px solid ${p.border}`, borderRadius: 3, padding: '1px 5px' }}>reciente</span>
+                      )}
+                      {c.keybind && <span style={{ fontSize: 11, color: p.textDim }}>{c.keybind}</span>}
                     </div>
                   ))}
-                  {paletteMode === 'themes' && themesFiltered.map((name: string) => (
-                    <div key={name} onClick={() => { setThemeName(name); setPaletteOpen(false); }}
-                      style={{ padding: '8px 14px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, background: themeName === name ? p.selection : 'transparent' }}
-                      onMouseEnter={e => e.currentTarget.style.background = p.selection} onMouseLeave={e => e.currentTarget.style.background = themeName === name ? p.selection : 'transparent'}>
-                      <span style={{ width: 14, height: 14, borderRadius: 3, background: allThemes[name].accent, border: `1px solid ${p.border}` }} />
-                      {name}
+                  {paletteMode === 'themes' && themesFiltered.length === 0 && (
+                    <div style={{ padding: '14px', fontSize: 12.5, color: p.textDim }}>Ningún tema coincide.</div>
+                  )}
+                  {paletteMode === 'themes' && themesFiltered.map(({ name, m }, i) => (
+                    <div key={name} data-row-index={i}
+                      onClick={() => selectTheme(name)}
+                      onMouseEnter={() => setSelectedIndex(i)}
+                      style={{ padding: '8px 14px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, background: i === selectedIndex ? p.selection : (themeName === name ? p.lineHL : 'transparent') }}>
+                      <span style={{ width: 14, height: 14, borderRadius: 3, background: allThemes[name].accent, border: `1px solid ${p.border}`, flexShrink: 0 }} />
+                      <span style={{ flex: 1 }}><HighlightedLabel text={name} indices={m.indices} accent={p.accent} /></span>
+                      {themeName === name && <span style={{ fontSize: 11, color: p.textDim }}>✓ actual</span>}
                     </div>
                   ))}
+                  {paletteMode === 'files' && filesFiltered.length === 0 && (
+                    <div style={{ padding: '14px', fontSize: 12.5, color: p.textDim }}>Ningún archivo coincide.</div>
+                  )}
+                  {paletteMode === 'files' && filesFiltered.map(({ path, m }, i) => {
+                    const fext = path.split('.').pop() || '';
+                    const fname = path.split('/').pop() || path;
+                    const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+                    return (
+                      <div key={path} data-row-index={i}
+                        onClick={() => selectFile(path)}
+                        onMouseEnter={() => setSelectedIndex(i)}
+                        style={{ padding: '8px 14px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, background: i === selectedIndex ? p.selection : 'transparent' }}>
+                        <FileIcon ext={fext} />
+                        <span style={{ flex: 1 }}>
+                          <HighlightedLabel text={fname} indices={m.indices.filter(ix => ix >= path.length - fname.length).map(ix => ix - (path.length - fname.length))} accent={p.accent} />
+                          {dir && <span style={{ color: p.textDim, marginLeft: 8, fontSize: 11.5 }}>{dir}</span>}
+                        </span>
+                        {dirty[path] && <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.text, opacity: 0.7 }} />}
+                        {openFiles.includes(path) && <span style={{ fontSize: 10, color: p.textDim, border: `1px solid ${p.border}`, borderRadius: 3, padding: '1px 5px' }}>abierto</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ borderTop: `1px solid ${p.border}`, padding: '6px 14px', fontSize: 11, color: p.textDim, display: 'flex', gap: 14 }}>
+                  <span>↑↓ navegar</span><span>Enter abrir/ejecutar</span><span>Esc cerrar</span>
                 </div>
               </>
             )}

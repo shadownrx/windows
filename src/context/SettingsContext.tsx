@@ -107,7 +107,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Fallback: migrate old settings to a default user
     return [{
       id: 'default',
-      name: localStorage.getItem('win11_userName') || 'Martín',
+      name: localStorage.getItem('win11_userName') || 'Usuario',
       avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=300&auto=format&fit=crop',
       pin: '',
       settings: {

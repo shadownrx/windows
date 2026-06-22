@@ -62,8 +62,9 @@ const REGISTRY: Record<string, AnyLazy> = {
   'media-player': MediaPlayer,
   'image-viewer': ImageViewer,
   'photos': Photos,
+  'nexreproductor': SpotifyMini,
   'spotify': SpotifyMini,
-  'vscode': VsCode,
+  'Nex Code': VsCode,
 };
 
 const Fallback = () => (

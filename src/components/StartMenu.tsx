@@ -60,7 +60,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
     { id: 'manual', appId: 'manual', icon: <Book24Regular />, name: 'Manual', color: '#3b82f6' },
     { id: 'clock', appId: 'clock', icon: <span style={{ fontSize: 20 }}>🕐</span>, name: 'Reloj', color: '#60cdff' },
     { id: 'photos', appId: 'photos', icon: <span style={{ fontSize: 20 }}>📷</span>, name: 'Fotos', color: '#ff6b6b' },
-    { id: 'spotify', appId: 'spotify', icon: <span style={{ fontSize: 20 }}>🎵</span>, name: 'Spotify', color: '#1db954' },
+    { id: 'nexreproductor', appId: 'nexreproductor', icon: <span style={{ fontSize: 20 }}>🎵</span>, name: 'NexReproductor', color: '#1db954' },
   ];
 
 

@@ -50,16 +50,17 @@ const INITIAL_FILES: FileItem[] = [
   { id: 'nex-notepad',     name: 'notepad',     type: 'file', ext: 'nex', size: '12 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'notepad',      title: 'Notepad' } },
   { id: 'nex-cmd',         name: 'cmd',         type: 'file', ext: 'nex', size: '28 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'cmd',          title: 'Terminal' } },
   { id: 'nex-browser',     name: 'browser',     type: 'file', ext: 'nex', size: '54 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'chrome',       title: 'Navegador' } },
-  { id: 'nex-vscode',      name: 'vscode',      type: 'file', ext: 'nex', size: '89 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'vscode',       title: 'Visual Studio Code' } },
+  { id: 'nex-code',      name: 'vscode',      type: 'file', ext: 'nex', size: '89 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'vscode',       title: 'Visual Studio Code' } },
   { id: 'nex-explorer',    name: 'explorer',    type: 'file', ext: 'nex', size: '36 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'file-explorer', title: 'Explorador de archivos' } },
   { id: 'nex-paint',       name: 'paint',       type: 'file', ext: 'nex', size: '41 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'paint',        title: 'Paint' } },
   { id: 'nex-calc',        name: 'calc',        type: 'file', ext: 'nex', size: '8 KB',   modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'calculator',   title: 'Calculadora' } },
   { id: 'nex-taskmanager', name: 'taskmanager', type: 'file', ext: 'nex', size: '22 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'taskmanager',  title: 'Administrador de tareas' } },
-  { id: 'nex-spotify',     name: 'spotify',     type: 'file', ext: 'nex', size: '67 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'spotify',      title: 'Spotify' } },
+  { id: 'nex-nexreproductor',     name: 'nexreproductor',     type: 'file', ext: 'nex', size: '67 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'nexreproductor',      title: 'NexReproductor' } },
   { id: 'nex-settings',    name: 'settings',    type: 'file', ext: 'nex', size: '18 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'settings',     title: 'Configuración' } },
   { id: 'nex-wordpad',     name: 'wordpad',     type: 'file', ext: 'nex', size: '31 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'wordpad',      title: 'WordPad' } },
   { id: 'nex-defender',    name: 'defender',    type: 'file', ext: 'nex', size: '44 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'defender',     title: 'Seguridad de Windows' } },
   { id: 'nex-mediaplayer', name: 'mediaplayer', type: 'file', ext: 'nex', size: '29 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'mediaplayer',  title: 'Reproductor multimedia' } },
+  { id: 'nex-spotify',     name: 'spotify',     type: 'file', ext: 'nex', size: '35 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'spotify',      title: 'Spotify' } },
   { id: 'nex-devcpp',      name: 'devcpp',      type: 'file', ext: 'nex', size: '73 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'devcpp-2026',  title: 'Dev-C++ 2026' } },
   { id: 'nex-terminal',    name: 'terminal',    type: 'file', ext: 'nex', size: '28 KB',  modified: '10/01/2026', parentId: 'pf-nex', nexPayload: { appId: 'terminal',     title: 'Terminal' } },
 ];
@@ -67,7 +68,17 @@ const INITIAL_FILES: FileItem[] = [
 export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [files, setFiles] = useState<FileItem[]>(() => {
     const saved = localStorage.getItem('win11_fs');
-    return saved ? JSON.parse(saved) : INITIAL_FILES;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Check if it has spotify.nex
+        const hasSpotify = parsed.some((f: FileItem) => f.name === 'spotify' && f.ext === 'nex');
+        return hasSpotify ? parsed : INITIAL_FILES;
+      } catch (e) {
+        return INITIAL_FILES;
+      }
+    }
+    return INITIAL_FILES;
   });
 
   useEffect(() => {

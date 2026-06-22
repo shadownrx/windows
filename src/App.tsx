@@ -102,21 +102,24 @@ import { FileSystemProvider } from './context/FileSystemContext';
 import { DesktopProvider } from './context/DesktopContext';
 import { UIProvider } from './context/UIContext';
 import { NexRuntimeProvider } from './context/NexRuntimeContext';
+import { MusicPlayerProvider } from './context/MusicPlayerContext';
 
 function App() {
   return (
     <SettingsProvider>
-      <FileSystemProvider>
-        <NexRuntimeProvider>
-          <DesktopProvider>
-            <UIProvider>
-              <WindowManagerProvider>
-                <AppContent />
-              </WindowManagerProvider>
-            </UIProvider>
-          </DesktopProvider>
-        </NexRuntimeProvider>
-      </FileSystemProvider>
+      <MusicPlayerProvider>
+        <FileSystemProvider>
+          <NexRuntimeProvider>
+            <DesktopProvider>
+              <UIProvider>
+                <WindowManagerProvider>
+                  <AppContent />
+                </WindowManagerProvider>
+              </UIProvider>
+            </DesktopProvider>
+          </NexRuntimeProvider>
+        </FileSystemProvider>
+      </MusicPlayerProvider>
     </SettingsProvider>
   );
 }

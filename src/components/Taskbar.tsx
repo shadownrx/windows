@@ -7,12 +7,17 @@ import {
   Calendar24Regular,
   WifiWarning24Regular,
   SpeakerMute24Regular,
+  Play24Filled,
+  Pause24Filled,
+  Previous24Filled,
+  Next24Filled,
 } from '@fluentui/react-icons';
 import { useWindowManager } from '../context/WindowManager';
 import { useUI } from '../context/UIContext';
 import { useSettings } from '../context/SettingsContext';
 import { APPS, type AppItem } from '../constants/apps';
 import ContextMenu, { type ContextMenuOption } from './ContextMenu';
+import { useMusicPlayer } from '../context/MusicPlayerContext';
 
 interface TaskbarProps {
   onStartClick: () => void;
@@ -28,7 +33,7 @@ interface TaskbarProps {
 const Taskbar: React.FC<TaskbarProps> = ({ 
   onStartClick, 
   isStartOpen, 
-  onNotificationsClick, 
+  onNotificationsClick,
   onClockClick,
   isNotificationsOpen,
   onShutdown,
@@ -38,6 +43,7 @@ const Taskbar: React.FC<TaskbarProps> = ({
   const { openWindow, windows, minimizeWindow, focusedWindowId, minimizeAllWindows, restoreWindow } = useWindowManager();
   const { isWidgetsOpen, toggleWidgets } = useUI();
   const { isWifiEnabled, volume, isTaskViewOpen, setIsTaskViewOpen, notifications } = useSettings();
+  const { currentTrack, isPlaying, togglePlay, nextTrack, prevTrack, isGlobalMiniPlayerVisible, toggleGlobalMiniPlayer } = useMusicPlayer();
   const [startContextMenu, setStartContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
   const [taskbarContextMenu, setTaskbarContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
   const [time, setTime] = React.useState(new Date());
@@ -84,6 +90,29 @@ const Taskbar: React.FC<TaskbarProps> = ({
 
   return (
     <>
+      {/* Global Miniplayer */}
+      {isGlobalMiniPlayerVisible && currentTrack && (
+        <div className="global-miniplayer">
+          <img src={currentTrack.cover} alt="" className="global-miniplayer-cover" />
+          <div className="global-miniplayer-info">
+            <div className="global-miniplayer-title">{currentTrack.title}</div>
+            <div className="global-miniplayer-artist">{currentTrack.artist}</div>
+          </div>
+          <div className="global-miniplayer-controls">
+            <button onClick={prevTrack} className="global-miniplayer-btn">
+              <Previous24Filled />
+            </button>
+            <button onClick={togglePlay} className="global-miniplayer-play-btn">
+              {isPlaying ? <Pause24Filled /> : <Play24Filled />}
+            </button>
+            <button onClick={nextTrack} className="global-miniplayer-btn">
+              <Next24Filled />
+            </button>
+          </div>
+          <button onClick={toggleGlobalMiniPlayer} className="global-miniplayer-close">×</button>
+        </div>
+      )}
+
       <div 
         className={`taskbar-trigger-area ${isVisible ? 'expanded' : ''}`}
         onMouseEnter={() => setIsHovered(true)}
@@ -97,6 +126,17 @@ const Taskbar: React.FC<TaskbarProps> = ({
         >
           <Grid24Filled />
         </button>
+        
+        {/* Miniplayer Toggle Button */}
+        {currentTrack && (
+          <button 
+            className={`taskbar-icon ${isGlobalMiniPlayerVisible ? 'active' : ''}`}
+            onClick={(e) => { e.stopPropagation(); toggleGlobalMiniPlayer(); }}
+            title="NEX Player"
+          >
+            <Play24Filled />
+          </button>
+        )}
       </div>
 
       <div className="taskbar-center">
@@ -545,6 +585,124 @@ const Taskbar: React.FC<TaskbarProps> = ({
             height: 44px;
             min-height: 44px;
             min-width: 44px;
+          }
+        }
+
+        /* Global Miniplayer */
+        .global-miniplayer {
+          position: fixed;
+          bottom: 100px;
+          right: 30px;
+          width: 360px;
+          background: rgba(0, 0, 0, 0.85);
+          backdrop-filter: blur(40px);
+          border-radius: 16px;
+          padding: 16px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          z-index: 10001;
+          animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .global-miniplayer-cover {
+          width: 64px;
+          height: 64px;
+          border-radius: 12px;
+          object-fit: cover;
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .global-miniplayer-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .global-miniplayer-title {
+          font-size: 15px;
+          font-weight: 600;
+          color: white;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          margin: 0 0 4px;
+        }
+
+        .global-miniplayer-artist {
+          font-size: 13px;
+          color: rgba(255, 255, 255, 0.7);
+          margin: 0;
+        }
+
+        .global-miniplayer-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .global-miniplayer-btn {
+          background: transparent;
+          border: none;
+          color: white;
+          cursor: pointer;
+          padding: 8px;
+          border-radius: 8px;
+          transition: all 0.2s;
+        }
+
+        .global-miniplayer-btn:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .global-miniplayer-play-btn {
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          border: none;
+          background: white;
+          color: black;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+
+        .global-miniplayer-play-btn:hover {
+          transform: scale(1.1);
+        }
+
+        .global-miniplayer-close {
+          background: transparent;
+          border: none;
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 24px;
+          cursor: pointer;
+          padding: 4px;
+        }
+
+        .global-miniplayer-close:hover {
+          color: white;
+        }
+
+        @media (max-width: 639px) {
+          .global-miniplayer {
+            width: calc(100% - 32px);
+            right: 16px;
+            bottom: 120px;
           }
         }
       `}</style>

@@ -49,7 +49,7 @@ const NEX_ICONS: Record<string, React.ReactNode> = {
   paint:         <span style={{ fontSize: 18 }}>🎨</span>,
   calculator:    <Calculator24Regular />,
   taskmanager:   <Apps24Regular />,
-  spotify:       <span style={{ fontSize: 18 }}>🎵</span>,
+  NexReproductor:       <span style={{ fontSize: 18 }}>🎵</span>,
   settings:      <Settings24Regular />,
   wordpad:       <Document24Regular />,
   defender:      <ShieldCheckmark24Regular />,

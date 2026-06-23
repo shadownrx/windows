@@ -32,6 +32,17 @@ interface YouTubeResult {
   description: string;
 }
 
+interface SpotifyResult {
+  id: string;
+  title: string;
+  artist: string;
+  cover: string;
+  url: string;
+  service: 'spotify';
+}
+
+type SearchResult = YouTubeResult | SpotifyResult;
+
 // --- UTIL ---
 function formatRelativeDate(iso: string): string {
   const date = new Date(iso);
@@ -127,7 +138,7 @@ const SpotifyMini: React.FC = () => {
   const [activeService, setActiveService] = useState<ServiceType>('youtube');
   const [activeTab, setActiveTab] = useState<'search' | 'playlist' | 'queue' | 'favorites' | 'history'>('search');
   const [query, setQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<YouTubeResult[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [logoAnimating, setLogoAnimating] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -300,14 +311,13 @@ const SpotifyMini: React.FC = () => {
         });
         if (!res.ok) throw new Error('Spotify search failed');
         data = await res.json();
-        setSearchResults(data.results.map((item: any) => ({
+        setSearchResults(data.results.map((item: any): SpotifyResult => ({
           id: item.id,
           title: item.title,
           artist: item.artist,
           cover: item.thumbnail,
           url: item.uri,
           service: 'spotify',
-          videoId: undefined,
         })));
       } else {
         const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(trimmed)}`, {
@@ -320,7 +330,7 @@ const SpotifyMini: React.FC = () => {
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
       if (activeService === 'spotify') {
-        const fallbackResults = [
+        const fallbackResults: SpotifyResult[] = [
           { id: 's1', title: 'Sin un peso', artist: 'Nafta', cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300', url: '', service: 'spotify' },
           { id: 's2', title: 'Blinding Lights', artist: 'The Weeknd', cover: 'https://images.unsplash.com/photo-1511379938547-c1f6941d86ba?w=300', url: '', service: 'spotify' },
         ];
@@ -571,30 +581,58 @@ const SpotifyMini: React.FC = () => {
 
               {!loading && searchResults.length > 0 && (
                 <div className="spotify-grid">
-                  {searchResults.map((result) => (
-                    <div key={result.id} className="spotify-card">
-                      <div className="spotify-card-image">
-                        <img src={result.thumbnail} alt={result.title} />
+                  {searchResults.map((result) => {
+                    if ('service' in result && result.service === 'spotify') {
+                      return (
+                        <div key={result.id} className="spotify-card">
+                          <div className="spotify-card-image">
+                            <img src={result.cover} alt={result.title} />
+                            <button 
+                              className="spotify-play-btn"
+                              onClick={() => playFromSearch(result)}
+                            >
+                              <Play24Filled />
+                            </button>
+                          </div>
+                          <div className="spotify-card-info">
+                            <div className="spotify-card-title">{result.title}</div>
+                            <div className="spotify-card-artist">{result.artist}</div>
+                          </div>
+                          <button 
+                            className="spotify-add-btn"
+                            onClick={() => addTrackToQueue(result)}
+                            title="Añadir a la cola"
+                          >
+                            <Add24Filled />
+                          </button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={result.id} className="spotify-card">
+                        <div className="spotify-card-image">
+                          <img src={result.thumbnail} alt={result.title} />
+                          <button 
+                            className="spotify-play-btn"
+                            onClick={() => playFromSearch(result)}
+                          >
+                            <Play24Filled />
+                          </button>
+                        </div>
+                        <div className="spotify-card-info">
+                          <div className="spotify-card-title">{result.title}</div>
+                          <div className="spotify-card-artist">{result.channelTitle}</div>
+                        </div>
                         <button 
-                          className="spotify-play-btn"
-                          onClick={() => playFromSearch(result)}
+                          className="spotify-add-btn"
+                          onClick={() => addTrackToQueue(result)}
+                          title="Añadir a la cola"
                         >
-                          <Play24Filled />
+                          <Add24Filled />
                         </button>
                       </div>
-                      <div className="spotify-card-info">
-                        <div className="spotify-card-title">{result.title}</div>
-                        <div className="spotify-card-artist">{result.channelTitle}</div>
-                      </div>
-                      <button 
-                        className="spotify-add-btn"
-                        onClick={() => addTrackToQueue(result)}
-                        title="Añadir a la cola"
-                      >
-                        <Add24Filled />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

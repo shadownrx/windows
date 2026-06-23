@@ -283,19 +283,6 @@ const SpotifyMini: React.FC = () => {
 
   // --- SEARCH ---
   const runSearch = useCallback(async (q: string) => {
-    if (activeService !== 'youtube' && activeService !== 'youtube-music') {
-      const trimmed = q.trim();
-      setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 800));
-      const mockResults: Track[] = [
-        { id: 's1', title: `${trimmed} - Track 1`, artist: 'Artista 1', cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300', url: '', service: activeService },
-        { id: 's2', title: `${trimmed} - Track 2`, artist: 'Artista 2', cover: 'https://images.unsplash.com/photo-1511379938547-c1f6941d86ba?w=300', url: '', service: activeService },
-      ];
-      setSearchResults(mockResults as any);
-      setLoading(false);
-      return;
-    }
-
     const trimmed = q.trim();
     if (!trimmed) return;
 
@@ -306,65 +293,100 @@ const SpotifyMini: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(trimmed)}`, {
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
+      let data;
+      if (activeService === 'spotify') {
+        const res = await fetch(`/api/spotify/search?q=${encodeURIComponent(trimmed)}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error('Spotify search failed');
+        data = await res.json();
+        setSearchResults(data.results.map((item: any) => ({
+          id: item.id,
+          title: item.title,
+          artist: item.artist,
+          cover: item.thumbnail,
+          url: item.uri,
+          service: 'spotify',
+          videoId: undefined,
+        })));
+      } else {
+        const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(trimmed)}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error('YouTube search failed');
+        data = await res.json();
+        setSearchResults(data.results || []);
+      }
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
+      if (activeService === 'spotify') {
+        const fallbackResults = [
+          { id: 's1', title: 'Sin un peso', artist: 'Nafta', cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300', url: '', service: 'spotify' },
+          { id: 's2', title: 'Blinding Lights', artist: 'The Weeknd', cover: 'https://images.unsplash.com/photo-1511379938547-c1f6941d86ba?w=300', url: '', service: 'spotify' },
+        ];
+        setSearchResults(fallbackResults);
+      } else {
         const fallbackResults: YouTubeResult[] = [
           { id: 'dQw4w9WgXcQ', kind: 'video', title: 'Rick Astley - Never Gonna Give You Up', channelTitle: 'Rick Astley', publishedAt: '2009-10-25T06:57:33Z', thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', description: 'Official video' },
           { id: '9bZkp7q19f0', kind: 'video', title: 'PSY - GANGNAM STYLE', channelTitle: 'officialpsy', publishedAt: '2012-07-15T07:46:32Z', thumbnail: 'https://i.ytimg.com/vi/9bZkp7q19f0/hqdefault.jpg', description: 'PSY' },
-          { id: 'kJQP7kiw5Fk', kind: 'video', title: 'Luis Fonsi - Despacito', channelTitle: 'Luis Fonsi', publishedAt: '2017-01-13T05:00:03Z', thumbnail: 'https://i.ytimg.com/vi/kJQP7kiw5Fk/hqdefault.jpg', description: 'Despacito' },
         ];
-        
-        const filtered = fallbackResults.filter(item => 
-          item.title.toLowerCase().includes(trimmed.toLowerCase()) || 
-          item.channelTitle.toLowerCase().includes(trimmed.toLowerCase())
-        );
-        
-        setSearchResults(filtered.length > 0 ? filtered : fallbackResults);
-        return;
+        setSearchResults(fallbackResults);
       }
-
-      const data = await res.json();
-      setSearchResults(data.results || []);
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') return;
-      const fallbackResults: YouTubeResult[] = [
-        { id: 'dQw4w9WgXcQ', kind: 'video', title: 'Rick Astley - Never Gonna Give You Up', channelTitle: 'Rick Astley', publishedAt: '2009-10-25T06:57:33Z', thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', description: 'The official video' },
-      ];
-      setSearchResults(fallbackResults);
     } finally {
       setLoading(false);
     }
   }, [activeService]);
 
-  const playFromSearch = (result: YouTubeResult) => {
-    const newTrack: Track = {
-      id: result.id,
-      title: result.title,
-      artist: result.channelTitle,
-      cover: result.thumbnail,
-      url: '',
-      service: activeService,
-      kind: result.kind,
-      videoId: result.id,
-    };
-    playTrack(newTrack);
+  const playFromSearch = (result: any) => {
+    if (activeService === 'spotify') {
+      const newTrack: Track = {
+        id: result.id,
+        title: result.title,
+        artist: result.artist,
+        cover: result.cover,
+        url: result.url,
+        service: 'spotify',
+      };
+      playTrack(newTrack);
+    } else {
+      const newTrack: Track = {
+        id: result.id,
+        title: result.title,
+        artist: result.channelTitle,
+        cover: result.thumbnail,
+        url: '',
+        service: activeService,
+        kind: result.kind,
+        videoId: result.id,
+      };
+      playTrack(newTrack);
+    }
   };
 
-  const addTrackToQueue = (result: YouTubeResult) => {
-    const newTrack: Track = {
-      id: result.id,
-      title: result.title,
-      artist: result.channelTitle,
-      cover: result.thumbnail,
-      url: '',
-      service: activeService,
-      kind: result.kind,
-      videoId: result.id,
-    };
-    addToQueue(newTrack);
+  const addTrackToQueue = (result: any) => {
+    if (activeService === 'spotify') {
+      const newTrack: Track = {
+        id: result.id,
+        title: result.title,
+        artist: result.artist,
+        cover: result.cover,
+        url: result.url,
+        service: 'spotify',
+      };
+      addToQueue(newTrack);
+    } else {
+      const newTrack: Track = {
+        id: result.id,
+        title: result.title,
+        artist: result.channelTitle,
+        cover: result.thumbnail,
+        url: '',
+        service: activeService,
+        kind: result.kind,
+        videoId: result.id,
+      };
+      addToQueue(newTrack);
+    }
   };
 
   // Helper to format time

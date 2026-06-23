@@ -40,6 +40,17 @@ interface SimplifiedResult {
   description: string;
 }
 
+// Decodifica entidades HTML que YouTube devuelve en títulos/descripciones
+// (ej: "&amp;" -> "&", "&#39;" -> "'")
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
 // Rate limiting simple en memoria. En serverless cada instancia tiene su
 // propia memoria, así que esto es una protección básica, no exacta.
 // Para algo más robusto, usar Vercel KV o Upstash Redis.
@@ -111,11 +122,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .map((item) => ({
         id: (item.id.videoId || item.id.playlistId) as string,
         kind: item.id.videoId ? 'video' : 'playlist',
-        title: item.snippet.title,
-        channelTitle: item.snippet.channelTitle,
+        title: decodeHtmlEntities(item.snippet.title),
+        channelTitle: decodeHtmlEntities(item.snippet.channelTitle),
         publishedAt: item.snippet.publishedAt,
         thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium?.url || '',
-        description: item.snippet.description,
+        description: decodeHtmlEntities(item.snippet.description),
       }));
 
     // Cache corto en el edge de Vercel: reduce llamadas repetidas a la

@@ -129,6 +129,7 @@ const SpotifyMini: React.FC = () => {
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<YouTubeResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [logoAnimating, setLogoAnimating] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const playerRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -183,19 +184,21 @@ const SpotifyMini: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isYoutubeApiReady.current) {
-      initPlayer();
-    }
+    initPlayer();
   }, [currentTrack]);
 
   const initPlayer = () => {
     if (!currentTrack?.videoId) return;
 
-    if (playerRef.current?.destroy) {
-      playerRef.current.destroy();
+    // Case 1: Player exists and is ready - just load new video!
+    if (playerRef.current && playerRef.current.loadVideoById) {
+      playerRef.current.loadVideoById(currentTrack.videoId);
+      setIsPlaying(true);
+      return;
     }
 
-    if (window.YT) {
+    // Case 2: Player doesn't exist but YT API is ready - create new player!
+    if (window.YT && !playerRef.current) {
       playerRef.current = new window.YT.Player('youtube-player', {
         videoId: currentTrack.videoId,
         events: {
@@ -205,9 +208,9 @@ const SpotifyMini: React.FC = () => {
               setDuration(playerRef.current.getDuration());
             }
             playerRef.current.setVolume(volume);
-            if (isPlaying) {
-              playerRef.current.playVideo();
-            }
+            // When a new track loads, automatically play it!
+            setIsPlaying(true);
+            playerRef.current.playVideo();
           },
           onStateChange: (event: any) => {
             if (window.YT && event.data === window.YT.PlayerState.PLAYING) {
@@ -222,7 +225,8 @@ const SpotifyMini: React.FC = () => {
           },
         },
       });
-    } else if (iframeRef.current) {
+    } else {
+      // Case 3: YT API not ready yet - wait and retry!
       setTimeout(initPlayer, 100);
     }
   };
@@ -266,6 +270,11 @@ const SpotifyMini: React.FC = () => {
     } else {
       togglePlay();
     }
+  };
+
+  const handleLogoClick = () => {
+    setLogoAnimating(true);
+    setTimeout(() => setLogoAnimating(false), 600);
   };
 
   // --- SEARCH ---
@@ -363,8 +372,35 @@ const SpotifyMini: React.FC = () => {
 
   return (
     <div className="spotify-root">
+      {/* --- PERMANENT YOUTUBE IFRAME (always in DOM) --- */}
+      {currentTrack?.videoId && (
+        <iframe
+          id="youtube-player"
+          ref={iframeRef}
+          src={buildEmbedUrlFromResult(currentTrack.videoId)}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title={currentTrack.title}
+          className="spotify-iframe-permanent"
+        />
+      )}
       {/* --- LEFT SIDEBAR --- */}
       <div className="spotify-sidebar">
+        {/* --- NEX MUSIC BRANDING --- */}
+        <div className="nex-branding">
+          <div 
+            className={`nex-logo ${logoAnimating ? 'nex-logo-animate' : ''} ${isPlaying ? 'nex-logo-pulse' : ''}`}
+            onClick={handleLogoClick}
+          >
+            <div className="nex-logo-ring nex-logo-ring-1"></div>
+            <div className="nex-logo-ring nex-logo-ring-2"></div>
+            <div className="nex-logo-ring nex-logo-ring-3"></div>
+            <span className="nex-logo-text">NXM</span>
+          </div>
+          <h1 className="nex-title">NEX MUSIC</h1>
+          <span className="power-by">Created by Salvador Juarez</span>
+        </div>
         {/* --- TOP MENU --- */}
         <div className="spotify-sidebar-top">
           <div className="spotify-nav-item active">
@@ -461,9 +497,16 @@ const SpotifyMini: React.FC = () => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && runSearch(query)}
-              placeholder="¿Qué quieres escuchar?"
+              placeholder="¿Qué quieres escuchar? (ej: Tiësto, KSHMR, Afrojack, Tujamo, Don Diablo, Nicky Romero | Spinnin' Records Classic Hits Mix)"
               className="spotify-search-input"
             />
+            <button
+              className="spotify-search-button"
+              onClick={() => runSearch(query)}
+              disabled={!query.trim() || loading}
+            >
+              Buscar
+            </button>
           </div>
           <div className="spotify-services">
             {(['youtube', 'youtube-music', 'spotify'] as ServiceType[]).map((service) => (
@@ -485,6 +528,14 @@ const SpotifyMini: React.FC = () => {
             <div className="spotify-search-results">
               <h2>Resultados de búsqueda</h2>
               
+              {!query.trim() && !searchResults.length && (
+                <div className="spotify-empty">
+                  <Search24Regular />
+                  <p>Escribe algo en la barra de búsqueda y haz clic en "Buscar" para empezar</p>
+                  <p style={{ fontSize: '14px', marginTop: '8px' }}>Ejemplo: Tiësto, KSHMR, Afrojack, Tujamo, Don Diablo, Nicky Romero | Spinnin' Records Classic Hits Mix</p>
+                </div>
+              )}
+
               {loading && (
                 <div className="spotify-loading">
                   <div className="spotify-spinner" />
@@ -518,6 +569,13 @@ const SpotifyMini: React.FC = () => {
                       </button>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {!loading && query.trim() && searchResults.length === 0 && !loading && (
+                <div className="spotify-empty">
+                  <Search24Regular />
+                  <p>No se encontraron resultados para "{query}"</p>
                 </div>
               )}
             </div>
@@ -564,20 +622,7 @@ const SpotifyMini: React.FC = () => {
               {currentTrack && (
                 <div className="spotify-playlist-header">
                   <div className="spotify-playlist-hero-cover">
-                    {currentTrack.videoId ? (
-                      <iframe
-                        id="youtube-player"
-                        ref={iframeRef}
-                        src={buildEmbedUrlFromResult(currentTrack.videoId)}
-                        frameBorder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        title={currentTrack.title}
-                        className="spotify-iframe"
-                      />
-                    ) : (
-                      <img src={currentTrack.cover} alt="" className="spotify-hero-image" />
-                    )}
+                    <img src={currentTrack.cover} alt="" className="spotify-hero-image" />
                   </div>
                   <div className="spotify-playlist-hero-info">
                     <div className="spotify-playlist-hero-type">Playlist</div>
@@ -805,66 +850,261 @@ const SpotifyMini: React.FC = () => {
 
       {/* --- GLOBAL STYLES --- */}
       <style>{`
+        * {
+          box-sizing: border-box;
+        }
+
         .spotify-root {
           display: flex;
           flex-direction: column;
           height: 100%;
-          background: #000;
+          background: #000000;
           font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-          color: white;
+          color: #fff;
           overflow: hidden;
+          position: relative;
+        }
+
+        /* RGB Ambient Glow Background */
+        .spotify-root::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: radial-gradient(circle at 20% 80%, rgba(255, 0, 128, 0.08) 0%, transparent 40%),
+                      radial-gradient(circle at 80% 20%, rgba(0, 255, 255, 0.08) 0%, transparent 40%),
+                      radial-gradient(circle at 40% 40%, rgba(128, 255, 0, 0.05) 0%, transparent 50%);
+          z-index: 0;
+          pointer-events: none;
+          animation: rgb-glow 8s ease-in-out infinite;
+        }
+
+        @keyframes rgb-glow {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.05); }
+        }
+
+        .spotify-iframe-permanent {
+          position: fixed;
+          left: -9999px;
+          top: -9999px;
+          width: 1px;
+          height: 1px;
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        /* --- NEX MUSIC BRANDING --- */
+        .nex-branding {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 24px 16px 12px;
+          background: rgba(10, 10, 10, 0.9);
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .nex-branding::before {
+          content: '';
+          position: absolute;
+          inset: -1px;
+          background: linear-gradient(135deg, #ff0080, #00ffff, #80ff00, #ff00ff);
+          z-index: -1;
+          border-radius: 13px;
+          opacity: 0.3;
+          animation: border-glow 3s linear infinite;
+        }
+
+        @keyframes border-glow {
+          0%, 100% { filter: hue-rotate(0deg); }
+          50% { filter: hue-rotate(180deg); }
+        }
+
+        .nex-logo {
+          position: relative;
+          width: 90px;
+          height: 90px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 16px;
+        }
+
+        .nex-logo-ring {
+          position: absolute;
+          border-radius: 50%;
+          border: 2px solid transparent;
+          animation: nex-ring-rotate 8s linear infinite;
+        }
+
+        .nex-logo-ring-1 {
+          width: 90px;
+          height: 90px;
+          border-top-color: #ff0080;
+          border-right-color: #00ffff;
+          border-bottom-color: #80ff00;
+          border-left-color: #ff00ff;
+          box-shadow: 0 0 15px rgba(255, 0, 128, 0.4);
+        }
+
+        .nex-logo-ring-2 {
+          width: 70px;
+          height: 70px;
+          border-top-color: #00ff80;
+          border-right-color: #ff8000;
+          border-bottom-color: #8000ff;
+          border-left-color: #0080ff;
+          animation-direction: reverse;
+          animation-duration: 6s;
+          box-shadow: 0 0 12px rgba(0, 255, 128, 0.3);
+        }
+
+        .nex-logo-ring-3 {
+          width: 50px;
+          height: 50px;
+          border-top-color: #ff0000;
+          border-right-color: #00ff00;
+          border-bottom-color: #0000ff;
+          border-left-color: #ffff00;
+          animation-duration: 4s;
+          box-shadow: 0 0 10px rgba(255, 255, 0, 0.3);
+        }
+
+        .nex-logo-text {
+          font-size: 28px;
+          font-weight: 900;
+          background: linear-gradient(90deg, #ff0080, #00ffff, #80ff00, #ff00ff, #ff0080);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          letter-spacing: 3px;
+          z-index: 10;
+          text-shadow: 0 0 30px rgba(255, 0, 128, 0.6);
+          background-size: 200% 100%;
+          animation: text-rgb 4s linear infinite;
+        }
+
+        @keyframes text-rgb {
+          from { background-position: 0% 50%; }
+          to { background-position: 200% 50%; }
+        }
+
+        .nex-logo-animate {
+          animation: nex-bounce 0.6s ease-in-out;
+        }
+
+        .nex-logo-pulse {
+          animation: nex-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes nex-ring-rotate {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes nex-bounce {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.4); }
+        }
+
+        @keyframes nex-pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+        }
+
+        .nex-title {
+          font-size: 28px;
+          font-weight: 900;
+          margin: 0 0 8px 0;
+          background: linear-gradient(90deg, #ff0080, #00ffff, #80ff00, #ff00ff);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          letter-spacing: 4px;
+          background-size: 200% 100%;
+          animation: text-rgb 5s linear infinite;
+        }
+
+        .power-by {
+          font-size: 11px;
+          color: rgba(255, 255, 255, 0.5);
+          letter-spacing: 2px;
+          margin-top: 4px;
+          text-transform: uppercase;
+          font-weight: 600;
         }
 
         /* --- SIDEBAR --- */
         .spotify-sidebar {
           display: flex;
           flex-direction: column;
-          gap: 8px;
-          padding: 8px;
-          background: #000;
+          gap: 12px;
+          padding: 12px;
+          background: #050505;
           height: calc(100% - 90px);
           width: 420px;
           position: fixed;
           left: 0;
           top: 0;
+          border-right: 1px solid rgba(255, 255, 255, 0.03);
+          z-index: 1;
         }
 
         .spotify-sidebar-top {
-          background: #121212;
-          border-radius: 8px;
-          padding: 12px 16px;
+          background: rgba(15, 15, 15, 0.8);
+          border-radius: 16px;
+          padding: 20px;
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 20px;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(10px);
         }
 
         .spotify-nav-item {
           display: flex;
           align-items: center;
           gap: 16px;
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 700;
-          color: #b3b3b3;
+          color: rgba(255, 255, 255, 0.5);
           cursor: pointer;
-          transition: color 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          padding: 12px 16px;
+          border-radius: 12px;
         }
 
-        .spotify-nav-item:hover,
+        .spotify-nav-item:hover {
+          color: rgba(255, 255, 255, 0.9);
+          background: rgba(255, 255, 255, 0.03);
+        }
+
         .spotify-nav-item.active {
-          color: white;
+          color: #fff;
+          background: linear-gradient(90deg, rgba(255,0,128,0.15), rgba(0,255,255,0.1), rgba(128,255,0,0.15));
+          box-shadow: 0 0 20px rgba(255,0,128,0.1);
         }
 
         .spotify-library {
-          background: #121212;
-          border-radius: 8px;
+          background: rgba(15, 15, 15, 0.8);
+          border-radius: 16px;
           flex: 1;
           display: flex;
           flex-direction: column;
           overflow: hidden;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(10px);
         }
 
         .spotify-library-header {
-          padding: 16px;
+          padding: 20px;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -874,91 +1114,112 @@ const SpotifyMini: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 12px;
-          color: #b3b3b3;
+          color: rgba(255,255,255,0.6);
           font-weight: 700;
-          font-size: 16px;
+          font-size: 15px;
           cursor: pointer;
+          transition: color 0.3s;
         }
 
         .spotify-library-title:hover {
-          color: white;
+          color: rgba(255,255,255,0.9);
         }
 
         .spotify-btn-icon {
           background: transparent;
           border: none;
-          color: #b3b3b3;
+          color: rgba(255,255,255,0.5);
           cursor: pointer;
-          padding: 8px;
+          padding: 10px;
+          border-radius: 10px;
+          transition: all 0.3s;
         }
 
         .spotify-btn-icon:hover {
-          color: white;
+          color: rgba(255,255,255,0.9);
+          background: rgba(255,255,255,0.05);
         }
 
         .spotify-nav-tabs {
           display: flex;
-          gap: 8px;
-          padding: 0 16px 8px;
+          gap: 10px;
+          padding: 0 20px 10px;
         }
 
         .spotify-nav-tab {
-          background: rgba(255, 255, 255, 0.1);
-          border: none;
-          border-radius: 32px;
-          color: white;
-          padding: 8px 12px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.05);
+          border-radius: 20px;
+          color: rgba(255,255,255,0.7);
+          padding: 10px 18px;
           cursor: pointer;
-          font-weight: 500;
-          transition: background 0.2s;
+          font-weight: 600;
+          font-size: 13px;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .spotify-nav-tab:hover {
-          background: rgba(255, 255, 255, 0.2);
+          background: rgba(255,255,255,0.1);
+          transform: translateY(-2px);
         }
 
         .spotify-nav-tab.active {
-          background: #1fdf64;
-          color: #000;
+          background: linear-gradient(135deg, rgba(255,0,128,0.3), rgba(0,255,255,0.2));
+          color: #fff;
+          border-color: rgba(255,255,255,0.2);
+          box-shadow: 0 4px 15px rgba(255,0,128,0.2);
         }
 
         .spotify-library-content {
           flex: 1;
           overflow-y: auto;
-          padding: 8px;
+          padding: 10px;
         }
 
         .spotify-playlist-item {
           display: flex;
           align-items: center;
-          gap: 12px;
-          padding: 8px;
-          border-radius: 4px;
+          gap: 14px;
+          padding: 14px;
+          border-radius: 14px;
           cursor: pointer;
-          transition: background 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          border: 1px solid transparent;
         }
 
         .spotify-playlist-item:hover {
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(255,255,255,0.03);
+          border-color: rgba(255,255,255,0.05);
+          transform: translateX(4px);
         }
 
         .spotify-playlist-cover {
-          width: 56px;
-          height: 56px;
-          border-radius: 4px;
-          background: linear-gradient(135deg, #450af5, #c4efd9);
+          width: 58px;
+          height: 58px;
+          border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
+          position: relative;
         }
 
-        .spotify-cover-liked {
-          background: linear-gradient(135deg, #4000f4, #8e0cec);
+        .spotify-playlist-cover::before {
+          content: '';
+          position: absolute;
+          inset: -1px;
+          border-radius: 13px;
+          background: linear-gradient(135deg, #ff0080, #00ffff, #80ff00);
+          z-index: -1;
+          opacity: 0.5;
         }
 
-        .spotify-cover-history {
-          background: linear-gradient(135deg, #1e3a5f, #1a5f50);
+        .spotify-cover-liked::before {
+          background: linear-gradient(135deg, #8000ff, #ff00ff, #ff0080);
+        }
+
+        .spotify-cover-history::before {
+          background: linear-gradient(135deg, #00ffff, #00ff80, #80ff00);
         }
 
         .spotify-playlist-info {
@@ -967,52 +1228,63 @@ const SpotifyMini: React.FC = () => {
         }
 
         .spotify-playlist-name {
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 700;
-          margin-bottom: 2px;
+          margin-bottom: 3px;
         }
 
         .spotify-playlist-desc {
-          font-size: 13px;
-          color: #b3b3b3;
+          font-size: 12px;
+          color: rgba(255,255,255,0.5);
         }
 
         /* --- MAIN CONTENT --- */
         .spotify-main {
           margin-left: 436px;
           height: calc(100% - 90px);
-          background: linear-gradient(180deg, #1f1f1f 0%, #121212 100%);
+          background: rgba(5,5,5,0.8);
           display: flex;
           flex-direction: column;
           overflow: hidden;
-          border-radius: 8px;
-          margin-right: 8px;
-          margin-top: 8px;
-          margin-bottom: 8px;
+          border-radius: 16px;
+          margin-right: 12px;
+          margin-top: 12px;
+          margin-bottom: 12px;
+          border: 1px solid rgba(255,255,255,0.05);
+          z-index: 1;
+          backdrop-filter: blur(20px);
         }
 
         .spotify-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 16px 32px;
-          background: rgba(18, 18, 18, 0.95);
-          backdrop-filter: blur(10px);
+          padding: 20px 32px;
+          background: rgba(10,10,10,0.6);
+          backdrop-filter: blur(15px);
+          border-bottom: 1px solid rgba(255,255,255,0.03);
         }
 
         .spotify-search-bar {
           display: flex;
           align-items: center;
           gap: 12px;
-          background: #242424;
-          border-radius: 500px;
-          padding: 8px 16px;
+          background: rgba(20,20,20,0.9);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 50px;
+          padding: 12px 20px;
           flex: 1;
-          max-width: 400px;
+          max-width: 450px;
+          transition: all 0.3s;
+        }
+
+        .spotify-search-bar:focus-within {
+          border-color: rgba(255,0,128,0.4);
+          box-shadow: 0 0 20px rgba(255,0,128,0.15);
         }
 
         .spotify-search-icon {
-          color: #b3b3b3;
+          color: rgba(255,255,255,0.5);
         }
 
         .spotify-search-input {
@@ -1022,37 +1294,66 @@ const SpotifyMini: React.FC = () => {
           background: transparent;
           color: white;
           font-size: 14px;
-          font-weight: 500;
+          font-weight: 600;
         }
 
         .spotify-search-input::placeholder {
-          color: #b3b3b3;
+          color: rgba(255,255,255,0.4);
+        }
+
+        .spotify-search-button {
+          background: linear-gradient(135deg, #ff0080, #00ffff);
+          border: none;
+          border-radius: 50px;
+          color: #000;
+          padding: 12px 28px;
+          font-size: 14px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          flex-shrink: 0;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+
+        .spotify-search-button:hover:not(:disabled) {
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: 0 8px 25px rgba(255,0,128,0.4);
+        }
+
+        .spotify-search-button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
 
         .spotify-services {
           display: flex;
-          gap: 8px;
+          gap: 10px;
         }
 
         .spotify-service-btn {
-          background: rgba(255, 255, 255, 0.1);
-          border: none;
-          border-radius: 32px;
-          color: white;
-          padding: 8px 24px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 24px;
+          color: rgba(255,255,255,0.8);
+          padding: 10px 24px;
           cursor: pointer;
           font-weight: 700;
-          transition: all 0.2s;
+          font-size: 13px;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .spotify-service-btn:hover {
-          background: rgba(255, 255, 255, 0.2);
-          transform: scale(1.04);
+          background: rgba(255,255,255,0.1);
+          transform: translateY(-2px);
+          border-color: rgba(255,255,255,0.15);
         }
 
         .spotify-service-btn.active {
-          background: white;
-          color: black;
+          background: linear-gradient(135deg, rgba(255,0,128,0.3), rgba(0,255,255,0.25));
+          color: #fff;
+          border-color: rgba(255,0,128,0.4);
+          box-shadow: 0 4px 20px rgba(255,0,128,0.25);
         }
 
         .spotify-content {

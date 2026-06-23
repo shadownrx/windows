@@ -264,8 +264,12 @@ const SpotifyMini: React.FC = () => {
     if (currentTrack?.videoId && playerRef.current) {
       if (isPlaying) {
         playerRef.current.pauseVideo();
+        setIsPlaying(false);
+        stopProgressTracking();
       } else {
         playerRef.current.playVideo();
+        setIsPlaying(true);
+        startProgressTracking();
       }
     } else {
       togglePlay();
@@ -1359,7 +1363,7 @@ const SpotifyMini: React.FC = () => {
         .spotify-content {
           flex: 1;
           overflow-y: auto;
-          padding: 0 32px 32px;
+          padding: 32px;
         }
 
         /* --- SEARCH RESULTS --- */
@@ -1367,6 +1371,10 @@ const SpotifyMini: React.FC = () => {
           font-size: 24px;
           font-weight: 700;
           margin-bottom: 24px;
+          background: linear-gradient(90deg, #ff0080, #00ffff, #80ff00);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
         }
 
         .spotify-loading {
@@ -1375,14 +1383,16 @@ const SpotifyMini: React.FC = () => {
           align-items: center;
           gap: 16px;
           padding: 60px;
-          color: #b3b3b3;
+          color: rgba(255,255,255,0.5);
         }
 
         .spotify-spinner {
           width: 40px;
           height: 40px;
-          border: 3px solid #333;
-          border-top-color: #1fdf64;
+          border: 3px solid rgba(255,255,255,0.1);
+          border-top-color: #ff0080;
+          border-right-color: #00ffff;
+          border-bottom-color: #80ff00;
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
         }
@@ -1398,52 +1408,58 @@ const SpotifyMini: React.FC = () => {
         }
 
         .spotify-card {
-          background: #181818;
-          border-radius: 8px;
+          background: rgba(20,20,20,0.6);
+          border-radius: 12px;
           padding: 16px;
           cursor: pointer;
-          transition: background 0.2s;
+          transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
           position: relative;
+          border: 1px solid rgba(255,255,255,0.03);
         }
 
         .spotify-card:hover {
-          background: #282828;
+          background: rgba(30,30,30,0.8);
+          border-color: rgba(255,0,128,0.2);
+          transform: translateY(-4px);
+          box-shadow: 0 8px 30px rgba(255,0,128,0.1);
         }
 
         .spotify-card-image {
           position: relative;
           margin-bottom: 16px;
+          border-radius: 10px;
+          overflow: hidden;
         }
 
         .spotify-card-image img {
           width: 100%;
           aspect-ratio: 1;
-          border-radius: 4px;
+          border-radius: 10px;
           object-fit: cover;
         }
 
         .spotify-play-btn {
           position: absolute;
-          right: 8px;
-          bottom: 8px;
-          width: 48px;
-          height: 48px;
+          right: 10px;
+          bottom: 10px;
+          width: 50px;
+          height: 50px;
           border-radius: 50%;
-          background: #1fdf64;
+          background: linear-gradient(135deg, #ff0080, #00ffff);
           border: none;
           color: #000;
           display: flex;
           align-items: center;
           justify-content: center;
           opacity: 0;
-          transform: translateY(8px);
-          transition: all 0.3s;
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+          transform: translateY(10px) scale(0.9);
+          transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+          box-shadow: 0 8px 25px rgba(255,0,128,0.4);
         }
 
         .spotify-card:hover .spotify-play-btn {
           opacity: 1;
-          transform: translateY(0);
+          transform: translateY(0) scale(1);
         }
 
         .spotify-card-info {
@@ -1463,7 +1479,7 @@ const SpotifyMini: React.FC = () => {
 
         .spotify-card-artist {
           font-size: 14px;
-          color: #b3b3b3;
+          color: rgba(255,255,255,0.5);
         }
 
         .spotify-add-btn {
@@ -1472,11 +1488,11 @@ const SpotifyMini: React.FC = () => {
           right: 16px;
           background: transparent;
           border: none;
-          color: #b3b3b3;
+          color: rgba(255,255,255,0.5);
           cursor: pointer;
-          padding: 4px;
+          padding: 6px;
           opacity: 0;
-          transition: all 0.2s;
+          transition: all 0.3s;
         }
 
         .spotify-card:hover .spotify-add-btn {
@@ -1485,6 +1501,7 @@ const SpotifyMini: React.FC = () => {
 
         .spotify-add-btn:hover {
           color: white;
+          transform: scale(1.2);
         }
 
         /* --- LIST VIEW --- */

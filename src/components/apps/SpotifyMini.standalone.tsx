@@ -350,6 +350,13 @@ const SpotifyMiniStandalone: React.FC = () => {
     initPlayer();
   }, [currentTrack]);
 
+  // Update YouTube player volume whenever volume changes
+  useEffect(() => {
+    if (playerRef.current && playerRef.current.setVolume) {
+      playerRef.current.setVolume(volume);
+    }
+  }, [volume]);
+
   const initPlayer = () => {
     if (!currentTrack?.videoId) return;
 

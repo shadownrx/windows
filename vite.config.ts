@@ -16,6 +16,9 @@ export default defineConfig({
         // Si usás vercel dev en el 3000, esto redirige /api/groq/chat → http://localhost:3000/api/groq/chat
       },
     },
+    fs: {
+      allow: ['..'],
+    },
   },
   build: {
     rollupOptions: {
@@ -26,7 +29,19 @@ export default defineConfig({
     },
   },
   plugins: [
-    react(), 
+    react(),
+    // Custom middleware for /nex-music rewrite (dev only)
+    {
+      name: 'custom-rewrite',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url === '/nex-music' || req.url === '/nex-music/') {
+            req.url = '/index-spotify.html'
+          }
+          next()
+        })
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons.svg', 'robots.txt'],
@@ -70,7 +85,7 @@ export default defineConfig({
                 maxAgeSeconds: 60 * 60 * 24 * 365 // <== 365 days
               },
               cacheableResponse: {
-                statuses: [0, 200]
+                statuses: [0, 20]
               }
             }
           }

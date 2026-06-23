@@ -13,6 +13,23 @@
     <meta property="og:description" content="Tu reproductor de música favorito con soporte para YouTube, YouTube Music y Spotify." />
     <meta property="og:type" content="website" />
     <title>NEX Music</title>
+    <style>
+      /* Override body styles for standalone app */
+      body {
+        display: block !important;
+        place-items: unset !important;
+        min-height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #000 !important;
+      }
+      #root {
+        width: 100vw !important;
+        height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

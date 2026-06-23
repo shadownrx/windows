@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/nex-music",
+      "destination": "/index-spotify.html"
+    },
+    {
+      "source": "/nex-music/",
+      "destination": "/index-spotify.html"
+    }
+  ]
+}

@@ -583,24 +583,25 @@ const SpotifyMini: React.FC = () => {
                 <div className="spotify-grid">
                   {searchResults.map((result) => {
                     if ('service' in result && result.service === 'spotify') {
+                      const spotifyResult = result as SpotifyResult;
                       return (
-                        <div key={result.id} className="spotify-card">
+                        <div key={spotifyResult.id} className="spotify-card">
                           <div className="spotify-card-image">
-                            <img src={result.cover} alt={result.title} />
+                            <img src={spotifyResult.cover} alt={spotifyResult.title} />
                             <button 
                               className="spotify-play-btn"
-                              onClick={() => playFromSearch(result)}
+                              onClick={() => playFromSearch(spotifyResult)}
                             >
                               <Play24Filled />
                             </button>
                           </div>
                           <div className="spotify-card-info">
-                            <div className="spotify-card-title">{result.title}</div>
-                            <div className="spotify-card-artist">{result.artist}</div>
+                            <div className="spotify-card-title">{spotifyResult.title}</div>
+                            <div className="spotify-card-artist">{spotifyResult.artist}</div>
                           </div>
                           <button 
                             className="spotify-add-btn"
-                            onClick={() => addTrackToQueue(result)}
+                            onClick={() => addTrackToQueue(spotifyResult)}
                             title="Añadir a la cola"
                           >
                             <Add24Filled />
@@ -608,24 +609,25 @@ const SpotifyMini: React.FC = () => {
                         </div>
                       );
                     }
+                    const youtubeResult = result as YouTubeResult;
                     return (
-                      <div key={result.id} className="spotify-card">
+                      <div key={youtubeResult.id} className="spotify-card">
                         <div className="spotify-card-image">
-                          <img src={result.thumbnail} alt={result.title} />
+                          <img src={youtubeResult.thumbnail} alt={youtubeResult.title} />
                           <button 
                             className="spotify-play-btn"
-                            onClick={() => playFromSearch(result)}
+                            onClick={() => playFromSearch(youtubeResult)}
                           >
                             <Play24Filled />
                           </button>
                         </div>
                         <div className="spotify-card-info">
-                          <div className="spotify-card-title">{result.title}</div>
-                          <div className="spotify-card-artist">{result.channelTitle}</div>
+                          <div className="spotify-card-title">{youtubeResult.title}</div>
+                          <div className="spotify-card-artist">{youtubeResult.channelTitle}</div>
                         </div>
                         <button 
                           className="spotify-add-btn"
-                          onClick={() => addTrackToQueue(result)}
+                          onClick={() => addTrackToQueue(youtubeResult)}
                           title="Añadir a la cola"
                         >
                           <Add24Filled />

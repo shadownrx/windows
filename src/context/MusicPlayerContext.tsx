@@ -13,9 +13,6 @@ export interface Track {
   videoId?: string;
 }
 
-// Export the Track type
-export { Track };
-
 // --- CONTEXT ---
 interface MusicPlayerContextType {
   currentTrack: Track | null;

@@ -17,6 +17,14 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: './index.html',
+        spotify: './index-spotify.html',
+      },
+    },
+  },
   plugins: [
     react(), 
     VitePWA({

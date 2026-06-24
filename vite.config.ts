@@ -36,7 +36,7 @@ export default defineConfig({
       configureServer(server) {
         server.middlewares.use((req, _res, next) => {
           if (req.url === '/nex-music' || req.url === '/nex-music/') {
-            req.url = '/index-spotify.html'
+            req.url = '/nex-music.html'
           }
           next()
         })

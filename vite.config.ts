@@ -34,7 +34,7 @@ export default defineConfig({
     {
       name: 'custom-rewrite',
       configureServer(server) {
-        server.middlewares.use((req, res, next) => {
+        server.middlewares.use((req, _res, next) => {
           if (req.url === '/nex-music' || req.url === '/nex-music/') {
             req.url = '/index-spotify.html'
           }

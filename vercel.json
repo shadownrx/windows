@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/nex-music",
-      "destination": "/index-spotify.html"
+      "destination": "/nex-music.html"
     },
     {
       "source": "/nex-music/",
-      "destination": "/index-spotify.html"
+      "destination": "/nex-music.html"
     }
   ]
 }

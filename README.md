@@ -9,6 +9,8 @@
 >
 > **🌐 Website Oficial:** [https://nexos-coral.vercel.app/](https://nexos-coral.vercel.app/)
 >
+>**🌐 Nex Music:** [https://anex-os.vercel.app/nex-music.html](https://anex-os.vercel.app/nex-music.html)
+>
 > **📖 Documentación Completa:** Consulta la carpeta [docs/](./docs/) para guías detalladas.
 
 ---

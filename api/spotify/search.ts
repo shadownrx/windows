@@ -120,7 +120,7 @@ try {
     const params = new URLSearchParams();
     params.append('q', query);
     params.append('type', 'track');
-    params.append('limit', '12');
+    params.append('limit', '10');
 
     const url = `${SPOTIFY_API_BASE}/search?${params.toString()}`;
     console.log('🔎 URL completa a Spotify:', url);
@@ -136,6 +136,9 @@ try {
       console.error('❌ Status:', spotifyResponse.status, '| Body:', errBody);
       return res.status(502).json({ error: 'No se pudo completar la búsqueda' });
     }
+
+    // 👇 ESTA LÍNEA FALTABA
+    const data = await spotifyResponse.json() as { tracks: { items: SpotifyTrackItem[] } };
 
     const results: SimplifiedSpotifyResult[] = data.tracks.items.map((item) => ({
       id: item.id,
@@ -155,3 +158,4 @@ try {
     return res.status(500).json({ error: 'Error interno al buscar' });
   }
 }
+

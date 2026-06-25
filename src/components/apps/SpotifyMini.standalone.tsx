@@ -256,7 +256,23 @@ const LyricsDisplay: React.FC = () => {
   useEffect(() => {
     if (currentTrack) {
       setLyrics([
-        "Proximamente, las letras de la canción estarán disponibles aquí.",
+        "🎵 [Verso 1]",
+        "Caminando por la ciudad de noche",
+        "Buscando un lugar para pertenecer",
+        "Cada farola es una guía",
+        "Llevándome a donde pertenezco",
+        "",
+        "🎶 [Coro]",
+        "Esta es nuestra canción, nuestra melodía",
+        "Tocando en la clave de la vida",
+        "Juntos podemos hacer que todo salga bien",
+        "Este es nuestro momento, nuestra noche",
+        "",
+        "🎵 [Verso 2]",
+        "Mirando el océano",
+        "Esperando el amanecer",
+        "Todo parece nuevo y esperanzador",
+        "Bajo los cielos estrellados",
       ]);
     }
   }, [currentTrack]);
@@ -309,10 +325,12 @@ const SpotifyMiniStandalone: React.FC = () => {
   const [activeService, setActiveService] = useState<ServiceType>('youtube');
   const [activeTab, setActiveTab] = useState<'search' | 'playlist' | 'queue' | 'favorites' | 'history'>('search');
   const [query, setQuery] = useState('');
+  const pcnMode = query.trim().toUpperCase() === 'PCN';
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [logoAnimating, setLogoAnimating] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [bumpHeartId, setBumpHeartId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const playerRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -448,6 +466,12 @@ const SpotifyMiniStandalone: React.FC = () => {
   const handleLogoClick = () => {
     setLogoAnimating(true);
     setTimeout(() => setLogoAnimating(false), 600);
+  };
+
+  const handleHeartClick = (track: Track) => {
+    toggleFavorite(track);
+    setBumpHeartId(track.id);
+    setTimeout(() => setBumpHeartId(null), 320);
   };
 
   // --- SEARCH ---
@@ -597,7 +621,7 @@ const SpotifyMiniStandalone: React.FC = () => {
   };
 
   return (
-    <div className="spotify-root">
+    <div className={`spotify-root ${pcnMode ? 'pcn-theme' : ''}`}>
       {/* --- PERMANENT YOUTUBE IFRAME (always in DOM) --- */}
       {currentTrack?.videoId && (
         <iframe
@@ -639,7 +663,7 @@ const SpotifyMiniStandalone: React.FC = () => {
             <div className="nex-logo-ring nex-logo-ring-1"></div>
             <div className="nex-logo-ring nex-logo-ring-2"></div>
             <div className="nex-logo-ring nex-logo-ring-3"></div>
-            <span className="nex-logo-text">NXM</span>
+            <span className="nex-logo-text">{pcnMode ? 'PCN' : 'NXM'}</span>
           </div>
           <h1 className="nex-title">NEX MUSIC</h1>
           <span className="power-by">Created by Salvador Juarez</span>
@@ -908,8 +932,8 @@ const SpotifyMiniStandalone: React.FC = () => {
                         {isPlaying ? <Pause24Filled /> : <Play24Filled />}
                       </button>
                       <button 
-                        className={`spotify-heart-btn ${currentTrack && isFavorite(currentTrack.id) ? 'active' : ''}`}
-                        onClick={() => currentTrack && toggleFavorite(currentTrack)}
+                        className={`spotify-heart-btn ${currentTrack && isFavorite(currentTrack.id) ? 'active' : ''} ${currentTrack && bumpHeartId === currentTrack.id ? 'heart-bump' : ''}`}
+                        onClick={() => currentTrack && handleHeartClick(currentTrack)}
                       >
                         {currentTrack && isFavorite(currentTrack.id) ? <Heart24Filled /> : <Heart24Regular />}
                       </button>
@@ -934,7 +958,6 @@ const SpotifyMiniStandalone: React.FC = () => {
                     className={`spotify-track-row ${currentTrack?.id === track.id ? 'active' : ''}`} 
                     onClick={() => playTrack(track)}
                   >
-                    <div className="spotify-track-num">{index + 1}</div>
                     <div className="spotify-track-cover">
                       <img src={track.cover} alt={track.title} />
                       {currentTrack?.id === track.id && isPlaying ? (
@@ -949,11 +972,10 @@ const SpotifyMiniStandalone: React.FC = () => {
                       <div className="spotify-track-title">{track.title}</div>
                       <div className="spotify-track-artist">{track.artist}</div>
                     </div>
-                    <div className="spotify-track-album">{track.service === 'spotify' ? 'Spotify' : 'YouTube'}</div>
                     <div className="spotify-track-time">
                       <button 
-                        className="spotify-heart-small"
-                        onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
+                        className={`spotify-heart-small ${bumpHeartId === track.id ? 'heart-bump' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); handleHeartClick(track); }}
                       >
                         {isFavorite(track.id) ? <Heart24Filled /> : <Heart24Regular />}
                       </button>
@@ -984,7 +1006,6 @@ const SpotifyMiniStandalone: React.FC = () => {
                     className={`spotify-track-row ${currentTrack?.id === track.id ? 'active' : ''}`} 
                     onClick={() => playTrack(track)}
                   >
-                    <div className="spotify-track-num">{index + 1}</div>
                     <div className="spotify-track-cover">
                       <img src={track.cover} alt={track.title} />
                     </div>
@@ -993,8 +1014,8 @@ const SpotifyMiniStandalone: React.FC = () => {
                       <div className="spotify-track-artist">{track.artist}</div>
                     </div>
                     <button 
-                      className="spotify-heart-small"
-                      onClick={(e) => { e.stopPropagation(); toggleFavorite(track); }}
+                      className={`spotify-heart-small ${bumpHeartId === track.id ? 'heart-bump' : ''}`}
+                      onClick={(e) => { e.stopPropagation(); handleHeartClick(track); }}
                     >
                       <Heart24Filled />
                     </button>
@@ -1025,7 +1046,6 @@ const SpotifyMiniStandalone: React.FC = () => {
                     className={`spotify-track-row ${currentTrack?.id === track.id ? 'active' : ''}`} 
                     onClick={() => playTrack(track)}
                   >
-                    <div className="spotify-track-num">{index + 1}</div>
                     <div className="spotify-track-cover">
                       <img src={track.cover} alt={track.title} />
                     </div>
@@ -1053,8 +1073,8 @@ const SpotifyMiniStandalone: React.FC = () => {
               <div className="spotify-player-artist">{currentTrack.artist}</div>
             </div>
             <button 
-              className="spotify-player-heart"
-              onClick={() => toggleFavorite(currentTrack)}
+              className={`spotify-player-heart ${bumpHeartId === currentTrack.id ? 'heart-bump' : ''}`}
+              onClick={() => handleHeartClick(currentTrack)}
             >
               {isFavorite(currentTrack.id) ? <Heart24Filled /> : <Heart24Regular />}
             </button>
@@ -1744,15 +1764,6 @@ const SpotifyMiniStandalone: React.FC = () => {
           color: #fff;
         }
 
-        .spotify-track-num {
-          color: rgba(255,255,255,0.45);
-          font-size: 14px;
-          font-weight: 600;
-          width: 28px;
-          flex-shrink: 0;
-          text-align: center;
-        }
-
         .spotify-track-cover {
           width: 52px;
           height: 52px;
@@ -1846,16 +1857,6 @@ const SpotifyMiniStandalone: React.FC = () => {
           text-overflow: ellipsis;
         }
 
-        .spotify-track-album {
-          color: rgba(255,255,255,0.5);
-          font-size: 13px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          flex: 1;
-          max-width: 260px;
-        }
-
         .spotify-track-time {
           display: flex;
           align-items: center;
@@ -1892,6 +1893,17 @@ const SpotifyMiniStandalone: React.FC = () => {
         .spotify-heart-small:hover {
           color: #fff;
           transform: scale(1.1);
+        }
+
+        .heart-bump {
+          animation: heart-bump-anim 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes heart-bump-anim {
+          0% { transform: scale(1); }
+          35% { transform: scale(1.45); }
+          60% { transform: scale(0.9); }
+          100% { transform: scale(1); }
         }
 
         .spotify-playlist-header {
@@ -2510,10 +2522,6 @@ const SpotifyMiniStandalone: React.FC = () => {
           .spotify-playlist-hero-title {
             font-size: 32px;
           }
-
-          .spotify-track-album {
-            display: none;
-          }
         }
 
         @media (max-width: 480px) {
@@ -2547,6 +2555,133 @@ const SpotifyMiniStandalone: React.FC = () => {
             top: 16px;
             left: 16px;
           }
+        }
+
+        /* --- PCN THEME (easter egg: type "PCN" in the search bar) --- */
+        .pcn-theme {
+          background: #18293e;
+        }
+
+        .pcn-theme .spotify-main,
+        .pcn-theme .spotify-sidebar,
+        .pcn-theme .spotify-header,
+        .pcn-theme .spotify-player,
+        .pcn-theme .spotify-sidebar-top,
+        .pcn-theme .spotify-library,
+        .pcn-theme .spotify-card,
+        .pcn-theme .lyrics-container,
+        .pcn-theme .nex-branding {
+          background: #18293e;
+        }
+
+        .pcn-theme .spotify-search-bar,
+        .pcn-theme .spotify-card,
+        .pcn-theme .spotify-nav-tab,
+        .pcn-theme .spotify-service-btn,
+        .pcn-theme .spotify-heart-btn,
+        .pcn-theme .spotify-lyrics-btn,
+        .pcn-theme .spotify-sidebar,
+        .pcn-theme .spotify-library,
+        .pcn-theme .spotify-library-header ~ .spotify-nav-tabs .spotify-nav-tab {
+          border-color: rgba(80, 56, 189, 0.35);
+        }
+
+        .pcn-theme .hamburger-btn {
+          background: #18293e;
+          border-color: rgba(4, 244, 190, 0.35);
+        }
+
+        .pcn-theme .spotify-search-button,
+        .pcn-theme .spotify-play-btn,
+        .pcn-theme .spotify-play-hero-btn,
+        .pcn-theme .spotify-player-play,
+        .pcn-theme .spotify-nav-item.active,
+        .pcn-theme .spotify-nav-tab.active,
+        .pcn-theme .spotify-service-btn.active,
+        .pcn-theme .spotify-heart-btn.active,
+        .pcn-theme .spotify-lyrics-btn.active,
+        .pcn-theme .spotify-btn-icon:hover,
+        .pcn-theme .spotify-add-btn:hover {
+          background: #04f4be;
+          color: #18293e;
+          border-color: #04f4be;
+        }
+
+        .pcn-theme .spotify-track-row.active {
+          background: rgba(4, 244, 190, 0.16);
+        }
+
+        .pcn-theme .spotify-track-row:hover {
+          background: rgba(80, 56, 189, 0.18);
+        }
+
+        .pcn-theme .spotify-progress-fill {
+          background: #04f4be;
+        }
+
+        .pcn-theme .spotify-progress-bar::after {
+          background: #04f4be;
+        }
+
+        .pcn-theme .spotify-volume-slider {
+          accent-color: #04f4be;
+        }
+
+        .pcn-theme .spotify-heart-small:hover,
+        .pcn-theme .spotify-player-heart:hover,
+        .pcn-theme .spotify-player-btn:hover,
+        .pcn-theme .spotify-player-btn.active,
+        .pcn-theme .spotify-track-btn:hover {
+          color: #04f4be;
+        }
+
+        .pcn-theme .spotify-search-bar:focus-within {
+          border-color: #5038BD;
+        }
+
+        .pcn-theme .spotify-service-btn:hover {
+          border-color: #5038BD;
+          color: #fff;
+        }
+
+        .pcn-theme .spotify-nav-item:hover {
+          background: rgba(80, 56, 189, 0.2);
+        }
+
+        .pcn-theme .spotify-playlist-item:hover {
+          background: rgba(80, 56, 189, 0.15);
+        }
+
+        .pcn-theme .nex-logo-ring-1 {
+          border-top-color: #04f4be;
+          border-right-color: #5038BD;
+          border-bottom-color: #04f4be;
+          border-left-color: #5038BD;
+          box-shadow: 0 0 20px rgba(4, 244, 190, 0.5);
+        }
+
+        .pcn-theme .nex-logo-ring-2 {
+          border-top-color: #5038BD;
+          border-right-color: #04f4be;
+          border-bottom-color: #5038BD;
+          border-left-color: #04f4be;
+          box-shadow: 0 0 16px rgba(80, 56, 189, 0.5);
+        }
+
+        .pcn-theme .nex-logo-ring-3 {
+          border-top-color: #04f4be;
+          border-right-color: #04f4be;
+          border-bottom-color: #5038BD;
+          border-left-color: #5038BD;
+          box-shadow: 0 0 12px rgba(4, 244, 190, 0.4);
+        }
+
+        .pcn-theme .nex-logo-text,
+        .pcn-theme .nex-title {
+          background: linear-gradient(90deg, #04f4be, #5038BD, #04f4be);
+          -webkit-background-clip: text;
+          background-clip: text;
+          text-shadow: 0 0 30px rgba(4, 244, 190, 0.5);
         }
       `}</style>
     </div>

@@ -237,24 +237,7 @@ const LyricsDisplay: React.FC = () => {
   useEffect(() => {
     if (currentTrack) {
       setLyrics([
-        "🎵 [Verso 1]",
-        "Caminando por la ciudad de noche",
-        "Buscando un lugar para pertenecer",
-        "Cada farola es una guía",
-        "Llevándome a donde pertenezco",
-        "",
-        "🎶 [Coro]",
-        "Esta es nuestra canción, nuestra melodía",
-        "Tocando en la clave de la vida",
-        "Juntos podemos hacer que todo salga bien",
-        "Este es nuestro momento, nuestra noche",
-        "",
-        "🎵 [Verso 2]",
-        "Mirando el océano",
-        "Esperando el amanecer",
-        "Todo parece nuevo y esperanzador",
-        "Bajo los cielos estrellados",
-      ]);
+      "Proximamente, las letras de la canción estarán disponibles aquí.",]);
     }
   }, [currentTrack]);
 

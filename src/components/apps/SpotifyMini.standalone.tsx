@@ -94,26 +94,7 @@ interface SpotifyMiniContextType {
 
 const SpotifyMiniContext = createContext<SpotifyMiniContextType | undefined>(undefined);
 
-// --- DEFAULT PLAYLIST ---
-const defaultPlaylist: Track[] = [
-  {
-    id: 'dQw4w9WgXcQ',
-    videoId: 'dQw4w9WgXcQ',
-    title: 'Never Gonna Give You Up',
-    artist: 'Rick Astley',
-    cover: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
-    url: '',
-    service: 'youtube',
-  },
-  {
-    id: '1',
-    title: 'Sin un peso',
-    artist: 'Nafta',
-    cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300',
-    url: '',
-    service: 'spotify',
-  },
-];
+// (no default tracks — the playlist starts empty)
 
 export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
@@ -952,36 +933,12 @@ const SpotifyMiniStandalone: React.FC = () => {
               {showLyrics && currentTrack && <LyricsDisplay />}
 
               <div className="spotify-track-list">
-                {defaultPlaylist.map((track, index) => (
-                  <div 
-                    key={track.id} 
-                    className={`spotify-track-row ${currentTrack?.id === track.id ? 'active' : ''}`} 
-                    onClick={() => playTrack(track)}
-                  >
-                    <div className="spotify-track-cover">
-                      <img src={track.cover} alt={track.title} />
-                      {currentTrack?.id === track.id && isPlaying ? (
-                        <div className="spotify-play-indicator">
-                          <span></span><span></span><span></span>
-                        </div>
-                      ) : (
-                        <Play24Filled className="spotify-track-play-icon" />
-                      )}
-                    </div>
-                    <div className="spotify-track-main">
-                      <div className="spotify-track-title">{track.title}</div>
-                      <div className="spotify-track-artist">{track.artist}</div>
-                    </div>
-                    <div className="spotify-track-time">
-                      <button 
-                        className={`spotify-heart-small ${bumpHeartId === track.id ? 'heart-bump' : ''}`}
-                        onClick={(e) => { e.stopPropagation(); handleHeartClick(track); }}
-                      >
-                        {isFavorite(track.id) ? <Heart24Filled /> : <Heart24Regular />}
-                      </button>
-                    </div>
+                {!currentTrack && (
+                  <div className="spotify-empty">
+                    <MusicNote224Filled />
+                    <p>Tu playlist está vacía. Buscá una canción y dale play para empezar.</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           )}

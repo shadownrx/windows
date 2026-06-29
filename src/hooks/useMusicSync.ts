@@ -43,6 +43,7 @@ export function useMusicSync() {
 
   useEffect(() => {
     const socket = io(SERVER_URL || undefined, {
+      path: '/api/socket',
       transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnection: true,
@@ -62,7 +63,7 @@ export function useMusicSync() {
     });
 
     socket.on('connect_error', () => {
-      setConnectionError('No se pudo conectar al servidor en vivo. Ejecutá: npm run music:server');
+      setConnectionError('No se pudo conectar al servidor en vivo. Verificá tu conexión a Internet o el estado del backend.');
     });
 
     socket.on('room:users', (users: RoomUser[]) => {

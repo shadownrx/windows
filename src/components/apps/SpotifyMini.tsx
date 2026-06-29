@@ -16,8 +16,12 @@ import {
   Home24Filled,
   Library24Filled,
   Add24Filled,
-  ArrowRight24Filled
+  ArrowRight24Filled,
+  People24Regular,
 } from '@fluentui/react-icons';
+import { useMusicSync } from '../../hooks/useMusicSync';
+import LiveRoomPanel from '../music/LiveRoomPanel';
+import type { Track, ChatMessage, LiveReaction, RoomUser, DjModeState, DjVoteEntry } from '../../types/music';
 
 // --- SPOTIFY SDK GLOBAL TYPES ---
 declare global {
@@ -31,17 +35,6 @@ declare global {
 }
 
 // --- TYPES ---
-interface Track {
-  id: string;
-  title: string;
-  artist: string;
-  cover: string;
-  url: string;
-  service: 'youtube' | 'youtube-music' | 'spotify';
-  kind?: 'video' | 'playlist';
-  videoId?: string;
-}
-
 type ServiceType = 'youtube' | 'youtube-music' | 'spotify';
 
 interface YouTubeResult {
@@ -90,6 +83,29 @@ interface SpotifyMiniContextType {
   setIsPlaying: (playing: boolean) => void;
   setDuration: (dur: number) => void;
   setProgress: (prog: number) => void;
+  // Live room (Socket.io)
+  showLivePanel: boolean;
+  setShowLivePanel: (show: boolean) => void;
+  syncConnected: boolean;
+  roomCode: string | null;
+  isRoomHost: boolean;
+  roomUsers: RoomUser[];
+  liveChat: ChatMessage[];
+  liveReactions: LiveReaction[];
+  syncError: string | null;
+  djMode: DjModeState;
+  djPool: DjVoteEntry[];
+  createLiveRoom: (username: string, enableDj?: boolean) => void;
+  joinLiveRoom: (code: string, username: string) => void;
+  leaveLiveRoom: () => void;
+  sendLiveChat: (text: string) => void;
+  sendLiveReaction: (emoji: string) => void;
+  toggleDjMode: (enabled: boolean) => void;
+  setDjAutoPlay: (autoPlay: boolean) => void;
+  suggestToDj: (track: Track) => void;
+  voteDjTrack: (entryId: string) => void;
+  playTopDjTrack: () => void;
+  clearDjPool: () => void;
 }
 
 const SpotifyMiniContext = createContext<SpotifyMiniContextType | undefined>(undefined);
@@ -103,6 +119,10 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [queue, setQueue] = useState<Track[]>([]);
+  const [showLivePanel, setShowLivePanel] = useState(false);
+  const remoteUpdateRef = useRef(false);
+
+  const sync = useMusicSync();
   const [favorites, setFavorites] = useState<Track[]>(() => {
     try {
       const saved = localStorage.getItem('spotifyMiniFavorites');
@@ -129,6 +149,50 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
     localStorage.setItem('spotifyMiniHistory', JSON.stringify(history));
   }, [history]);
 
+  useEffect(() => {
+    sync.onRemotePlayback((state) => {
+      remoteUpdateRef.current = true;
+      setCurrentTrack(state.currentTrack);
+      setIsPlaying(state.isPlaying);
+      setProgress(state.progress);
+      setVolume(state.volume);
+      if (state.queue) setQueue(state.queue);
+      requestAnimationFrame(() => {
+        remoteUpdateRef.current = false;
+      });
+    });
+    sync.onRemoteQueue((nextQueue) => {
+      remoteUpdateRef.current = true;
+      setQueue(nextQueue);
+      requestAnimationFrame(() => {
+        remoteUpdateRef.current = false;
+      });
+    });
+    sync.onDjPlayWinner((track) => {
+      remoteUpdateRef.current = true;
+      setCurrentTrack(track);
+      setIsPlaying(true);
+      setProgress(0);
+      setHistory((prev) => {
+        const filtered = prev.filter((t) => t.id !== track.id);
+        return [track, ...filtered].slice(0, 50);
+      });
+      requestAnimationFrame(() => {
+        remoteUpdateRef.current = false;
+      });
+    });
+  }, [sync.onRemotePlayback, sync.onRemoteQueue, sync.onDjPlayWinner]);
+
+  useEffect(() => {
+    if (remoteUpdateRef.current || !sync.isHost || !sync.roomCode) return;
+    sync.broadcastPlayback({ currentTrack, isPlaying, progress, volume, queue });
+  }, [currentTrack, isPlaying, progress, volume, queue, sync.isHost, sync.roomCode, sync.broadcastPlayback]);
+
+  useEffect(() => {
+    if (remoteUpdateRef.current || !sync.isHost || !sync.roomCode) return;
+    sync.broadcastQueue(queue);
+  }, [queue, sync.isHost, sync.roomCode, sync.broadcastQueue]);
+
   const playTrack = useCallback((track: Track) => {
     setCurrentTrack(track);
     setIsPlaying(true);
@@ -139,6 +203,20 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
     });
   }, []);
 
+  const tryDjAutoNext = useCallback(() => {
+    if (
+      sync.isHost &&
+      sync.roomCode &&
+      sync.djMode.enabled &&
+      sync.djMode.autoPlay &&
+      sync.djPool.length > 0
+    ) {
+      sync.playTopDjTrack();
+      return true;
+    }
+    return false;
+  }, [sync]);
+
   const togglePlay = useCallback(() => {
     setIsPlaying(prev => !prev);
   }, []);
@@ -147,10 +225,11 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
     if (queue.length > 0) {
       const next = queue[0];
       setQueue(prev => prev.slice(1));
-      if (currentTrack) addToQueue(currentTrack);
       playTrack(next);
+      return;
     }
-  }, [queue, currentTrack, playTrack]);
+    tryDjAutoNext();
+  }, [queue, playTrack, tryDjAutoNext]);
 
   const prevTrack = useCallback(() => {
     if (history.length > 1) {
@@ -209,6 +288,28 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
         setIsPlaying,
         setDuration,
         setProgress,
+        showLivePanel,
+        setShowLivePanel,
+        syncConnected: sync.connected,
+        roomCode: sync.roomCode,
+        isRoomHost: sync.isHost,
+        roomUsers: sync.roomUsers,
+        liveChat: sync.chatMessages,
+        liveReactions: sync.reactions,
+        syncError: sync.connectionError,
+        djMode: sync.djMode,
+        djPool: sync.djPool,
+        createLiveRoom: sync.createRoom,
+        joinLiveRoom: sync.joinRoom,
+        leaveLiveRoom: sync.leaveRoom,
+        sendLiveChat: sync.sendChatMessage,
+        sendLiveReaction: sync.sendReaction,
+        toggleDjMode: sync.toggleDjMode,
+        setDjAutoPlay: sync.setDjAutoPlay,
+        suggestToDj: sync.suggestToDj,
+        voteDjTrack: sync.voteDjTrack,
+        playTopDjTrack: sync.playTopDjTrack,
+        clearDjPool: sync.clearDjPool,
       }}
     >
       {children}
@@ -284,6 +385,28 @@ const SpotifyMiniStandalone: React.FC = () => {
     setIsPlaying,
     setDuration,
     setProgress,
+    showLivePanel,
+    setShowLivePanel,
+    syncConnected,
+    roomCode,
+    isRoomHost,
+    roomUsers,
+    liveChat,
+    liveReactions,
+    syncError,
+    createLiveRoom,
+    joinLiveRoom,
+    leaveLiveRoom,
+    sendLiveChat,
+    sendLiveReaction,
+    djMode,
+    djPool,
+    toggleDjMode,
+    setDjAutoPlay,
+    suggestToDj,
+    voteDjTrack,
+    playTopDjTrack,
+    clearDjPool,
   } = useSpotifyMini();
 
   const [activeService, setActiveService] = useState<ServiceType>('youtube');
@@ -493,17 +616,16 @@ const SpotifyMiniStandalone: React.FC = () => {
     }
   }, [activeService]);
 
-  const playFromSearch = async (result: any) => {
+  const resolveSearchToTrack = async (result: SearchResult | SpotifyResult | YouTubeResult): Promise<Track | null> => {
     if ('service' in result && result.service === 'spotify') {
-      // Search YouTube for this song
       try {
         const searchQuery = `${result.title} ${result.artist}`;
         const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(searchQuery)}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.results && data.results.length > 0) {
+          if (data.results?.length > 0) {
             const firstResult = data.results[0];
-            const newTrack: Track = {
+            return {
               id: firstResult.id,
               title: firstResult.title,
               artist: firstResult.channelTitle,
@@ -513,69 +635,42 @@ const SpotifyMiniStandalone: React.FC = () => {
               kind: firstResult.kind,
               videoId: firstResult.id,
             };
-            playTrack(newTrack);
-            return;
           }
         }
       } catch (err) {
-        console.error('Error searching YouTube for Spotify track:', err);
+        console.error('Error resolving Spotify track:', err);
       }
-    } else {
-      const newTrack: Track = {
-        id: result.id,
-        title: result.title,
-        artist: result.channelTitle,
-        cover: result.thumbnail,
-        url: '',
-        service: activeService,
-        kind: result.kind,
-        videoId: result.id,
-      };
-      playTrack(newTrack);
+      return null;
     }
+    const yt = result as YouTubeResult;
+    return {
+      id: yt.id,
+      title: yt.title,
+      artist: yt.channelTitle,
+      cover: yt.thumbnail,
+      url: '',
+      service: activeService,
+      kind: yt.kind,
+      videoId: yt.id,
+    };
   };
 
-  const addTrackToQueue = async (result: any) => {
-    if ('service' in result && result.service === 'spotify') {
-      // Search YouTube for this song to add to queue
-      try {
-        const searchQuery = `${result.title} ${result.artist}`;
-        const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(searchQuery)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.results && data.results.length > 0) {
-            const firstResult = data.results[0];
-            const newTrack: Track = {
-              id: firstResult.id,
-              title: firstResult.title,
-              artist: firstResult.channelTitle,
-              cover: firstResult.thumbnail,
-              url: '',
-              service: 'youtube',
-              kind: firstResult.kind,
-              videoId: firstResult.id,
-            };
-            addToQueue(newTrack);
-            return;
-          }
-        }
-      } catch (err) {
-        console.error('Error searching YouTube for Spotify track:', err);
-      }
-    } else {
-      const newTrack: Track = {
-        id: result.id,
-        title: result.title,
-        artist: result.channelTitle,
-        cover: result.thumbnail,
-        url: '',
-        service: activeService,
-        kind: result.kind,
-        videoId: result.id,
-      };
-      addToQueue(newTrack);
-    }
+  const playFromSearch = async (result: SearchResult | SpotifyResult | YouTubeResult) => {
+    const track = await resolveSearchToTrack(result);
+    if (track) playTrack(track);
   };
+
+  const addTrackToQueue = async (result: SearchResult | SpotifyResult | YouTubeResult) => {
+    const track = await resolveSearchToTrack(result);
+    if (track) addToQueue(track);
+  };
+
+  const suggestFromSearch = async (result: SearchResult | SpotifyResult | YouTubeResult) => {
+    const track = await resolveSearchToTrack(result);
+    if (track) suggestToDj(track);
+  };
+
+  const showDjSuggest = !!roomCode && djMode.enabled;
 
   // Helper to format time
   const formatTime = (secs: number) => {
@@ -740,6 +835,15 @@ const SpotifyMiniStandalone: React.FC = () => {
             </button>
           </div>
           <div className="spotify-services">
+            <button
+              type="button"
+              className={`spotify-service-btn live-btn ${roomCode ? 'active live-active' : ''}`}
+              onClick={() => setShowLivePanel(true)}
+              title="Salas en vivo (Socket.io)"
+            >
+              <People24Regular style={{ width: 16, height: 16, marginRight: 6 }} />
+              {roomCode ? `En vivo · ${roomCode}${djMode.enabled ? ' · DJ' : ''}` : 'En vivo'}
+            </button>
             {(['youtube', 'youtube-music', 'spotify'] as ServiceType[]).map((service) => (
               <button
                 key={service}
@@ -800,6 +904,15 @@ const SpotifyMiniStandalone: React.FC = () => {
                           >
                             <Add24Filled />
                           </button>
+                          {showDjSuggest && (
+                            <button
+                              className="spotify-dj-btn"
+                              onClick={() => suggestFromSearch(spotifyResult)}
+                              title="Sugerir al DJ"
+                            >
+                              🎧
+                            </button>
+                          )}
                         </div>
                       );
                     }
@@ -826,6 +939,15 @@ const SpotifyMiniStandalone: React.FC = () => {
                         >
                           <Add24Filled />
                         </button>
+                        {showDjSuggest && (
+                          <button
+                            className="spotify-dj-btn"
+                            onClick={() => suggestFromSearch(youtubeResult)}
+                            title="Sugerir al DJ"
+                          >
+                            🎧
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -1075,6 +1197,30 @@ const SpotifyMiniStandalone: React.FC = () => {
         </div>
       )}
 
+      <LiveRoomPanel
+        open={showLivePanel}
+        onClose={() => setShowLivePanel(false)}
+        connected={syncConnected}
+        connectionError={syncError}
+        roomCode={roomCode}
+        isHost={isRoomHost}
+        roomUsers={roomUsers}
+        chatMessages={liveChat}
+        reactions={liveReactions}
+        onCreateRoom={createLiveRoom}
+        onJoinRoom={joinLiveRoom}
+        onLeaveRoom={leaveLiveRoom}
+        onSendChat={sendLiveChat}
+        onSendReaction={sendLiveReaction}
+        djMode={djMode}
+        djPool={djPool}
+        onToggleDj={toggleDjMode}
+        onToggleDjAutoPlay={setDjAutoPlay}
+        onVoteDj={voteDjTrack}
+        onPlayTopDj={playTopDjTrack}
+        onClearDj={clearDjPool}
+      />
+
       {/* --- GLOBAL STYLES --- */}
       <style>{`
         * {
@@ -1084,7 +1230,8 @@ const SpotifyMiniStandalone: React.FC = () => {
         .spotify-root {
           display: flex;
           flex-direction: column;
-          height: 100vh;
+          height: 100%;
+          min-height: 0;
           width: 100%;
           background: #000;
           font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -1364,7 +1511,8 @@ const SpotifyMiniStandalone: React.FC = () => {
           margin-right: 0;
           margin-top: 0;
           margin-bottom: 0;
-          height: 100vh;
+          height: 100%;
+          min-height: 0;
           background: #000;
           display: flex;
           flex-direction: column;
@@ -1474,6 +1622,17 @@ const SpotifyMiniStandalone: React.FC = () => {
           background: #fff;
           color: #000;
           border-color: #fff;
+        }
+
+        .spotify-service-btn.live-btn {
+          display: inline-flex;
+          align-items: center;
+        }
+
+        .spotify-service-btn.live-active {
+          background: rgba(29, 185, 84, 0.2);
+          color: #1db954;
+          border-color: #1db954;
         }
 
         .spotify-content {
@@ -1607,6 +1766,34 @@ const SpotifyMiniStandalone: React.FC = () => {
           background: #fff;
           color: #000;
           border-color: #fff;
+        }
+
+        .spotify-dj-btn {
+          position: absolute;
+          top: 22px;
+          right: 66px;
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          background: rgba(251, 191, 36, 0.15);
+          border: 1px solid rgba(251, 191, 36, 0.45);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          opacity: 0;
+          transition: all 0.2s ease;
+          font-size: 16px;
+        }
+
+        .spotify-card:hover .spotify-dj-btn {
+          opacity: 1;
+        }
+
+        .spotify-dj-btn:hover {
+          background: #fbbf24;
+          border-color: #fbbf24;
+          transform: scale(1.08);
         }
 
         .spotify-empty {

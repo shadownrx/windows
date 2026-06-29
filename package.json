@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "music:server": "npm --prefix server run dev",
+    "music:server:start": "npm --prefix server start",
+    "dev:music": "npm run music:server",
     "build": "npm run build:as && tsc -b && vite build",
     "build:as": "asc assembly/index.ts --target release",
     "lint": "eslint .",
@@ -20,6 +23,7 @@
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "socket.io-client": "^4.8.3",
     "three": "^0.183.2"
   },
   "devDependencies": {

@@ -15,6 +15,11 @@ export default defineConfig({
         changeOrigin: true,
         // Si usás vercel dev en el 3000, esto redirige /api/groq/chat → http://localhost:3000/api/groq/chat
       },
+      '/socket.io': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+        ws: true,
+      },
     },
     fs: {
       allow: ['..'],

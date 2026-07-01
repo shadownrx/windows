@@ -2569,6 +2569,10 @@ const SpotifyMiniStandalone: React.FC = () => {
 
         /* --- RESPONSIVE STYLES --- */
         @media (max-width: 768px) {
+          .spotify-sidebar {
+            width: min(100%, 340px);
+          }
+
           .spotify-main {
             margin: 0;
             height: 100vh;
@@ -2576,7 +2580,7 @@ const SpotifyMiniStandalone: React.FC = () => {
           }
 
           .spotify-header {
-            padding: 84px 20px 20px;
+            padding: 84px 18px 20px;
             flex-direction: column;
             align-items: stretch;
             gap: 14px;
@@ -2584,20 +2588,38 @@ const SpotifyMiniStandalone: React.FC = () => {
 
           .spotify-search-bar {
             max-width: 100%;
+            width: 100%;
           }
 
           .spotify-services {
             justify-content: flex-start;
+            flex-wrap: wrap;
+            gap: 10px;
+          }
+
+          .spotify-service-btn {
+            flex: 1 1 auto;
+            min-width: 0;
           }
 
           .spotify-content {
-            padding: 24px 20px;
-            padding-bottom: 180px;
+            padding: 24px 18px;
+            padding-bottom: 200px;
           }
 
           .spotify-grid {
             grid-template-columns: repeat(2, 1fr);
             gap: 16px;
+          }
+
+          .spotify-playlists-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+          }
+
+          .spotify-results-header {
+            flex-direction: column;
+            align-items: stretch;
           }
 
           .spotify-player {
@@ -2629,6 +2651,8 @@ const SpotifyMiniStandalone: React.FC = () => {
 
           .spotify-player-right {
             min-width: auto;
+            justify-content: space-between;
+            flex-wrap: wrap;
           }
 
           .spotify-volume {
@@ -2649,16 +2673,51 @@ const SpotifyMiniStandalone: React.FC = () => {
           .spotify-playlist-hero-title {
             font-size: 32px;
           }
+
+          .spotify-autoplay-badge {
+            display: none;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .spotify-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .spotify-playlists-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .spotify-services {
+            gap: 8px;
+          }
+
+          .spotify-service-btn {
+            width: 100%;
+          }
         }
 
         @media (max-width: 480px) {
-          .spotify-grid {
-            grid-template-columns: 1fr;
+          .spotify-content {
+            padding: 20px 14px;
+            padding-bottom: 220px;
           }
 
           .spotify-search-button {
             padding: 10px 14px;
             font-size: 12px;
+          }
+
+          .spotify-search-bar {
+            padding: 12px 14px;
+          }
+
+          .spotify-search-input {
+            font-size: 14px;
+          }
+
+          .spotify-results-header {
+            gap: 10px;
           }
 
           .spotify-player-progress {
@@ -2679,8 +2738,8 @@ const SpotifyMiniStandalone: React.FC = () => {
           }
 
           .hamburger-btn {
-            top: 16px;
-            left: 16px;
+            top: 14px;
+            left: 14px;
           }
         }
 

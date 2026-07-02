@@ -5,7 +5,7 @@ import {
   Copy24Regular,
   Send24Regular,
 } from '@fluentui/react-icons';
-import type { ChatMessage, DjModeState, DjVoteEntry, LiveReaction, RoomUser } from '../../types/music';
+import type { ChatMessage, DjEqSettings, DjModeState, DjVoteEntry, LiveReaction, RoomUser } from '../../types/music';
 import DjVotePanel from './DjVotePanel';
 
 interface LiveRoomPanelProps {
@@ -20,6 +20,7 @@ interface LiveRoomPanelProps {
   reactions: LiveReaction[];
   djMode: DjModeState;
   djPool: DjVoteEntry[];
+  djEq: DjEqSettings;
   onCreateRoom: (username: string, enableDj?: boolean) => void;
   onJoinRoom: (code: string, username: string) => void;
   onLeaveRoom: () => void;
@@ -27,6 +28,7 @@ interface LiveRoomPanelProps {
   onSendReaction: (emoji: string) => void;
   onToggleDj: (enabled: boolean) => void;
   onToggleDjAutoPlay: (autoPlay: boolean) => void;
+  onUpdateDjEq: (eq: DjEqSettings) => void;
   onVoteDj: (entryId: string) => void;
   onPlayTopDj: () => void;
   onClearDj: () => void;
@@ -46,6 +48,7 @@ export const LiveRoomPanel: React.FC<LiveRoomPanelProps> = ({
   reactions,
   djMode,
   djPool,
+  djEq,
   onCreateRoom,
   onJoinRoom,
   onLeaveRoom,
@@ -53,6 +56,7 @@ export const LiveRoomPanel: React.FC<LiveRoomPanelProps> = ({
   onSendReaction,
   onToggleDj,
   onToggleDjAutoPlay,
+  onUpdateDjEq,
   onVoteDj,
   onPlayTopDj,
   onClearDj,
@@ -197,9 +201,11 @@ export const LiveRoomPanel: React.FC<LiveRoomPanelProps> = ({
             <DjVotePanel
               djMode={djMode}
               djPool={djPool}
+              djEq={djEq}
               isHost={isHost}
               onToggleDj={onToggleDj}
               onToggleAutoPlay={onToggleDjAutoPlay}
+              onUpdateDjEq={onUpdateDjEq}
               onVote={onVoteDj}
               onPlayTop={onPlayTopDj}
               onClear={onClearDj}

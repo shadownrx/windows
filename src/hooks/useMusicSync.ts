@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type {
   ChatMessage,
+  DjEqSettings,
   DjModeState,
   DjVoteEntry,
   LiveReaction,
@@ -19,16 +20,28 @@ interface JoinResult {
   queue?: Track[];
   djMode?: DjModeState;
   djPool?: DjVoteEntry[];
+  djEq?: DjEqSettings;
   error?: string;
 }
 
 const DEFAULT_DJ_MODE: DjModeState = { enabled: false, autoPlay: true };
+
+const DEFAULT_DJ_EQ: DjEqSettings = {
+  enabled: false,
+  preset: 'Flat',
+  bands: Array(32).fill(0),
+  lowCut: false,
+  highCut: false,
+};
 
 export function useMusicSync() {
   const socketRef = useRef<Socket | null>(null);
   const onRemotePlaybackRef = useRef<((state: PlaybackSyncState) => void) | null>(null);
   const onRemoteQueueRef = useRef<((queue: Track[]) => void) | null>(null);
   const onDjPlayWinnerRef = useRef<((track: Track) => void) | null>(null);
+  const playbackBufferRef = useRef<Omit<PlaybackSyncState, 'updatedAt' | 'queue'> | null>(null);
+  const lastPlaybackSentAtRef = useRef<number>(0);
+  const playbackTimerRef = useRef<number | null>(null);
 
   const [connected, setConnected] = useState(false);
   const [socketId, setSocketId] = useState<string | null>(null);
@@ -40,6 +53,7 @@ export function useMusicSync() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [djMode, setDjMode] = useState<DjModeState>(DEFAULT_DJ_MODE);
   const [djPool, setDjPool] = useState<DjVoteEntry[]>([]);
+  const [djEq, setDjEq] = useState<DjEqSettings>(DEFAULT_DJ_EQ);
 
   useEffect(() => {
     const socket = io(SERVER_URL || undefined, {
@@ -103,6 +117,10 @@ export function useMusicSync() {
       setDjPool(pool);
     });
 
+    socket.on('dj:eq', (eq: DjEqSettings) => {
+      setDjEq(eq);
+    });
+
     socket.on('dj:play-winner', ({ track }: { track: Track }) => {
       if (track) onDjPlayWinnerRef.current?.(track);
     });
@@ -122,6 +140,7 @@ export function useMusicSync() {
     setIsHost(!!res.isHost);
     setDjMode(res.djMode ?? DEFAULT_DJ_MODE);
     setDjPool(res.djPool ?? []);
+    setDjEq(res.djEq ?? DEFAULT_DJ_EQ);
     setChatMessages([]);
     setReactions([]);
     if (res.playback) onRemotePlaybackRef.current?.(res.playback);
@@ -167,23 +186,62 @@ export function useMusicSync() {
     setReactions([]);
     setDjMode(DEFAULT_DJ_MODE);
     setDjPool([]);
+    setDjEq(DEFAULT_DJ_EQ);
   }, [roomCode]);
 
+  const flushPlayback = useCallback(() => {
+    if (!socketRef.current || !roomCode || !isHost || !playbackBufferRef.current) return;
+
+    const payload = playbackBufferRef.current;
+    playbackBufferRef.current = null;
+    lastPlaybackSentAtRef.current = Date.now();
+    socketRef.current.emit('playback:sync', {
+      ...payload,
+      updatedAt: lastPlaybackSentAtRef.current,
+    });
+
+    if (playbackTimerRef.current) {
+      clearTimeout(playbackTimerRef.current);
+      playbackTimerRef.current = null;
+    }
+  }, [isHost, roomCode]);
+
+  useEffect(() => {
+    return () => {
+      if (playbackTimerRef.current) {
+        clearTimeout(playbackTimerRef.current);
+      }
+    };
+  }, []);
+
   const broadcastPlayback = useCallback(
-    (state: Omit<PlaybackSyncState, 'updatedAt'>) => {
-      if (!isHost || !roomCode) return;
-      socketRef.current?.emit('playback:sync', {
-        ...state,
-        updatedAt: Date.now(),
-      });
+    (state: Omit<PlaybackSyncState, 'updatedAt' | 'queue'>) => {
+      if (!socketRef.current || !roomCode || !isHost) return;
+
+      playbackBufferRef.current = state;
+      const now = Date.now();
+      const elapsed = now - lastPlaybackSentAtRef.current;
+      const minInterval = 1200;
+
+      if (elapsed >= minInterval) {
+        flushPlayback();
+        return;
+      }
+
+      if (playbackTimerRef.current) return;
+
+      playbackTimerRef.current = window.setTimeout(() => {
+        playbackTimerRef.current = null;
+        flushPlayback();
+      }, minInterval - elapsed);
     },
-    [isHost, roomCode],
+    [flushPlayback, isHost, roomCode],
   );
 
   const broadcastQueue = useCallback(
     (queue: Track[]) => {
-      if (!isHost || !roomCode) return;
-      socketRef.current?.emit('queue:sync', queue);
+      if (!socketRef.current || !roomCode || !isHost) return;
+      socketRef.current.emit('queue:sync', queue);
     },
     [isHost, roomCode],
   );
@@ -236,6 +294,17 @@ export function useMusicSync() {
     socketRef.current?.emit('dj:clear', {});
   }, [isHost, roomCode]);
 
+  const sendDjEqSettings = useCallback(
+    (eq: DjEqSettings) => {
+      if (!isHost || !roomCode) return;
+      socketRef.current?.emit('dj:eq', eq, (res: { error?: string }) => {
+        if (res?.error) setConnectionError(res.error);
+        else setDjEq(eq);
+      });
+    },
+    [isHost, roomCode],
+  );
+
   const sendChatMessage = useCallback(
     (text: string) => {
       if (!roomCode || !text.trim()) return;
@@ -286,8 +355,10 @@ export function useMusicSync() {
     voteDjTrack,
     playTopDjTrack,
     clearDjPool,
+    sendDjEqSettings,
     sendChatMessage,
     sendReaction,
+    djEq,
     onRemotePlayback,
     onRemoteQueue,
     onDjPlayWinner,

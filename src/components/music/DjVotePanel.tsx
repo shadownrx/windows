@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowUp24Regular, Delete24Regular, Play24Filled } from '@fluentui/react-icons';
-import type { DjModeState, DjVoteEntry } from '../../types/music';
+import type { DjEqSettings, DjModeState, DjVoteEntry } from '../../types/music';
 
 interface DjVotePanelProps {
   djMode: DjModeState;
   djPool: DjVoteEntry[];
+  djEq: DjEqSettings;
   isHost: boolean;
   onToggleDj: (enabled: boolean) => void;
   onToggleAutoPlay: (autoPlay: boolean) => void;
+  onUpdateDjEq: (eq: DjEqSettings) => void;
   onVote: (entryId: string) => void;
   onPlayTop: () => void;
   onClear: () => void;
@@ -16,13 +18,44 @@ interface DjVotePanelProps {
 export const DjVotePanel: React.FC<DjVotePanelProps> = ({
   djMode,
   djPool,
+  djEq,
   isHost,
   onToggleDj,
   onToggleAutoPlay,
+  onUpdateDjEq,
   onVote,
   onPlayTop,
   onClear,
 }) => {
+  const [localEq, setLocalEq] = useState<DjEqSettings>(djEq);
+
+  useEffect(() => {
+    setLocalEq(djEq);
+  }, [djEq]);
+
+  const presets = useMemo(
+    () => [
+      { name: 'Flat', bands: Array(32).fill(0) },
+      { name: 'Bass Boost', bands: Array(32).fill(0).map((_, index) => (index < 10 ? 5 : 0)) },
+      { name: 'Treble Boost', bands: Array(32).fill(0).map((_, index) => (index >= 22 ? 5 : 0)) },
+      { name: 'Vocal', bands: Array(32).fill(0).map((_, index) => (index >= 10 && index < 22 ? 3 : 0)) },
+      { name: 'Dance', bands: Array(32).fill(0).map((_, index) => (index >= 8 && index < 24 ? 4 : 0)) },
+    ],
+    [],
+  );
+
+  const updateEq = (updates: Partial<DjEqSettings>) => {
+    const nextEq = { ...localEq, ...updates };
+    setLocalEq(nextEq);
+    onUpdateDjEq(nextEq);
+  };
+
+  const setBandValue = (index: number, value: number) => {
+    const bands = [...localEq.bands];
+    bands[index] = value;
+    updateEq({ bands });
+  };
+
   return (
     <div className="dj-panel">
       <div className="dj-panel-header">
@@ -48,24 +81,87 @@ export const DjVotePanel: React.FC<DjVotePanelProps> = ({
       ) : (
         <>
           {isHost && (
-            <div className="dj-host-controls">
-              <label className="dj-autoplay">
-                <input
-                  type="checkbox"
-                  checked={djMode.autoPlay}
-                  onChange={(e) => onToggleAutoPlay(e.target.checked)}
-                />
-                Auto-reproducir ganadora al terminar
-              </label>
-              <div className="dj-host-actions">
-                <button type="button" className="dj-btn primary" onClick={onPlayTop} disabled={!djPool.length}>
-                  <Play24Filled /> Reproducir top
-                </button>
-                <button type="button" className="dj-btn" onClick={onClear} disabled={!djPool.length}>
-                  <Delete24Regular /> Limpiar
-                </button>
+            <>
+              <div className="dj-host-controls">
+                <label className="dj-autoplay">
+                  <input
+                    type="checkbox"
+                    checked={djMode.autoPlay}
+                    onChange={(e) => onToggleAutoPlay(e.target.checked)}
+                  />
+                  Auto-reproducir ganadora al terminar
+                </label>
+                <div className="dj-host-actions">
+                  <button type="button" className="dj-btn primary" onClick={onPlayTop} disabled={!djPool.length}>
+                    <Play24Filled /> Reproducir top
+                  </button>
+                  <button type="button" className="dj-btn" onClick={onClear} disabled={!djPool.length}>
+                    <Delete24Regular /> Limpiar
+                  </button>
+                </div>
               </div>
-            </div>
+
+              <div className="dj-eq-panel">
+                <div className="dj-eq-header">
+                  <span className="dj-eq-title">Ecualizador DJ</span>
+                  <label className="dj-eq-toggle">
+                    <input
+                      type="checkbox"
+                      checked={localEq.enabled}
+                      onChange={(e) => updateEq({ enabled: e.target.checked })}
+                    />
+                    Activado
+                  </label>
+                </div>
+
+                <div className="dj-eq-presets">
+                  {presets.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      className={`dj-eq-preset ${localEq.preset === preset.name ? 'active' : ''}`}
+                      onClick={() => updateEq({ preset: preset.name, bands: preset.bands })}
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="dj-eq-bands">
+                  {localEq.bands.map((value, index) => (
+                    <label key={index} className="dj-eq-band">
+                      <input
+                        type="range"
+                        min={-12}
+                        max={12}
+                        value={value}
+                        onChange={(e) => setBandValue(index, Number(e.target.value))}
+                      />
+                      <span>{index + 1}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="dj-eq-options">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={localEq.lowCut}
+                      onChange={(e) => updateEq({ lowCut: e.target.checked })}
+                    />
+                    Low cut
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={localEq.highCut}
+                      onChange={(e) => updateEq({ highCut: e.target.checked })}
+                    />
+                    High cut
+                  </label>
+                </div>
+              </div>
+            </>
           )}
 
           <p className="dj-hint active">
@@ -222,6 +318,103 @@ export const DjVotePanel: React.FC<DjVotePanelProps> = ({
         }
 
         .dj-vote-list li.leading .dj-vote-rank { color: #1db954; }
+
+        .dj-eq-panel {
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 14px;
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .dj-eq-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .dj-eq-title {
+          font-size: 13px;
+          font-weight: 800;
+          color: #fbbf24;
+        }
+
+        .dj-eq-toggle {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: rgba(255,255,255,0.75);
+          font-size: 12px;
+          cursor: pointer;
+        }
+
+        .dj-eq-presets {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .dj-eq-preset {
+          background: rgba(255,255,255,0.08);
+          border: 1px solid rgba(255,255,255,0.12);
+          color: rgba(255,255,255,0.8);
+          border-radius: 999px;
+          padding: 6px 10px;
+          font-size: 11px;
+          cursor: pointer;
+        }
+
+        .dj-eq-preset.active {
+          border-color: #1db954;
+          background: rgba(29,185,84,0.12);
+          color: #fff;
+        }
+
+        .dj-eq-bands {
+          display: grid;
+          grid-template-columns: repeat(8, minmax(0, 1fr));
+          gap: 6px;
+          max-height: 240px;
+          overflow-x: hidden;
+          overflow-y: auto;
+          padding: 4px 0;
+        }
+
+        .dj-eq-band {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+          font-size: 10px;
+          color: rgba(255,255,255,0.55);
+        }
+
+        .dj-eq-band input {
+          writing-mode: bt-lr; /* vertical slider support */
+          -webkit-appearance: slider-vertical;
+          width: 100%;
+          height: 100px;
+          background: transparent;
+        }
+
+        .dj-eq-options {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .dj-eq-options label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          color: rgba(255,255,255,0.75);
+          cursor: pointer;
+        }
 
         .dj-vote-cover {
           width: 40px;

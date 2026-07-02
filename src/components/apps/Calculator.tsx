@@ -13,9 +13,55 @@ const Calculator: React.FC = () => {
     setDisplay('0');
   };
 
+  const evaluateExpression = (expression: string) => {
+    const tokens = expression.trim().split(/\s+/);
+    const outputQueue: string[] = [];
+    const operatorStack: string[] = [];
+
+    const precedence: Record<string, number> = { '+': 1, '-': 1, '*': 2, '/': 2 };
+    const isOperator = (token: string) => ['+', '-', '*', '/'].includes(token);
+
+    for (const token of tokens) {
+      if (!isNaN(Number(token))) {
+        outputQueue.push(token);
+      } else if (isOperator(token)) {
+        while (
+          operatorStack.length > 0 &&
+          isOperator(operatorStack[operatorStack.length - 1]) &&
+          precedence[operatorStack[operatorStack.length - 1]] >= precedence[token]
+        ) {
+          outputQueue.push(operatorStack.pop()!);
+        }
+        operatorStack.push(token);
+      }
+    }
+
+    while (operatorStack.length > 0) {
+      outputQueue.push(operatorStack.pop()!);
+    }
+
+    const valueStack: number[] = [];
+    for (const token of outputQueue) {
+      if (!isNaN(Number(token))) {
+        valueStack.push(Number(token));
+      } else {
+        const right = valueStack.pop();
+        const left = valueStack.pop();
+        if (left === undefined || right === undefined) throw new Error('Invalid expression');
+        if (token === '+') valueStack.push(left + right);
+        if (token === '-') valueStack.push(left - right);
+        if (token === '*') valueStack.push(left * right);
+        if (token === '/') valueStack.push(right === 0 ? NaN : left / right);
+      }
+    }
+
+    if (valueStack.length !== 1) throw new Error('Invalid expression');
+    return valueStack[0];
+  };
+
   const calculate = () => {
     try {
-      const result = eval(equation + display);
+      const result = evaluateExpression(`${equation}${display}`);
       setDisplay(String(result));
       setEquation('');
     } catch {

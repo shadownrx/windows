@@ -51,6 +51,14 @@ export interface DjModeState {
   autoPlay: boolean;
 }
 
+export interface DjEqSettings {
+  enabled: boolean;
+  preset: string;
+  bands: number[];
+  lowCut: boolean;
+  highCut: boolean;
+}
+
 /** Server-side pool entry (votes = socket ids) */
 export interface DjPoolEntryRaw {
   entryId: string;

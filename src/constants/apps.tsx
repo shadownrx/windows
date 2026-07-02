@@ -12,8 +12,8 @@ import {
   Image24Regular,
   MusicNote2Regular,
   Calculator24Regular,
+  Globe24Regular,
 } from '@fluentui/react-icons';
-import { ChromeIcon } from '../components/apps/BrowserApp';
 
 /**
  * Lightweight metadata for the apps shown in the Start Menu, Search Pane and Taskbar.
@@ -38,7 +38,7 @@ export interface AppItem {
 export const APPS: AppItem[] = [
   { id: 'search', appId: 'search', icon: <Search24Regular />, label: 'Buscar' },
   { id: 'files', appId: 'file-explorer', icon: <Folder24Regular />, label: 'Explorador de archivos', isPinned: true },
-  { id: 'chrome', appId: 'chrome', icon: <ChromeIcon />, label: 'Google Chrome', isPinned: true },
+  { id: 'chrome', appId: 'chrome', icon: <Globe24Regular primaryFill="#4285F4" />, label: 'Google Chrome', isPinned: true },
   {
     id: 'vscode',
     appId: 'vscode',

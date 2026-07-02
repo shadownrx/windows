@@ -68,6 +68,14 @@ export default function SocketHandler(req: VercelRequest, res: VercelResponse) {
       return room.users.map((u: any) => ({ id: u.id, name: u.name, isHost: u.isHost }));
     }
 
+    const DEFAULT_DJ_EQ = {
+      enabled: false,
+      preset: 'Flat',
+      bands: Array(32).fill(0),
+      lowCut: false,
+      highCut: false,
+    };
+
     function serializeDjPool(pool: any[], socketId: string) {
       return [...pool]
         .map((e) => ({
@@ -76,6 +84,12 @@ export default function SocketHandler(req: VercelRequest, res: VercelResponse) {
           votedByMe: e.votes.includes(socketId),
         }))
         .sort((a, b) => b.voteCount - a.voteCount || a.addedAt - b.addedAt);
+    }
+
+    function broadcastDjEq(roomCode: string) {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      ioServer.to(roomCode).emit('dj:eq', room.djEq);
     }
 
     function getTopDjEntry(room: any) {
@@ -110,6 +124,7 @@ export default function SocketHandler(req: VercelRequest, res: VercelResponse) {
         queue: room.queue,
         djMode: room.djMode,
         djPool: serializeDjPool(room.djPool, socketId),
+        djEq: room.djEq,
       };
     }
 
@@ -130,6 +145,7 @@ export default function SocketHandler(req: VercelRequest, res: VercelResponse) {
           chat: [],
           djMode: { enabled: !!enableDj, autoPlay: true },
           djPool: [],
+          djEq: { ...DEFAULT_DJ_EQ },
         };
 
         rooms.set(code, room);
@@ -198,13 +214,13 @@ export default function SocketHandler(req: VercelRequest, res: VercelResponse) {
         if (!currentRoom) return;
         const room = rooms.get(currentRoom);
         if (!room || room.hostId !== clientSocket.id) return;
-    
+
         if (typeof enabled === 'boolean') room.djMode.enabled = enabled;
         if (typeof autoPlay === 'boolean') room.djMode.autoPlay = autoPlay;
-    
+
         broadcastDjState(currentRoom);
         broadcastDjPool(currentRoom);
-    
+
         ioServer.to(currentRoom).emit('chat:message', {
           id: Date.now(),
           user: 'Sistema',
@@ -213,10 +229,41 @@ export default function SocketHandler(req: VercelRequest, res: VercelResponse) {
             : 'Modo DJ desactivado',
           at: Date.now(),
         });
-    
+
         callback?.({ ok: true, djMode: room.djMode });
       });
-    
+
+      clientSocket.on('dj:eq', (eq, callback) => {
+        if (!currentRoom) return;
+        const room = rooms.get(currentRoom);
+        if (!room || room.hostId !== clientSocket.id) return;
+        if (!eq || typeof eq !== 'object' || !Array.isArray(eq.bands)) {
+          callback?.({ error: 'Valores de EQ inválidos' });
+          return;
+        }
+
+        const bands = eq.bands.slice(0, 32).map((value: any) => Number(value) || 0);
+        while (bands.length < 32) bands.push(0);
+
+        room.djEq = {
+          enabled: !!eq.enabled,
+          preset: String(eq.preset || 'Flat'),
+          bands,
+          lowCut: !!eq.lowCut,
+          highCut: !!eq.highCut,
+        };
+
+        broadcastDjEq(currentRoom);
+        ioServer.to(currentRoom).emit('chat:message', {
+          id: Date.now(),
+          user: 'Sistema',
+          text: '🎚️ Ajustes del ecualizador DJ actualizados',
+          at: Date.now(),
+        });
+
+        callback?.({ ok: true, djEq: room.djEq });
+      });
+
       clientSocket.on('dj:suggest', ({ track }, callback) => {
         if (!currentRoom || !track?.id) return;
         const room = rooms.get(currentRoom);

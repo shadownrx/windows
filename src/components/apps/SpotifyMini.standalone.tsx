@@ -23,7 +23,7 @@ import {
 } from '@fluentui/react-icons';
 import { useMusicSync } from '../../hooks/useMusicSync';
 import LiveRoomPanel from '../music/LiveRoomPanel';
-import type { Track as MusicTrack, ChatMessage, LiveReaction, RoomUser, DjModeState, DjVoteEntry } from '../../types/music';
+import type { Track as MusicTrack, ChatMessage, DjEqSettings, LiveReaction, RoomUser, DjModeState, DjVoteEntry } from '../../types/music';
 
 // --- SPOTIFY SDK GLOBAL TYPES ---
 declare global {
@@ -113,6 +113,7 @@ interface SpotifyMiniContextType {
   syncError: string | null;
   djMode: DjModeState;
   djPool: DjVoteEntry[];
+  djEq: DjEqSettings;
   createLiveRoom: (username: string, enableDj?: boolean) => void;
   joinLiveRoom: (code: string, username: string) => void;
   leaveLiveRoom: () => void;
@@ -120,6 +121,7 @@ interface SpotifyMiniContextType {
   sendLiveReaction: (emoji: string) => void;
   toggleDjMode: (enabled: boolean) => void;
   setDjAutoPlay: (autoPlay: boolean) => void;
+  updateDjEq: (eq: DjEqSettings) => void;
   suggestToDj: (track: Track) => void;
   voteDjTrack: (entryId: string) => void;
   playTopDjTrack: () => void;
@@ -195,8 +197,8 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
 
   useEffect(() => {
     if (remoteUpdateRef.current || !sync.isHost || !sync.roomCode) return;
-    sync.broadcastPlayback({ currentTrack, isPlaying, progress, volume, queue });
-  }, [currentTrack, isPlaying, progress, volume, queue, sync.isHost, sync.roomCode, sync.broadcastPlayback]);
+    sync.broadcastPlayback({ currentTrack, isPlaying, progress, volume });
+  }, [currentTrack, isPlaying, progress, volume, sync.isHost, sync.roomCode, sync.broadcastPlayback]);
 
   useEffect(() => {
     if (remoteUpdateRef.current || !sync.isHost || !sync.roomCode) return;
@@ -322,6 +324,7 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
       syncError: sync.connectionError,
       djMode: sync.djMode,
       djPool: sync.djPool,
+      djEq: sync.djEq,
       createLiveRoom: sync.createRoom,
       joinLiveRoom: sync.joinRoom,
       leaveLiveRoom: sync.leaveRoom,
@@ -329,6 +332,7 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
       sendLiveReaction: sync.sendReaction,
       toggleDjMode: sync.toggleDjMode,
       setDjAutoPlay: sync.setDjAutoPlay,
+      updateDjEq: sync.sendDjEqSettings,
       suggestToDj: sync.suggestToDj,
       voteDjTrack: sync.voteDjTrack,
       playTopDjTrack: sync.playTopDjTrack,
@@ -382,7 +386,7 @@ const SpotifyMiniStandalone: React.FC = () => {
     showLivePanel, setShowLivePanel,
     syncConnected, roomCode, isRoomHost, roomUsers, liveChat, liveReactions, syncError,
     createLiveRoom, joinLiveRoom, leaveLiveRoom, sendLiveChat, sendLiveReaction,
-    djMode, djPool, toggleDjMode, setDjAutoPlay, suggestToDj, voteDjTrack, playTopDjTrack, clearDjPool,
+    djMode, djPool, djEq, toggleDjMode, setDjAutoPlay, updateDjEq, suggestToDj, voteDjTrack, playTopDjTrack, clearDjPool,
   } = useSpotifyMini();
 
   const [activeService, setActiveService] = useState<ServiceType>('youtube');
@@ -394,6 +398,7 @@ const SpotifyMiniStandalone: React.FC = () => {
   const [logoAnimating, setLogoAnimating] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bumpHeartId, setBumpHeartId] = useState<string | null>(null);
+  const [serviceFade, setServiceFade] = useState(true);
 
   // Playlist UI state
   const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
@@ -403,6 +408,16 @@ const SpotifyMiniStandalone: React.FC = () => {
   const [showAddToPlaylistModal, setShowAddToPlaylistModal] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [noShortsFilter, setNoShortsFilter] = useState(true);
+  const [searchControlsVisible, setSearchControlsVisible] = useState(true);
+
+  useEffect(() => {
+    const updateSearchControls = () => {
+      setSearchControlsVisible(window.innerWidth > 768);
+    };
+    updateSearchControls();
+    window.addEventListener('resize', updateSearchControls);
+    return () => window.removeEventListener('resize', updateSearchControls);
+  }, []);
 
   const abortRef = useRef<AbortController | null>(null);
   const playerRef = useRef<any>(null);
@@ -674,6 +689,18 @@ const SpotifyMiniStandalone: React.FC = () => {
 
   const showDjSuggest = !!roomCode && djMode.enabled;
 
+  useEffect(() => {
+    setServiceFade(false);
+    const timer = window.setTimeout(() => setServiceFade(true), 20);
+    return () => window.clearTimeout(timer);
+  }, [activeService]);
+
+  const getServiceButtonIcon = (service: ServiceType) => {
+    if (service === 'youtube') return <Play24Filled style={{ width: 16, height: 16 }} />;
+    if (service === 'youtube-music') return <MusicNote224Filled style={{ width: 16, height: 16 }} />;
+    return <Library24Filled style={{ width: 16, height: 16 }} />;
+  };
+
   const handleOpenAddToPlaylist = async (result: any) => {
     let track: Track;
     if ('service' in result && result.service === 'spotify') {
@@ -844,16 +871,25 @@ const SpotifyMiniStandalone: React.FC = () => {
             <button className="spotify-search-button" onClick={() => runSearch(query)} disabled={!query.trim() || loading}>
               <ArrowRight24Filled />
             </button>
+            <button
+              type="button"
+              className={`spotify-search-toggle-btn ${searchControlsVisible ? 'open' : ''}`}
+              onClick={() => setSearchControlsVisible((visible) => !visible)}
+              aria-expanded={searchControlsVisible}
+              aria-label={searchControlsVisible ? 'Ocultar controles de búsqueda' : 'Mostrar controles de búsqueda'}
+            >
+              <span className="spotify-search-toggle-icon">{searchControlsVisible ? '▴' : '▾'}</span>
+            </button>
           </div>
-          <div className="spotify-services">
+          <div className={`spotify-services ${searchControlsVisible ? '' : 'collapsed'}`}>
             <button
               type="button"
               className={`spotify-service-btn live-btn ${roomCode ? 'active live-active' : ''}`}
               onClick={() => setShowLivePanel(true)}
               title="Salas en vivo (Socket.io)"
             >
-              <People24Regular style={{ width: 16, height: 16, marginRight: 6 }} />
-              {roomCode ? `En vivo · ${roomCode}${djMode.enabled ? ' · DJ' : ''}` : 'En vivo'}
+              <People24Regular style={{ width: 16, height: 16 }} />
+              <span>{roomCode ? `En vivo · ${roomCode}${djMode.enabled ? ' · DJ' : ''}` : 'En vivo'}</span>
             </button>
             {(['youtube', 'youtube-music', 'spotify'] as ServiceType[]).map((service) => (
               <button
@@ -861,7 +897,8 @@ const SpotifyMiniStandalone: React.FC = () => {
                 className={`spotify-service-btn ${activeService === service ? 'active' : ''}`}
                 onClick={() => setActiveService(service)}
               >
-                {service === 'youtube' ? 'YouTube' : service === 'youtube-music' ? 'YT Music' : 'Spotify'}
+                {getServiceButtonIcon(service)}
+                <span>{service === 'youtube' ? 'YouTube' : service === 'youtube-music' ? 'YT Music' : 'Spotify'}</span>
               </button>
             ))}
           </div>
@@ -1342,8 +1379,10 @@ const SpotifyMiniStandalone: React.FC = () => {
         onSendReaction={sendLiveReaction}
         djMode={djMode}
         djPool={djPool}
+        djEq={djEq}
         onToggleDj={toggleDjMode}
         onToggleDjAutoPlay={setDjAutoPlay}
+        onUpdateDjEq={updateDjEq}
         onVoteDj={voteDjTrack}
         onPlayTopDj={playTopDjTrack}
         onClearDj={clearDjPool}
@@ -1588,8 +1627,9 @@ const SpotifyMiniStandalone: React.FC = () => {
           padding: 12px 20px;
           flex: 1;
           max-width: 480px;
-          min-width: 220px;
+          min-width: 0;
           transition: border-color 0.15s ease;
+          flex-wrap: wrap;
         }
         .spotify-search-bar:focus-within { border-color: rgba(255,255,255,0.4); }
         .spotify-search-icon { color: rgba(255,255,255,0.5); flex-shrink: 0; }
@@ -1614,9 +1654,38 @@ const SpotifyMiniStandalone: React.FC = () => {
         .spotify-search-button:hover:not(:disabled) { transform: scale(1.06); }
         .spotify-search-button:disabled { opacity: 0.3; cursor: not-allowed; }
 
-        .spotify-services { display: flex; gap: 10px; align-items: center; }
+        .spotify-search-toggle-btn {
+          display: none;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 50%;
+          color: rgba(255,255,255,0.7);
+          width: 36px;
+          height: 36px;
+          padding: 0;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          flex-shrink: 0;
+          min-width: 36px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .spotify-search-toggle-btn:hover { border-color: rgba(255,255,255,0.16); color: #fff; }
+        .spotify-search-toggle-btn.open { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
+        .spotify-search-toggle-icon { display: inline-flex; font-size: 16px; }
+        .spotify-search-toggle-btn:hover { border-color: rgba(255,255,255,0.16); color: #fff; }
+        .spotify-search-toggle-btn.open { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
+
+        .spotify-services { display: flex; gap: 10px; align-items: center; min-width: 0; }
+        .spotify-services.collapsed { display: none !important; }
 
         .spotify-service-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           background: transparent;
           border: 1px solid rgba(255,255,255,0.15);
           border-radius: 8px;
@@ -1631,13 +1700,21 @@ const SpotifyMiniStandalone: React.FC = () => {
         .spotify-service-btn.active { background: #fff; color: #000; border-color: #fff; }
         .spotify-service-btn.live-btn { display: inline-flex; align-items: center; }
         .spotify-service-btn.live-active { background: rgba(29,185,84,0.2); color: #1db954; border-color: #1db954; }
+        .spotify-service-btn span { margin-left: 8px; }
 
         .spotify-content {
           flex: 1;
           overflow-y: auto;
           padding: 32px;
           padding-bottom: 140px;
+          transition: opacity 180ms ease, transform 180ms ease;
         }
+        .spotify-content.fade-out { opacity: 0.75; transform: translateY(6px); }
+        .spotify-content.fade-in { opacity: 1; transform: translateY(0); }
+          transition: opacity 180ms ease, transform 180ms ease;
+        }
+        .spotify-content.fade-out { opacity: 0.7; transform: translateY(6px); }
+        .spotify-content.fade-in { opacity: 1; transform: translateY(0); }
 
         /* --- SEARCH RESULTS --- */
         .spotify-results-header {
@@ -1687,8 +1764,15 @@ const SpotifyMiniStandalone: React.FC = () => {
           border-radius: 10px;
           overflow: hidden;
           margin-bottom: 14px;
+          max-height: 180px;
         }
-        .spotify-card-image img { width: 100%; aspect-ratio: 1; object-fit: cover; transition: transform 0.3s ease; }
+        .spotify-card-image img {
+          width: 100%;
+          height: 100%;
+          aspect-ratio: 16 / 9;
+          object-fit: cover;
+          transition: transform 0.3s ease;
+        }
         .spotify-card:hover .spotify-card-image img { transform: scale(1.05); }
 
         .spotify-play-btn {
@@ -2336,14 +2420,18 @@ const SpotifyMiniStandalone: React.FC = () => {
           .spotify-sidebar {
             width: min(100%, 340px);
           }
-          .spotify-main { margin: 0; height: 100vh; border-radius: 0; }
-          .spotify-header { padding: 84px 18px 20px; flex-direction: column; align-items: stretch; gap: 14px; }
-          .spotify-search-bar { max-width: 100%; width: 100%; }
-          .spotify-services { justify-content: flex-start; flex-wrap: wrap; gap: 10px; }
-          .spotify-service-btn { flex: 1 1 auto; min-width: 0; }
-          .spotify-content { padding: 24px 18px; padding-bottom: 200px; }
-          .spotify-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
-          .spotify-playlists-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+          .spotify-main { margin: 0; min-height: 100vh; height: auto; border-radius: 0; }
+          .spotify-header { padding: 84px 16px 20px; flex-direction: column; align-items: stretch; gap: 14px; }
+          .spotify-search-bar { max-width: 100%; width: 100%; padding: 12px 14px; gap: 10px; min-width: 0; }
+          .spotify-search-input { font-size: 15px; }
+          .spotify-search-button { width: 52px; min-width: 52px; }
+          .spotify-search-toggle-btn { display: inline-flex; }
+          .spotify-services { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; min-width: 0; }
+          .spotify-service-btn { flex: none; width: 100%; min-width: 0; justify-content: center; }
+          .spotify-service-btn.live-btn { justify-content: center; }
+          .spotify-content { padding: 24px 16px; padding-bottom: 220px; }
+          .spotify-grid { grid-template-columns: 1fr; gap: 16px; }
+          .spotify-playlists-grid { grid-template-columns: 1fr; gap: 16px; }
           .spotify-results-header { flex-direction: column; align-items: stretch; }
           .spotify-player { padding: 12px 16px; }
           .spotify-player-left { min-width: auto; }
@@ -2354,7 +2442,7 @@ const SpotifyMiniStandalone: React.FC = () => {
           .spotify-player-right { min-width: auto; justify-content: space-between; flex-wrap: wrap; }
           .spotify-volume { width: 90px; }
           .spotify-playlist-header { flex-direction: column; align-items: center; text-align: center; }
-          .spotify-playlist-hero-cover { width: 180px; height: 180px; }
+          .spotify-playlist-hero-cover { width: 140px; height: 140px; }
           .spotify-playlist-hero-title { font-size: 32px; }
           .spotify-autoplay-badge { display: none; }
         }
@@ -2376,6 +2464,9 @@ const SpotifyMiniStandalone: React.FC = () => {
           .spotify-time { min-width: 34px; font-size: 11px; }
           .spotify-volume { width: 70px; }
           .spotify-player-info { display: none; }
+          .spotify-card-image { max-height: 140px; }
+          .spotify-card-image img { aspect-ratio: 16 / 9; }
+          .spotify-playlist-hero-cover { width: 120px; height: 120px; }
           .hamburger-btn { top: 14px; left: 14px; }
         }
 

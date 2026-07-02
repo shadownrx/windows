@@ -15,19 +15,135 @@
     <title>NEX Music</title>
     <style>
       /* Override body styles for standalone app */
+      html,
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: 100vh !important;
+        height: auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        background: #000 !important;
+        overflow-x: hidden !important;
+      }
+
+      * {
+        box-sizing: border-box !important;
+        max-width: 100% !important;
+      }
+
       body {
         display: block !important;
         place-items: unset !important;
         min-height: 100vh !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: #000 !important;
+        height: auto !important;
+        overflow-x: hidden !important;
       }
+
       #root {
-        width: 100vw !important;
-        height: 100vh !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: 100vh !important;
+        height: auto !important;
         margin: 0 !important;
         padding: 0 !important;
+        overflow-x: hidden !important;
+      }
+
+      /* Ensure the app can grow naturally on mobile without forcing a fixed viewport height */
+      .spotify-root {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: 100vh !important;
+        height: auto !important;
+        overflow-x: hidden !important;
+      }
+
+      .spotify-main,
+      .spotify-content,
+      .spotify-card,
+      .spotify-header,
+      .spotify-search-bar,
+      .spotify-grid {
+        width: 100% !important;
+        max-width: 100vw !important;
+        box-sizing: border-box !important;
+      }
+
+      .spotify-card {
+        margin: 0 auto !important;
+      }
+
+      @media (max-width: 768px) {
+        .spotify-main {
+          min-height: auto !important;
+          height: auto !important;
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+      }
+
+      .spotify-header {
+        padding: 64px 14px 14px !important;
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+      }
+
+      .spotify-search-bar {
+        padding: 10px 14px !important;
+        flex-wrap: wrap !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+      }
+
+      .spotify-search-bar .spotify-search-input {
+        min-width: 0 !important;
+        width: 100% !important;
+      }
+
+      .spotify-search-bar .spotify-search-button,
+      .spotify-search-bar .spotify-search-toggle-btn {
+        min-width: 56px !important;
+        flex-shrink: 0 !important;
+      }
+
+      .spotify-content {
+        padding: 20px 14px 180px !important;
+        max-width: 100vw !important;
+      }
+
+      .spotify-services {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px !important;
+        width: 100% !important;
+      }
+
+      .spotify-services .spotify-service-btn {
+        min-width: 0 !important;
+          gap: 12px !important;
+        }
+
+        .spotify-card-image {
+          max-height: 140px !important;
+        }
+
+        .spotify-card-image img {
+          aspect-ratio: 16 / 9 !important;
+        }
+
+        .spotify-playlist-hero-cover {
+          width: 120px !important;
+          height: 120px !important;
+        }
+
+        .spotify-player-cover {
+          width: 44px !important;
+          height: 44px !important;
+        }
+
+        .spotify-player {
+          padding: 12px 14px !important;
+        }
       }
     </style>
   </head>

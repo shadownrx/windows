@@ -53,7 +53,7 @@ export const DjVotePanel: React.FC<DjVotePanelProps> = ({
   const setBandValue = (index: number, value: number) => {
     const bands = [...localEq.bands];
     bands[index] = value;
-    updateEq({ bands });
+    updateEq({ bands, preset: 'Custom' });
   };
 
   return (
@@ -114,6 +114,12 @@ export const DjVotePanel: React.FC<DjVotePanelProps> = ({
                   </label>
                 </div>
 
+                <div className="dj-eq-summary">
+                  <span>Preset: <strong>{localEq.preset}</strong></span>
+                  <span>{localEq.lowCut ? 'Low cut ON' : 'Low cut OFF'}</span>
+                  <span>{localEq.highCut ? 'High cut ON' : 'High cut OFF'}</span>
+                </div>
+
                 <div className="dj-eq-presets">
                   {presets.map((preset) => (
                     <button
@@ -127,9 +133,10 @@ export const DjVotePanel: React.FC<DjVotePanelProps> = ({
                   ))}
                 </div>
 
-                <div className="dj-eq-bands">
+                <div className={`dj-eq-bands ${!localEq.enabled ? 'disabled' : ''}`}>
                   {localEq.bands.map((value, index) => (
                     <label key={index} className="dj-eq-band">
+                      <span className="dj-eq-band-value">{value > 0 ? `+${value}` : value}</span>
                       <input
                         type="range"
                         min={-12}
@@ -137,7 +144,7 @@ export const DjVotePanel: React.FC<DjVotePanelProps> = ({
                         value={value}
                         onChange={(e) => setBandValue(index, Number(e.target.value))}
                       />
-                      <span>{index + 1}</span>
+                      <span className="dj-eq-band-index">{index + 1}</span>
                     </label>
                   ))}
                 </div>
@@ -351,6 +358,28 @@ export const DjVotePanel: React.FC<DjVotePanelProps> = ({
           cursor: pointer;
         }
 
+        .dj-eq-summary {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          align-items: center;
+          justify-content: space-between;
+          font-size: 12px;
+          color: rgba(255,255,255,0.75);
+          padding: 6px 0 0;
+          border-top: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .dj-eq-summary span {
+          display: inline-flex;
+          gap: 6px;
+          align-items: center;
+        }
+
+        .dj-eq-summary strong {
+          color: #fff;
+        }
+
         .dj-eq-presets {
           display: flex;
           flex-wrap: wrap;
@@ -365,6 +394,7 @@ export const DjVotePanel: React.FC<DjVotePanelProps> = ({
           padding: 6px 10px;
           font-size: 11px;
           cursor: pointer;
+          transition: all 0.18s ease;
         }
 
         .dj-eq-preset.active {
@@ -383,13 +413,24 @@ export const DjVotePanel: React.FC<DjVotePanelProps> = ({
           padding: 4px 0;
         }
 
+        .dj-eq-bands.disabled {
+          opacity: 0.45;
+          pointer-events: none;
+        }
+
         .dj-eq-band {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 4px;
+          gap: 6px;
           font-size: 10px;
           color: rgba(255,255,255,0.55);
+        }
+
+        .dj-eq-band-value {
+          font-size: 11px;
+          color: rgba(255,255,255,0.75);
+          min-height: 18px;
         }
 
         .dj-eq-band input {
@@ -398,6 +439,11 @@ export const DjVotePanel: React.FC<DjVotePanelProps> = ({
           width: 100%;
           height: 100px;
           background: transparent;
+        }
+
+        .dj-eq-band-index {
+          font-size: 10px;
+          color: rgba(255,255,255,0.45);
         }
 
         .dj-eq-options {

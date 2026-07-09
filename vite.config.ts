@@ -20,6 +20,12 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
       },
+      '/hermes': {
+        target: 'http://localhost:9119',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/hermes/, ''),
+        ws: true,
+      },
     },
     fs: {
       allow: ['..'],

@@ -53,10 +53,11 @@ export const APPS: AppItem[] = [
     label: 'NEX Code',
     isPinned: true
   },
+  { id: 'hermes', appId: 'hermes', icon: <Globe24Regular />, label: 'Hermes Agent', isPinned: true },
   { id: 'paint', appId: 'paint', icon: <Edit24Regular />, label: 'Paint' },
   { id: 'control-panel', appId: 'control-panel', icon: <Settings24Regular />, label: 'Configuración', isPinned: true },
   { id: 'wordpad', appId: 'wordpad', icon: <Document24Regular />, label: 'WordPad' },
-  { id: 'task-manager', appId: 'taskmanager', icon: <Apps24Regular />, label: 'Administrador de tareas' },
+  { id: 'task-manager', appId: 'task-manager', icon: <Apps24Regular />, label: 'Administrador de tareas' },
   { id: 'calendar', appId: 'calendar', icon: <Calendar24Regular />, label: 'Calendario' },
   { id: 'defender', appId: 'defender', icon: <ShieldCheckmark24Regular />, label: 'Seguridad de Windows' },
   { id: 'calculator', appId: 'calculator', icon: <Calculator24Regular />, label: 'Calculadora' },

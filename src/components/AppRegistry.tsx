@@ -26,6 +26,7 @@ const Photos = React.lazy(() => import('./apps/Photos'));
 const Settings = React.lazy(() => import('./apps/Settings'));
 const SpotifyMini = React.lazy(() => import('./apps/SpotifyMini'));
 const VsCode = React.lazy(() => import('./apps/VsCode'));
+const HermesAgent = React.lazy(() => import('./apps/HermesAgent'));
 
 interface AppRegistryProps {
   appId: string;
@@ -65,6 +66,8 @@ const REGISTRY: Record<string, AnyLazy> = {
   'nexreproductor': SpotifyMini,
   'spotify': SpotifyMini,
   'Nex Code': VsCode,
+  'hermes': HermesAgent,
+  'hermes-agent': HermesAgent,
 };
 
 const Fallback = () => (

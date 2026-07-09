@@ -118,6 +118,18 @@ npm run dev
 
 La aplicación se ejecutará en `http://localhost:5173`
 
+### Iniciar Hermes Agent (Backend)
+
+Hermes es una de las aplicaciones integradas en NexOS que requiere su propio servidor backend local para funcionar. Para iniciarlo correctamente y que se incruste dentro de NexOS sin abrir pestañas extrañas:
+
+```bash
+# Abre una nueva terminal en tu sistema y ejecuta:
+hermes dashboard --no-open
+```
+
+> [!IMPORTANT]
+> Es fundamental utilizar la bandera `--no-open`. Esto evita que el comando lance automáticamente tu navegador por defecto, permitiéndote usar la interfaz de Hermes fluidamente como una app interna dentro de NexOS.
+
 ### Compilación para Producción
 
 ```bash

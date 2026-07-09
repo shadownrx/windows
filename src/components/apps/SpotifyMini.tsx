@@ -18,6 +18,7 @@ import {
   Add24Filled,
   ArrowRight24Filled,
   People24Regular,
+  Share24Regular,
 } from '@fluentui/react-icons';
 import { useMusicSync } from '../../hooks/useMusicSync';
 import LiveRoomPanel from '../music/LiveRoomPanel';
@@ -558,6 +559,24 @@ const SpotifyMiniStandalone: React.FC = () => {
     const trimmed = q.trim();
     if (!trimmed) return;
 
+    // Check if it's a direct YouTube URL
+    const ytIdMatch = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+    if (ytIdMatch && ytIdMatch[1]) {
+      const ytId = ytIdMatch[1];
+      setSearchResults([{
+        id: ytId,
+        kind: 'video',
+        title: 'Video por Enlace (Compartido)',
+        channelTitle: 'YouTube',
+        publishedAt: new Date().toISOString(),
+        thumbnail: `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`,
+        description: 'Enlace directo compartido',
+      }]);
+      setActiveTab('search');
+      setLoading(false);
+      return;
+    }
+
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -674,18 +693,9 @@ const SpotifyMiniStandalone: React.FC = () => {
   return (
     <div className={`spotify-root ${pcnMode ? 'pcn-theme' : ''}`}>
       {/* --- PERMANENT YOUTUBE IFRAME (always in DOM) --- */}
-      {currentTrack?.videoId && (
-        <iframe
-          id="youtube-player"
-          ref={iframeRef}
-          src={buildEmbedUrlFromResult(currentTrack.videoId)}
-          frameBorder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          title={currentTrack.title}
-          className="spotify-iframe-permanent"
-        />
-      )}
+      <div className="spotify-iframe-permanent">
+        <div id="youtube-player" />
+      </div>
 
       {/* --- HAMBURGER MENU BUTTON --- */}
       <button
@@ -1129,8 +1139,29 @@ const SpotifyMiniStandalone: React.FC = () => {
             <button 
               className={`spotify-player-heart ${bumpHeartId === currentTrack.id ? 'heart-bump' : ''}`}
               onClick={() => handleHeartClick(currentTrack)}
+              title="Me gusta"
             >
               {isFavorite(currentTrack.id) ? <Heart24Filled /> : <Heart24Regular />}
+            </button>
+            <button 
+              className="spotify-player-heart"
+              onClick={() => {
+                const url = currentTrack.service === 'youtube' 
+                  ? `https://www.youtube.com/watch?v=${currentTrack.id}`
+                  : (currentTrack.url || `https://www.youtube.com/watch?v=${currentTrack.id}`);
+                navigator.clipboard.writeText(url).then(() => {
+                  const btn = document.getElementById('share-btn');
+                  if (btn) {
+                    const oldCol = btn.style.color;
+                    btn.style.color = '#34d399';
+                    setTimeout(() => btn.style.color = oldCol, 1000);
+                  }
+                });
+              }}
+              title="Copiar enlace"
+              id="share-btn"
+            >
+              <Share24Regular />
             </button>
           </div>
 

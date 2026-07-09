@@ -633,6 +633,32 @@ const SpotifyMiniStandalone: React.FC = () => {
     }
   }, [nickname]);
 
+  // --- CARGA DEL SCRIPT DE YOUTUBE IFRAME API ---
+  useEffect(() => {
+    if (window.YT && window.YT.Player) {
+      // ya está cargado, no hacer nada
+      return;
+    }
+
+    // Evitar insertar el script más de una vez
+    const existingScript = document.getElementById('youtube-iframe-api');
+    if (!existingScript) {
+      const tag = document.createElement('script');
+      tag.id = 'youtube-iframe-api';
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
+    // Callback global que YouTube llama cuando termina de cargar
+    window.onYouTubeIframeAPIReady = () => {
+      if (currentTrack?.videoId) {
+        initPlayer();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     return () => {
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);

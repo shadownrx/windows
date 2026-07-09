@@ -3051,22 +3051,34 @@ const SpotifyMiniStandalone: React.FC = () => {
 
         .spotify-player-dropdown-menu {
           position: absolute;
-          bottom: 100%;
+          bottom: calc(100% + 4px);
           left: 50%;
           transform: translateX(-50%);
-          margin-bottom: 12px;
           background: #1a1a1a;
           border: 1px solid rgba(255,255,255,0.1);
           border-radius: 8px;
           padding: 8px 0;
           min-width: 160px;
-          display: none;
+          opacity: 0;
+          visibility: hidden;
+          transition: all 0.2s ease;
           z-index: 1000;
           box-shadow: 0 -4px 16px rgba(0,0,0,0.5);
         }
 
+        .spotify-player-dropdown-menu::after {
+          content: '';
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          height: 16px;
+        }
+
         .spotify-player-playlist-dropdown:hover .spotify-player-dropdown-menu {
-          display: block;
+          opacity: 1;
+          visibility: visible;
+          bottom: calc(100% + 12px);
         }
 
         .spotify-player-center {

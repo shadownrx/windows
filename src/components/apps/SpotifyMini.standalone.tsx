@@ -102,6 +102,7 @@ interface SpotifyMiniContextType {
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
   setActivePlaylist: (playlist: Playlist | null) => void;
   sharePlaylist: (playlist: Playlist) => void;
+  importPlaylist: (playlist: Playlist) => void;
   showLivePanel: boolean;
   setShowLivePanel: (show: boolean) => void;
   syncConnected: boolean;
@@ -305,6 +306,13 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
     }
   }, []);
 
+  const importPlaylist = useCallback((playlist: Playlist) => {
+    const existing = playlists.find(p => p.id === playlist.id);
+    if (!existing) {
+      setPlaylists(prev => [...prev, playlist]);
+    }
+  }, [playlists]);
+
   return (
     <SpotifyMiniContext.Provider value={{
       currentTrack, isPlaying, volume, progress, duration,
@@ -313,7 +321,7 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
       addToQueue, removeFromQueue, toggleFavorite, isFavorite,
       setShowLyrics, setIsPlaying, setDuration, setProgress,
       createPlaylist, deletePlaylist, addTrackToPlaylist, removeTrackFromPlaylist,
-      setActivePlaylist, sharePlaylist,
+      setActivePlaylist, sharePlaylist, importPlaylist,
       showLivePanel, setShowLivePanel,
       syncConnected: sync.connected,
       roomCode: sync.roomCode,
@@ -382,7 +390,7 @@ const SpotifyMiniStandalone: React.FC = () => {
     addToQueue, removeFromQueue, toggleFavorite, isFavorite,
     setShowLyrics, setIsPlaying, setDuration, setProgress,
     createPlaylist, deletePlaylist, addTrackToPlaylist, removeTrackFromPlaylist,
-    setActivePlaylist, sharePlaylist,
+    setActivePlaylist, sharePlaylist, importPlaylist,
     showLivePanel, setShowLivePanel,
     syncConnected, roomCode, isRoomHost, roomUsers, liveChat, liveReactions, syncError,
     createLiveRoom, joinLiveRoom, leaveLiveRoom, sendLiveChat, sendLiveReaction,
@@ -436,6 +444,12 @@ const SpotifyMiniStandalone: React.FC = () => {
   useEffect(() => { playTrackRef.current = playTrack; }, [playTrack]);
   useEffect(() => { nextTrackRef.current = nextTrack; }, [nextTrack]);
 
+  // --- TOAST HELPER ---
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
+
   // Keep viewingPlaylist in sync with playlists state
   useEffect(() => {
     if (viewingPlaylist) {
@@ -446,11 +460,33 @@ const SpotifyMiniStandalone: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playlists]);
 
-  // --- TOAST HELPER ---
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  };
+  // Handle shared playlist from URL hash
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#playlist=')) {
+        try {
+          const encoded = hash.slice('#playlist='.length);
+          const decoded = decodeURIComponent(escape(atob(encoded)));
+          const sharedPlaylist: Playlist = JSON.parse(decoded);
+          // Import the shared playlist
+          importPlaylist(sharedPlaylist);
+          // Show the shared playlist
+          setViewingPlaylist(sharedPlaylist);
+          setActiveTab('playlist');
+          showToast('🎵 Playlist compartida cargada!');
+        } catch (e) {
+          console.error('Error loading shared playlist:', e);
+          showToast('❌ Error al cargar la playlist compartida');
+        }
+      }
+    };
+    // Check initial hash
+    handleHashChange();
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [importPlaylist]);
 
   // --- YOUTUBE API ---
   useEffect(() => {

@@ -2956,10 +2956,11 @@ const SpotifyMiniStandalone: React.FC = () => {
 
         /* --- PLAYER --- */
         .spotify-player {
-          position: fixed;
+          position: absolute;
           bottom: 0;
           left: 0;
           right: 0;
+          z-index: 20;
           background: #000;
           border-top: 1px solid rgba(255,255,255,0.08);
           display: flex;

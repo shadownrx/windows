@@ -693,6 +693,10 @@ const SpotifyMiniStandalone: React.FC = () => {
     if (window.YT && !playerRef.current) {
       playerRef.current = new window.YT.Player('youtube-player', {
         videoId: currentTrack.videoId,
+        playerVars: {
+          origin: window.location.origin,
+          enablejsapi: 1,
+        },
         events: {
           onReady: (event: any) => {
             playerRef.current = event.target;
@@ -2326,7 +2330,6 @@ const SpotifyMiniStandalone: React.FC = () => {
           flex: 1;
           overflow-y: auto;
           padding: 32px;
-          padding-bottom: 140px;
         }
 
         .spotify-search-results h2 {
@@ -2956,11 +2959,7 @@ const SpotifyMiniStandalone: React.FC = () => {
 
         /* --- PLAYER --- */
         .spotify-player {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          z-index: 20;
+          flex-shrink: 0;
           background: #000;
           border-top: 1px solid rgba(255,255,255,0.08);
           display: flex;

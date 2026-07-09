@@ -16,6 +16,9 @@ export interface Playlist {
   name: string;
   tracks: Track[];
   createdAt: number;
+  isPrivate: boolean;
+  ownerName: string;
+  votes: string[]; // array of user nicknames who voted
 }
 
 export interface RoomUser {

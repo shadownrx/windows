@@ -19,10 +19,15 @@ import {
   ArrowRight24Filled,
   People24Regular,
   Share24Regular,
+  Edit24Regular,
+  LockClosedRegular,
+  Globe24Regular,
+  Star24Filled,
+  Delete24Regular,
 } from '@fluentui/react-icons';
 import { useMusicSync } from '../../hooks/useMusicSync';
 import LiveRoomPanel from '../music/LiveRoomPanel';
-import type { Track, ChatMessage, LiveReaction, RoomUser, DjEqSettings, DjModeState, DjVoteEntry } from '../../types/music';
+import type { Track, ChatMessage, LiveReaction, RoomUser, DjEqSettings, DjModeState, DjVoteEntry, Playlist } from '../../types/music';
 
 // --- SPOTIFY SDK GLOBAL TYPES ---
 declare global {
@@ -109,6 +114,21 @@ interface SpotifyMiniContextType {
   voteDjTrack: (entryId: string) => void;
   playTopDjTrack: () => void;
   clearDjPool: () => void;
+  // New features for playlists
+  nickname: string;
+  setNickname: (name: string) => void;
+  playlists: Playlist[];
+  addPlaylist: (name: string) => void;
+  deletePlaylist: (id: string) => void;
+  updatePlaylist: (id: string, updates: Partial<Playlist>) => void;
+  togglePlaylistPrivacy: (id: string) => void;
+  renamePlaylist: (id: string, newName: string) => void;
+  addTrackToPlaylist: (playlistId: string, track: Track) => void;
+  removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
+  voteForPlaylist: (playlistId: string) => void;
+  unvoteForPlaylist: (playlistId: string) => void;
+  activePlaylistId: string | null;
+  setActivePlaylistId: (id: string | null) => void;
 }
 
 const SpotifyMiniContext = createContext<SpotifyMiniContextType | undefined>(undefined);
@@ -126,6 +146,16 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
   const remoteUpdateRef = useRef(false);
 
   const sync = useMusicSync();
+
+  const [nickname, setNickname] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('spotifyMiniNickname');
+      return saved || '';
+    } catch {
+      return '';
+    }
+  });
+
   const [favorites, setFavorites] = useState<Track[]>(() => {
     try {
       const saved = localStorage.getItem('spotifyMiniFavorites');
@@ -134,6 +164,7 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
       return [];
     }
   });
+
   const [history, setHistory] = useState<Track[]>(() => {
     try {
       const saved = localStorage.getItem('spotifyMiniHistory');
@@ -142,7 +173,27 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
       return [];
     }
   });
+
+  const [playlists, setPlaylists] = useState<Playlist[]>(() => {
+    try {
+      const saved = localStorage.getItem('spotifyMiniPlaylists');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
   const [showLyrics, setShowLyrics] = useState(false);
+
+  // Save nickname and playlists to localStorage
+  useEffect(() => {
+    localStorage.setItem('spotifyMiniNickname', nickname);
+  }, [nickname]);
+
+  useEffect(() => {
+    localStorage.setItem('spotifyMiniPlaylists', JSON.stringify(playlists));
+  }, [playlists]);
 
   useEffect(() => {
     localStorage.setItem('spotifyMiniFavorites', JSON.stringify(favorites));
@@ -265,6 +316,75 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
     setProgress(percent);
   }, []);
 
+  // Playlist functions
+  const addPlaylist = useCallback((name: string) => {
+    const newPlaylist: Playlist = {
+      id: Date.now().toString(),
+      name,
+      tracks: [],
+      createdAt: Date.now(),
+      isPrivate: false,
+      ownerName: nickname || 'Anonymous',
+      votes: [],
+    };
+    setPlaylists(prev => [...prev, newPlaylist]);
+    setActivePlaylistId(newPlaylist.id);
+  }, [nickname]);
+
+  const deletePlaylist = useCallback((id: string) => {
+    setPlaylists(prev => prev.filter(p => p.id !== id));
+    if (activePlaylistId === id) {
+      setActivePlaylistId(null);
+    }
+  }, [activePlaylistId]);
+
+  const updatePlaylist = useCallback((id: string, updates: Partial<Playlist>) => {
+    setPlaylists(prev => prev.map(p => 
+      p.id === id ? { ...p, ...updates } : p));
+  }, []);
+
+  const togglePlaylistPrivacy = useCallback((id: string) => {
+    setPlaylists(prev => prev.map(p => 
+      p.id === id ? { ...p, isPrivate: !p.isPrivate } : p));
+  }, []);
+
+  const renamePlaylist = useCallback((id: string, newName: string) => {
+    setPlaylists(prev => prev.map(p => 
+      p.id === id ? { ...p, name: newName } : p));
+  }, []);
+
+  const addTrackToPlaylist = useCallback((playlistId: string, track: Track) => {
+    setPlaylists(prev => prev.map(p => 
+      p.id === playlistId ? 
+        { ...p, tracks: [...p.tracks, track] } : p));
+  }, []);
+
+  const removeTrackFromPlaylist = useCallback((playlistId: string, trackId: string) => {
+    setPlaylists(prev => prev.map(p => 
+      p.id === playlistId ? 
+        { ...p, tracks: p.tracks.filter(t => t.id !== trackId) } : p));
+  }, []);
+
+  const voteForPlaylist = useCallback((playlistId: string) => {
+    if (!nickname) return;
+    setPlaylists(prev => prev.map(p => {
+      if (p.id === playlistId && !p.votes.includes(nickname)) {
+        return { ...p, votes: [...p.votes, nickname] };
+      }
+      return p;
+    }));
+  }, [nickname]);
+
+  const unvoteForPlaylist = useCallback((playlistId: string) => {
+    if (!nickname) return;
+    setPlaylists(prev => prev.map(p => {
+      if (p.id === playlistId) {
+        return { ...p, votes: p.votes.filter(v => v !== nickname) };
+      }
+      return p;
+    }));
+  }, [nickname]);
+
   return (
     <SpotifyMiniContext.Provider
       value={{
@@ -315,6 +435,21 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
         voteDjTrack: sync.voteDjTrack,
         playTopDjTrack: sync.playTopDjTrack,
         clearDjPool: sync.clearDjPool,
+        // New features
+        nickname,
+        setNickname,
+        playlists,
+        addPlaylist,
+        deletePlaylist,
+        updatePlaylist,
+        togglePlaylistPrivacy,
+        renamePlaylist,
+        addTrackToPlaylist,
+        removeTrackFromPlaylist,
+        voteForPlaylist,
+        unvoteForPlaylist,
+        activePlaylistId,
+        setActivePlaylistId,
       }}
     >
       {children}
@@ -343,7 +478,8 @@ const LyricsDisplay: React.FC = () => {
   useEffect(() => {
     if (currentTrack) {
       setLyrics([
-      "Proximamente, las letras de la canción estarán disponibles aquí.",]);
+        "Proximamente, las letras de la canción estarán disponibles aquí.",
+      ]);
     }
   }, [currentTrack]);
 
@@ -359,6 +495,47 @@ const LyricsDisplay: React.FC = () => {
             {line}
           </p>
         ))}
+      </div>
+    </div>
+  );
+};
+
+// --- NICKNAME MODAL COMPONENT ---
+const NicknameModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void }> = ({ isOpen, onClose }) => {
+  const { nickname, setNickname } = useSpotifyMini();
+  const [input, setInput] = useState(nickname);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (input.trim()) {
+      setNickname(input.trim());
+      onClose();
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <h2>¿Cuál es tu nombre?</h2>
+        <p>Tu nombre se mostrará en tus listas públicas</p>
+        <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ingresa tu nombre"
+            autoFocus
+          />
+          <div className="modal-actions">
+            <button type="submit" className="modal-btn-primary">
+              Continuar
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -414,17 +591,34 @@ const SpotifyMiniStandalone: React.FC = () => {
     clearDjPool,
     toggleDjMode,
     setDjAutoPlay,
+    nickname,
+    setNickname,
+    playlists,
+    addPlaylist,
+    deletePlaylist,
+    togglePlaylistPrivacy,
+    renamePlaylist,
+    addTrackToPlaylist,
+    removeTrackFromPlaylist,
+    voteForPlaylist,
+    unvoteForPlaylist,
+    activePlaylistId,
+    setActivePlaylistId,
   } = useSpotifyMini();
 
   const [activeService, setActiveService] = useState<ServiceType>('youtube');
-  const [activeTab, setActiveTab] = useState<'search' | 'playlist' | 'queue' | 'favorites' | 'history'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'my-playlists' | 'global-playlists' | 'queue' | 'favorites' | 'history'>('search');
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [logoAnimating, setLogoAnimating] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bumpHeartId, setBumpHeartId] = useState<string | null>(null);
-  const [showLyricsLocal, setShowLyricsLocal] = useState(false);
+  const [showNicknameModal, setShowNicknameModal] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [showAddPlaylistModal, setShowAddPlaylistModal] = useState(false);
+  const [editingPlaylistId, setEditingPlaylistId] = useState<string | null>(null);
+  const [editPlaylistName, setEditPlaylistName] = useState('');
 
   const abortRef = useRef<AbortController | null>(null);
   const playerRef = useRef<any>(null);
@@ -432,6 +626,12 @@ const SpotifyMiniStandalone: React.FC = () => {
   const progressIntervalRef = useRef<number | null>(null);
 
   const pcnMode = query.trim().toUpperCase() === 'PCN';
+
+  useEffect(() => {
+    if (!nickname) {
+      setShowNicknameModal(true);
+    }
+  }, [nickname]);
 
   useEffect(() => {
     return () => {
@@ -683,6 +883,13 @@ const SpotifyMiniStandalone: React.FC = () => {
 
   const showDjSuggest = !!roomCode && djMode.enabled;
 
+  const getGlobalPlaylists = () => {
+    // Filter public playlists and sort by vote count
+    return playlists
+      .filter(p => !p.isPrivate)
+      .sort((a, b) => b.votes.length - a.votes.length);
+  };
+
   // Helper to format time
   const formatTime = (secs: number) => {
     const minutes = Math.floor(secs / 60);
@@ -696,6 +903,47 @@ const SpotifyMiniStandalone: React.FC = () => {
       <div className="spotify-iframe-permanent">
         <div id="youtube-player" />
       </div>
+
+      {/* --- NICKNAME MODAL --- */}
+      <NicknameModal
+        isOpen={showNicknameModal} onClose={() => setShowNicknameModal(false)} />
+
+      {/* --- ADD PLAYLIST MODAL --- */}
+      {showAddPlaylistModal && (
+        <div className="modal-overlay" onClick={() => setShowAddPlaylistModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Nueva Lista de Reproducción</h2>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (newPlaylistName.trim()) {
+                addPlaylist(newPlaylistName.trim());
+                setNewPlaylistName('');
+                setShowAddPlaylistModal(false);
+              }
+            }}>
+              <input
+                type="text"
+                value={newPlaylistName}
+                onChange={(e) => setNewPlaylistName(e.target.value)}
+                placeholder="Nombre de la lista"
+                autoFocus
+              />
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="modal-btn-secondary"
+                  onClick={() => setShowAddPlaylistModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="modal-btn-primary">
+                  Crear
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* --- HAMBURGER MENU BUTTON --- */}
       <button
@@ -717,7 +965,7 @@ const SpotifyMiniStandalone: React.FC = () => {
       <div className={`spotify-sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
         {/* --- NEX MUSIC BRANDING --- */}
         <div className="nex-branding">
-          <div 
+          <div
             className={`nex-logo ${logoAnimating ? 'nex-logo-animate' : ''} ${isPlaying ? 'nex-logo-pulse' : ''}`}
             onClick={handleLogoClick}
           >
@@ -727,51 +975,56 @@ const SpotifyMiniStandalone: React.FC = () => {
             <span className="nex-logo-text">{pcnMode ? 'PCN' : 'NXM'}</span>
           </div>
           <h1 className="nex-title">NEX MUSIC</h1>
-          <span className="power-by">Created by Salvador Juarez</span>
+          <span className="power-by">Creado por Salvador Juarez</span>
+          {nickname && <span className="user-nickname">@{nickname}</span>}
         </div>
         {/* --- TOP MENU --- */}
         <div className="spotify-sidebar-top">
-          <div className={`spotify-nav-item ${activeTab === 'search' ? 'active' : ''}`} onClick={() => setActiveTab('search')}>
+          <div className={`spotify-nav-item ${activeTab === 'search' ? 'active' : ''}`} onClick={() => { setActiveTab('search'); setSidebarOpen(false); }}>
             <Search24Regular />
             <span>Buscar</span>
           </div>
-          <div className={`spotify-nav-item ${activeTab === 'playlist' ? 'active' : ''}`} onClick={() => setActiveTab('playlist')}>
+          <div className={`spotify-nav-item ${activeTab === 'my-playlists' ? 'active' : ''}`} onClick={() => { setActiveTab('my-playlists'); setSidebarOpen(false); }}>
             <Home24Filled />
-            <span>Playlist</span>
+            <span>Mis Listas</span>
+          </div>
+          <div className={`spotify-nav-item ${activeTab === 'global-playlists' ? 'active' : ''}`} onClick={() => { setActiveTab('global-playlists'); setSidebarOpen(false); }}>
+            <Globe24Regular />
+            <span>Listas Globales</span>
           </div>
         </div>
 
         {/* --- LIBRARY --- */}
         <div className="spotify-library">
           <div className="spotify-library-header">
-            <div className="spotify-library-title">
-              <Library24Filled />
-              <span>Tu biblioteca</span>
-            </div>
-            <div className="spotify-library-actions">
-              <button className="spotify-btn-icon" title="Crear">
-                <Add24Filled />
-              </button>
-            </div>
+          <div className="spotify-library-title">
+            <Library24Filled />
+            <span>Tu biblioteca</span>
+          </div>
+          <div className="spotify-library-actions">
+            <button className="spotify-btn-icon" title="Crear lista" onClick={() => setShowAddPlaylistModal(true)}>
+              <Add24Filled />
+            </button>
+          </div>
           </div>
 
           {/* --- NAV TABS --- */}
           <div className="spotify-nav-tabs">
-            <button 
+            <button
               className={`spotify-nav-tab ${activeTab === 'favorites' ? 'active' : ''}`}
-              onClick={() => setActiveTab('favorites')}
+              onClick={() => { setActiveTab('favorites'); setSidebarOpen(false); }}
             >
               <Heart24Filled />
             </button>
-            <button 
+            <button
               className={`spotify-nav-tab ${activeTab === 'history' ? 'active' : ''}`}
-              onClick={() => setActiveTab('history')}
+              onClick={() => { setActiveTab('history'); setSidebarOpen(false); }}
             >
               <History24Regular />
             </button>
-            <button 
+            <button
               className={`spotify-nav-tab ${activeTab === 'queue' ? 'active' : ''}`}
-              onClick={() => setActiveTab('queue')}
+              onClick={() => { setActiveTab('queue'); setSidebarOpen(false); }}
             >
               <List24Regular />
             </button>
@@ -780,28 +1033,34 @@ const SpotifyMiniStandalone: React.FC = () => {
           {/* --- LIBRARY CONTENT --- */}
           <div className="spotify-library-content">
             {/* --- PLAYLIST ITEMS --- */}
-            <div className="spotify-playlist-item" onClick={() => setActiveTab('playlist')}>
-              <div className="spotify-playlist-cover">
-                <MusicNote224Filled />
+            {playlists.map(playlist => (
+              <div
+                key={playlist.id}
+                className="spotify-playlist-item"
+                onClick={() => { setActivePlaylistId(playlist.id); setActiveTab('my-playlists'); setSidebarOpen(false); }}
+              >
+                <div className="spotify-playlist-cover">
+                  <MusicNote224Filled />
+                </div>
+                <div className="spotify-playlist-info">
+                  <div className="spotify-playlist-name">{playlist.name}</div>
+                  <div className="spotify-playlist-desc">{playlist.tracks.length} canciones · {playlist.isPrivate ? 'Privada' : 'Pública'}</div>
+                </div>
               </div>
-              <div className="spotify-playlist-info">
-                <div className="spotify-playlist-name">Playlist NEX</div>
-                <div className="spotify-playlist-desc">Playlist · Tú</div>
-              </div>
-            </div>
+            ))}
 
-            <div className="spotify-playlist-item" onClick={() => setActiveTab('favorites')}>
+            <div className="spotify-playlist-item" onClick={() => { setActiveTab('favorites'); setSidebarOpen(false); }}>
               <div className="spotify-playlist-cover spotify-cover-liked">
                 <Heart24Filled />
               </div>
               <div className="spotify-playlist-info">
                 <div className="spotify-playlist-name">Me gusta</div>
-                <div className="spotify-playlist-desc">Playlist · {favorites.length} canciones</div>
+                <div className="spotify-playlist-desc">{favorites.length} canciones</div>
               </div>
             </div>
 
             {/* --- HISTORY ITEM --- */}
-            <div className="spotify-playlist-item" onClick={() => setActiveTab('history')}>
+            <div className="spotify-playlist-item" onClick={() => { setActiveTab('history'); setSidebarOpen(false); }}>
               <div className="spotify-playlist-cover spotify-cover-history">
                 <History24Regular />
               </div>
@@ -915,6 +1174,30 @@ const SpotifyMiniStandalone: React.FC = () => {
                               🎧
                             </button>
                           )}
+                          {/* Add to playlist dropdown */}
+                          {playlists.length > 0 && (
+                            <div className="spotify-add-to-playlist-dropdown">
+                              <button
+                                className="spotify-add-to-playlist-btn">
+                                <List24Regular />
+                              </button>
+                              <div className="spotify-playlist-dropdown">
+                                {playlists.map(p => (
+                                  <div
+                                    key={p.id} className="spotify-dropdown-item"
+                                    onClick={async () => {
+                                      const track = await resolveSearchToTrack(result);
+                                      if (track) {
+                                        addTrackToPlaylist(p.id, track);
+                                      }
+                                    }}
+                                  >
+                                    {p.name}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     }
@@ -950,6 +1233,30 @@ const SpotifyMiniStandalone: React.FC = () => {
                             🎧
                           </button>
                         )}
+                        {/* Add to playlist dropdown */}
+                        {playlists.length > 0 && (
+                          <div className="spotify-add-to-playlist-dropdown">
+                            <button
+                              className="spotify-add-to-playlist-btn">
+                                <List24Regular />
+                              </button>
+                              <div className="spotify-playlist-dropdown">
+                                {playlists.map(p => (
+                                  <div
+                                    key={p.id} className="spotify-dropdown-item"
+                                    onClick={async () => {
+                                      const track = await resolveSearchToTrack(result);
+                                      if (track) {
+                                        addTrackToPlaylist(p.id, track);
+                                      }
+                                    }}
+                                  >
+                                    {p.name}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                        )}
                       </div>
                     );
                   })}
@@ -960,6 +1267,207 @@ const SpotifyMiniStandalone: React.FC = () => {
                 <div className="spotify-empty">
                   <Search24Regular />
                   <p>No se encontraron resultados para "{query}"</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* --- MY PLAYLISTS TAB --- */}
+          {activeTab === 'my-playlists' && (
+            <div className="spotify-list-view">
+              <div className="spotify-list-header">
+                <h2>Mis Listas de Reproducción</h2>
+                <div className="header-actions">
+                  <button
+                    className="spotify-btn-primary" onClick={() => setShowAddPlaylistModal(true)}>
+                    <Add24Filled /> Nueva Lista
+                  </button>
+                </div>
+              </div>
+
+              {activePlaylistId ? (
+                <>
+                  {(() => {
+                    const activePlaylist = playlists.find(p => p.id === activePlaylistId);
+                    if (!activePlaylist) return null;
+                    return (
+                      <>
+                        <div className="spotify-playlist-header">
+                          <div className="spotify-playlist-hero-cover">
+                            <div className="spotify-hero-placeholder">
+                              <MusicNote224Filled />
+                            </div>
+                          </div>
+                          <div className="spotify-playlist-hero-info">
+                            <div className="spotify-playlist-hero-type">Lista de Reproducción</div>
+                            {editingPlaylistId === activePlaylistId ? (
+                              <form onSubmit={(e) => {
+                                e.preventDefault();
+                                if (editPlaylistName.trim()) {
+                                  renamePlaylist(activePlaylistId, editPlaylistName.trim());
+                                  setEditingPlaylistId(null);
+                                }
+                              }} className="playlist-edit-form">
+                                <input
+                                  type="text"
+                                  value={editPlaylistName}
+                                  onChange={(e) => setEditPlaylistName(e.target.value)}
+                                  autoFocus
+                                />
+                                <button type="submit" className="save-edit-btn">
+                                  Guardar
+                                </button>
+                              </form>
+                            ) : (
+                              <h1 className="spotify-playlist-hero-title">{activePlaylist.name}</h1>
+                            )}
+                            <p className="spotify-playlist-hero-desc">
+                              Por {activePlaylist.ownerName} · {activePlaylist.tracks.length} canciones
+                            </p>
+                            <div className="spotify-playlist-hero-actions">
+                              <button
+                                className="spotify-play-hero-btn"
+                                onClick={() => {
+                                  if (activePlaylist.tracks.length > 0) {
+                                    playTrack(activePlaylist.tracks[0]);
+                                  }
+                                }}
+                              >
+                                {isPlaying ? <Pause24Filled /> : <Play24Filled />}
+                              </button>
+                              <button
+                                className="spotify-icon-btn"
+                                onClick={() => {
+                                  togglePlaylistPrivacy(activePlaylistId);
+                                }}
+                                title={activePlaylist.isPrivate ? 'Hacer pública' : 'Hacer privada'}
+                              >
+                                {activePlaylist.isPrivate ? <LockClosedRegular /> : <Globe24Regular />}
+                              </button>
+                              {editingPlaylistId !== activePlaylistId && (
+                                <button
+                                  className="spotify-icon-btn"
+                                  onClick={() => {
+                                    setEditingPlaylistId(activePlaylistId);
+                                    setEditPlaylistName(activePlaylist.name);
+                                  }}
+                                  title="Renombrar"
+                                >
+                                  <Edit24Regular />
+                                </button>
+                              )}
+                              <button
+                                className="spotify-icon-btn danger"
+                                onClick={() => deletePlaylist(activePlaylistId)}
+                                title="Eliminar lista"
+                              >
+                                <Delete24Regular />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="spotify-track-list">
+                          {activePlaylist.tracks.length === 0 ? (
+                            <div className="spotify-empty">
+                              <MusicNote224Filled />
+                              <p>Esta lista está vacía. Busca canciones y añádelas!</p>
+                            </div>
+                          ) : (
+                            activePlaylist.tracks.map((track, index) => (
+                            <div key={track.id} className="spotify-track-row" onClick={() => playTrack(track)}>
+                              <div className="spotify-track-cover">
+                                <img src={track.cover} alt={track.title} />
+                              </div>
+                              <div className="spotify-track-main">
+                                <div className="spotify-track-title">{track.title}</div>
+                                <div className="spotify-track-artist">{track.artist}</div>
+                              </div>
+                              <button
+                                className="spotify-track-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeTrackFromPlaylist(activePlaylistId, track.id);
+                                }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))
+                        )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </>
+              ) : (
+                <div className="spotify-empty">
+                  <Library24Filled />
+                  <p>Selecciona una lista de reproducción o crea una nueva!</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* --- GLOBAL PLAYLISTS TAB --- */}
+          {activeTab === 'global-playlists' && (
+            <div className="spotify-list-view">
+              <div className="spotify-list-header">
+                <h2>Listas Globales</h2>
+                <p>Las listas más votadas por la comunidad</p>
+              </div>
+
+              {getGlobalPlaylists().length === 0 ? (
+                <div className="spotify-empty">
+                  <Globe24Regular />
+                  <p>No hay listas públicas aún. Crea una y hazla pública!</p>
+                </div>
+              ) : (
+                <div className="spotify-grid">
+                  {getGlobalPlaylists().map((playlist) => (
+                    <div key={playlist.id} className="spotify-card">
+                      <div className="spotify-card-image">
+                        <div className="spotify-hero-placeholder">
+                          <MusicNote224Filled />
+                        </div>
+                        <button
+                          className="spotify-play-btn"
+                          onClick={() => {
+                            if (playlist.tracks.length > 0) {
+                              playTrack(playlist.tracks[0]);
+                            }
+                          }}
+                        >
+                          <Play24Filled />
+                        </button>
+                      </div>
+                      <div className="spotify-card-info">
+                        <div className="spotify-card-title">{playlist.name}</div>
+                        <div className="spotify-card-artist">
+                          Por {playlist.ownerName}
+                        </div>
+                      </div>
+                      <div className="playlist-meta">
+                        <div className="playlist-votes">
+                          <button
+                          onClick={() => {
+                            if (nickname) {
+                              if (playlist.votes.includes(nickname)) {
+                                unvoteForPlaylist(playlist.id);
+                              } else {
+                                voteForPlaylist(playlist.id);
+                              }
+                            }
+                          }}
+                          className={`vote-btn ${playlist.votes.includes(nickname) ? 'voted' : ''}`}
+                        >
+                            {playlist.votes.includes(nickname) ? <Star24Filled /> : <Star24Regular />}
+                            <span>{playlist.votes.length}</span>
+                          </button>
+                          <span>{playlist.tracks.length} canciones</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -979,74 +1487,24 @@ const SpotifyMiniStandalone: React.FC = () => {
               ) : (
                 <div className="spotify-track-list">
                   {queue.map((track, index) => (
-                    <div key={track.id} className="spotify-track-row" onClick={() => playTrack(track)}>
-                      <div className="spotify-track-cover">
-                        <img src={track.cover} alt={track.title} />
-                      </div>
-                      <div className="spotify-track-main">
-                        <div className="spotify-track-title">{track.title}</div>
-                        <div className="spotify-track-artist">{track.artist}</div>
-                      </div>
-                      <button 
-                        className="spotify-track-btn"
-                        onClick={(e) => { e.stopPropagation(); removeFromQueue(track.id); }}
-                      >
-                        ×
-                      </button>
+                  <div key={track.id} className="spotify-track-row" onClick={() => playTrack(track)}>
+                    <div className="spotify-track-cover">
+                      <img src={track.cover} alt={track.title} />
                     </div>
-                  ))}
+                    <div className="spotify-track-main">
+                      <div className="spotify-track-title">{track.title}</div>
+                      <div className="spotify-track-artist">{track.artist}</div>
+                    </div>
+                    <button
+                      className="spotify-track-btn"
+                      onClick={(e) => { e.stopPropagation(); removeFromQueue(track.id); }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* --- PLAYLIST TAB --- */}
-          {activeTab === 'playlist' && (
-            <div className="spotify-list-view">
-              {currentTrack && (
-                <div className="spotify-playlist-header">
-                  <div className="spotify-playlist-hero-cover">
-                    <img src={currentTrack.cover} alt="" className="spotify-hero-image" />
-                  </div>
-                  <div className="spotify-playlist-hero-info">
-                    <div className="spotify-playlist-hero-type">Playlist</div>
-                    <h1 className="spotify-playlist-hero-title">Playlist NEX</h1>
-                    <p className="spotify-playlist-hero-desc">Tu música favorita</p>
-                    <div className="spotify-playlist-hero-actions">
-                      <button 
-                        className="spotify-play-hero-btn"
-                        onClick={handleTogglePlay}
-                      >
-                        {isPlaying ? <Pause24Filled /> : <Play24Filled />}
-                      </button>
-                      <button 
-                        className={`spotify-heart-btn ${currentTrack && isFavorite(currentTrack.id) ? 'active' : ''} ${currentTrack && bumpHeartId === currentTrack.id ? 'heart-bump' : ''}`}
-                        onClick={() => currentTrack && handleHeartClick(currentTrack)}
-                      >
-                        {currentTrack && isFavorite(currentTrack.id) ? <Heart24Filled /> : <Heart24Regular />}
-                      </button>
-                      <button 
-                        className={`spotify-lyrics-btn ${showLyrics ? 'active' : ''}`}
-                        onClick={() => setShowLyrics(!showLyrics)}
-                      >
-                        <Book24Regular />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* --- LYRICS DISPLAY --- */}
-              {showLyrics && currentTrack && <LyricsDisplay />}
-
-              <div className="spotify-track-list">
-                {!currentTrack && (
-                  <div className="spotify-empty">
-                    <MusicNote224Filled />
-                    <p>Tu playlist está vacía. Buscá una canción y dale play para empezar.</p>
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
@@ -1065,9 +1523,9 @@ const SpotifyMiniStandalone: React.FC = () => {
               ) : (
                 <div className="spotify-track-list">
                   {favorites.map((track, index) => (
-                  <div 
-                    key={track.id} 
-                    className={`spotify-track-row ${currentTrack?.id === track.id ? 'active' : ''}`} 
+                  <div
+                    key={track.id}
+                    className={`spotify-track-row ${currentTrack?.id === track.id ? 'active' : ''}`}
                     onClick={() => playTrack(track)}
                   >
                     <div className="spotify-track-cover">
@@ -1077,7 +1535,7 @@ const SpotifyMiniStandalone: React.FC = () => {
                       <div className="spotify-track-title">{track.title}</div>
                       <div className="spotify-track-artist">{track.artist}</div>
                     </div>
-                    <button 
+                    <button
                       className={`spotify-heart-small ${bumpHeartId === track.id ? 'heart-bump' : ''}`}
                       onClick={(e) => { e.stopPropagation(); handleHeartClick(track); }}
                     >
@@ -1105,9 +1563,9 @@ const SpotifyMiniStandalone: React.FC = () => {
               ) : (
                 <div className="spotify-track-list">
                   {history.map((track, index) => (
-                  <div 
-                    key={track.id} 
-                    className={`spotify-track-row ${currentTrack?.id === track.id ? 'active' : ''}`} 
+                  <div
+                    key={track.id}
+                    className={`spotify-track-row ${currentTrack?.id === track.id ? 'active' : ''}`}
                     onClick={() => playTrack(track)}
                   >
                     <div className="spotify-track-cover">
@@ -1136,17 +1594,17 @@ const SpotifyMiniStandalone: React.FC = () => {
               <div className="spotify-player-title">{currentTrack.title}</div>
               <div className="spotify-player-artist">{currentTrack.artist}</div>
             </div>
-            <button 
+            <button
               className={`spotify-player-heart ${bumpHeartId === currentTrack.id ? 'heart-bump' : ''}`}
               onClick={() => handleHeartClick(currentTrack)}
               title="Me gusta"
             >
               {isFavorite(currentTrack.id) ? <Heart24Filled /> : <Heart24Regular />}
             </button>
-            <button 
+            <button
               className="spotify-player-heart"
               onClick={() => {
-                const url = currentTrack.service === 'youtube' 
+                const url = currentTrack.service === 'youtube'
                   ? `https://www.youtube.com/watch?v=${currentTrack.id}`
                   : (currentTrack.url || `https://www.youtube.com/watch?v=${currentTrack.id}`);
                 navigator.clipboard.writeText(url).then(() => {
@@ -1171,7 +1629,7 @@ const SpotifyMiniStandalone: React.FC = () => {
               <button className="spotify-player-btn" onClick={prevTrack}>
                 <Previous24Filled />
               </button>
-              <button 
+              <button
                 className="spotify-player-play"
                 onClick={handleTogglePlay}
               >
@@ -1182,24 +1640,24 @@ const SpotifyMiniStandalone: React.FC = () => {
               </button>
             </div>
             <div className="spotify-player-progress">
-          <span className="spotify-time">{formatTime((progress / 100) * duration)}</span>
-          <div 
-            className="spotify-progress-bar" 
-            onClick={handleSeek}
-            style={{ '--progress': `${progress}%` } as React.CSSProperties}
-          >
-            <div 
-              className="spotify-progress-fill"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <span className="spotify-time">{formatTime(duration)}</span>
-        </div>
+              <span className="spotify-time">{formatTime((progress / 100) * duration)}</span>
+              <div
+                className="spotify-progress-bar"
+                onClick={handleSeek}
+                style={{ '--progress': `${progress}%` } as React.CSSProperties}
+              >
+                <div
+                  className="spotify-progress-fill"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <span className="spotify-time">{formatTime(duration)}</span>
+            </div>
           </div>
 
           {/* --- RIGHT VOLUME --- */}
           <div className="spotify-player-right">
-            <button 
+            <button
               className={`spotify-player-btn ${showLyrics ? 'active' : ''}`}
               onClick={() => setShowLyrics(!showLyrics)}
             >
@@ -1207,12 +1665,12 @@ const SpotifyMiniStandalone: React.FC = () => {
             </button>
             <div className="spotify-volume">
               <Speaker224Filled />
-              <input 
-                type="range" 
-                min="0" 
-                max="100" 
-                value={volume} 
-                onChange={(e) => setVolume(Number(e.target.value))} 
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volume}
+                onChange={(e) => setVolume(Number(e.target.value))}
                 className="spotify-volume-slider"
               />
             </div>
@@ -1275,6 +1733,99 @@ const SpotifyMiniStandalone: React.FC = () => {
           pointer-events: none;
         }
 
+        /* --- MODALS --- */
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 2000;
+        }
+
+        .modal-content {
+          background: #1a1a1a;
+          padding: 32px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.1);
+          width: 90%;
+          max-width: 400px;
+        }
+
+        .modal-content h2 {
+          margin: 0 0 8px 0;
+        }
+
+        .modal-content p {
+          color: rgba(255,255,255,0.6);
+          margin-bottom: 24px;
+        }
+
+        .modal-content input {
+          width: 100%;
+          background: #2a2a2a;
+          border: 1px solid rgba(255,255,255,0.1);
+          padding: 12px;
+          border-radius: 8px;
+          color: #fff;
+          margin-bottom: 20px;
+          font-size: 16px;
+        }
+
+        .modal-actions {
+          display: flex;
+          gap: 12px;
+          justify-content: flex-end;
+        }
+
+        .modal-btn-primary {
+          background: #fff;
+          color: #000;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .modal-btn-secondary {
+          background: transparent;
+          color: #fff;
+          border: 1px solid rgba(255,255,255,0.2);
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .playlist-edit-form {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+        }
+
+        .playlist-edit-form input {
+          flex: 1;
+          background: #2a2a2a;
+          border: 1px solid rgba(255,255,255,0.2);
+          padding: 8px 12px;
+          border-radius: 8px;
+          color: #fff;
+          font-size: 24px;
+          font-weight: 800;
+        }
+
+        .save-edit-btn {
+          background: #1db954;
+          color: #fff;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
         /* --- HAMBURGER MENU --- */
         .hamburger-btn {
           position: fixed;
@@ -1294,12 +1845,12 @@ const SpotifyMiniStandalone: React.FC = () => {
           flex-direction: column;
           gap: 6px;
           transition: all 0.2s ease;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.5);
         }
 
         .hamburger-btn:hover {
           background: #1e1e1e;
-          border-color: rgba(255, 255, 255, 0.25);
+          border-color: rgba(255,255,255,0.25);
         }
 
         .hamburger-btn span {
@@ -1326,7 +1877,7 @@ const SpotifyMiniStandalone: React.FC = () => {
         .sidebar-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0, 0, 0, 0.7);
+          background: rgba(0,0,0,0.7);
           z-index: 49;
           backdrop-filter: blur(4px);
           animation: fadeIn 0.2s ease-out;
@@ -1349,10 +1900,10 @@ const SpotifyMiniStandalone: React.FC = () => {
           position: fixed;
           left: -100%;
           top: 0;
-          border-right: 1px solid rgba(255, 255, 255, 0.08);
+          border-right: 1px solid rgba(255,255,255,0.08);
           z-index: 50;
           transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow: 4px 0 24px rgba(0, 0, 0, 0.6);
+          box-shadow: 4px 0 24px rgba(0,0,0,0.6);
         }
 
         .spotify-sidebar.sidebar-open {
@@ -1366,7 +1917,7 @@ const SpotifyMiniStandalone: React.FC = () => {
           display: flex;
           flex-direction: column;
           gap: 4px;
-          border: 1px solid rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255,255,255,0.06);
           margin-top: 76px;
         }
 
@@ -1376,7 +1927,7 @@ const SpotifyMiniStandalone: React.FC = () => {
           gap: 16px;
           font-size: 15px;
           font-weight: 700;
-          color: rgba(255, 255, 255, 0.65);
+          color: rgba(255,255,255,0.65);
           cursor: pointer;
           transition: all 0.15s ease;
           padding: 12px 14px;
@@ -1385,7 +1936,7 @@ const SpotifyMiniStandalone: React.FC = () => {
 
         .spotify-nav-item:hover {
           color: #fff;
-          background: rgba(255, 255, 255, 0.06);
+          background: rgba(255,255,255,0.06);
         }
 
         .spotify-nav-item.active {
@@ -1400,7 +1951,7 @@ const SpotifyMiniStandalone: React.FC = () => {
           display: flex;
           flex-direction: column;
           overflow: hidden;
-          border: 1px solid rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255,255,255,0.06);
         }
 
         .spotify-library-header {
@@ -1530,6 +2081,91 @@ const SpotifyMiniStandalone: React.FC = () => {
           color: rgba(255,255,255,0.5);
         }
 
+        .nex-branding {
+          padding: 20px 16px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .nex-logo {
+          width: 80px;
+          height: 80px;
+          position: relative;
+          cursor: pointer;
+        }
+
+        .nex-logo-ring {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          border: 2px solid #1db954;
+        }
+
+        .nex-logo-ring-1 {
+          animation: nex-pulse 2s ease-out infinite;
+        }
+
+        .nex-logo-ring-2 {
+          animation: nex-pulse 2s ease-out infinite;
+          animation-delay: 0.5s;
+        }
+
+        .nex-logo-ring-3 {
+          animation: nex-pulse 2s ease-out infinite;
+          animation-delay: 1s;
+        }
+
+        .nex-logo-text {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          font-weight: 900;
+          font-size: 18px;
+          color: #fff;
+        }
+
+        @keyframes nex-pulse {
+          0% {
+          transform: scale(0.5);
+          opacity: 1;
+        }
+          100% {
+          transform: scale(1.5);
+          opacity: 0;
+        }
+        }
+
+        .nex-logo-animate .nex-logo-ring {
+          animation-play-state: paused;
+        }
+
+        .nex-logo-pulse {
+          animation: spin 3s linear infinite;
+        }
+
+        .nex-title {
+          font-size: 24px;
+          font-weight: 900;
+          margin: 0;
+        }
+
+        .power-by {
+          font-size: 12px;
+          color: rgba(255,255,255,0.5);
+        }
+
+        .user-nickname {
+          font-size: 14px;
+          color: #1db954;
+          font-weight: 600;
+        }
+
         /* --- MAIN CONTENT --- */
         .spotify-main {
           margin-left: 0;
@@ -1572,7 +2208,7 @@ const SpotifyMiniStandalone: React.FC = () => {
         }
 
         .spotify-search-bar:focus-within {
-          border-color: rgba(255, 255, 255, 0.4);
+          border-color: rgba(255,255,255,0.4);
         }
 
         .spotify-search-icon {
@@ -1709,6 +2345,17 @@ const SpotifyMiniStandalone: React.FC = () => {
           transition: transform 0.3s ease;
         }
 
+        .spotify-hero-placeholder {
+          width: 100%;
+          aspect-ratio: 1;
+          background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 80px;
+          color: rgba(255,255,255,0.3);
+        }
+
         .spotify-card:hover .spotify-card-image img {
           transform: scale(1.05);
         }
@@ -1735,7 +2382,7 @@ const SpotifyMiniStandalone: React.FC = () => {
 
         .spotify-card:hover .spotify-play-btn {
           opacity: 1;
-          transform: translateY(0) scale(1);
+          transform: translateY(0);
         }
 
         .spotify-play-btn:hover {
@@ -1821,6 +2468,66 @@ const SpotifyMiniStandalone: React.FC = () => {
           transform: scale(1.08);
         }
 
+        /* Add to playlist dropdown */
+        .spotify-add-to-playlist-dropdown {
+          position: absolute;
+          top: 22px;
+          right: 110px;
+        }
+
+        .spotify-add-to-playlist-btn {
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          background: rgba(0,0,0,0.7);
+          border: 1px solid rgba(255,255,255,0.25);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          opacity: 0;
+          transition: all 0.2s ease;
+          color: #fff;
+          backdrop-filter: blur(8px);
+        }
+
+        .spotify-card:hover .spotify-add-to-playlist-btn {
+          opacity: 1;
+        }
+
+        .spotify-add-to-playlist-btn:hover {
+          background: #fff;
+          color: #000;
+          border-color: #fff;
+        }
+
+        .spotify-playlist-dropdown {
+          position: absolute;
+          top: 48px;
+          right: 0;
+          background: #1a1a1a;
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 8px;
+          padding: 8px 0;
+          min-width: 160px;
+          display: none;
+          z-index: 100;
+        }
+
+        .spotify-add-to-playlist-dropdown:hover .spotify-playlist-dropdown {
+          display: block;
+        }
+
+        .spotify-dropdown-item {
+          padding: 8px 16px;
+          cursor: pointer;
+          transition: background 0.15s ease;
+        }
+
+        .spotify-dropdown-item:hover {
+          background: rgba(255,255,255,0.06);
+        }
+
         .spotify-empty {
           display: flex;
           flex-direction: column;
@@ -1880,11 +2587,31 @@ const SpotifyMiniStandalone: React.FC = () => {
           font-size: 24px;
           font-weight: 800;
           color: #fff;
+          margin: 0;
         }
 
         .spotify-list-header p {
           color: rgba(255,255,255,0.55);
           font-size: 14px;
+          margin: 0;
+        }
+
+        .spotify-btn-primary {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: #1db954;
+          border: none;
+          color: #fff;
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+          font-size: 14px;
+        }
+
+        .spotify-btn-primary:hover {
+          transform: scale(1.02);
         }
 
         .spotify-track-list {
@@ -1998,7 +2725,7 @@ const SpotifyMiniStandalone: React.FC = () => {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          color: #fff;
+          color: rgba(255,255,255,0.85);
         }
 
         .spotify-track-artist {
@@ -2009,390 +2736,199 @@ const SpotifyMiniStandalone: React.FC = () => {
           text-overflow: ellipsis;
         }
 
-        .spotify-track-time {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          color: rgba(255,255,255,0.55);
-          font-size: 14px;
-        }
-
         .spotify-track-btn {
-          background: none;
+          background: transparent;
           border: none;
-          color: rgba(255,255,255,0.5);
+          color: rgba(255,255,255,0.6);
           cursor: pointer;
-          font-size: 22px;
-          padding: 6px;
-          transition: color 0.15s;
+          font-size: 24px;
+          line-height: 1;
+          padding: 8px;
           border-radius: 8px;
+          transition: all 0.15s ease;
         }
 
         .spotify-track-btn:hover {
           color: #fff;
+          background: rgba(255,255,255,0.1);
         }
 
         .spotify-heart-small {
-          background: none;
+          background: transparent;
           border: none;
-          color: rgba(255,255,255,0.5);
+          color: #1db954;
           cursor: pointer;
-          padding: 6px;
-          font-size: 18px;
-          transition: all 0.15s;
+          padding: 8px;
+          border-radius: 8px;
+          transition: all 0.15s ease;
         }
 
         .spotify-heart-small:hover {
-          color: #fff;
-          transform: scale(1.1);
+          background: rgba(255,255,255,0.1);
         }
 
         .heart-bump {
-          animation: heart-bump-anim 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+          animation: bump 0.3s ease-out;
         }
 
-        @keyframes heart-bump-anim {
-          0% { transform: scale(1); }
-          35% { transform: scale(1.45); }
-          60% { transform: scale(0.9); }
-          100% { transform: scale(1); }
+        @keyframes bump {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.3); }
         }
 
+        /* --- PLAYLIST HEADER --- */
         .spotify-playlist-header {
           display: flex;
-          gap: 32px;
+          gap: 24px;
           margin-bottom: 32px;
         }
 
         .spotify-playlist-hero-cover {
-          width: 220px;
-          height: 220px;
-          border-radius: 12px;
-          overflow: hidden;
+          width: 200px;
+          height: 200px;
           flex-shrink: 0;
-          box-shadow: 0 16px 50px rgba(0,0,0,0.6);
         }
 
         .spotify-hero-image {
           width: 100%;
           height: 100%;
           object-fit: cover;
+          border-radius: 12px;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.5);
         }
 
         .spotify-playlist-hero-info {
           display: flex;
           flex-direction: column;
           justify-content: flex-end;
-          gap: 8px;
+          gap: 12px;
         }
 
         .spotify-playlist-hero-type {
-          color: rgba(255,255,255,0.6);
           font-size: 12px;
-          font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 2px;
+          font-weight: 700;
         }
 
         .spotify-playlist-hero-title {
-          font-size: 44px;
+          font-size: 64px;
           font-weight: 900;
           margin: 0;
-          color: #fff;
+          line-height: 1;
         }
 
         .spotify-playlist-hero-desc {
           color: rgba(255,255,255,0.6);
-          font-size: 15px;
+          font-size: 14px;
+          margin: 0;
         }
 
         .spotify-playlist-hero-actions {
           display: flex;
-          gap: 14px;
-          margin-top: 20px;
+          gap: 12px;
           align-items: center;
         }
 
         .spotify-play-hero-btn {
-          width: 58px;
-          height: 58px;
+          width: 56px;
+          height: 56px;
           border-radius: 50%;
-          background: #fff;
+          background: #1db954;
           border: none;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
           transition: transform 0.15s ease;
-          color: #000;
-        }
-
-        .spotify-play-hero-btn:hover {
-          transform: scale(1.08);
-        }
-
-        .spotify-heart-btn,
-        .spotify-lyrics-btn {
-          width: 48px;
-          height: 48px;
-          border-radius: 50%;
-          background: transparent;
-          border: 1px solid rgba(255,255,255,0.25);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: all 0.15s ease;
           color: #fff;
         }
 
-        .spotify-heart-btn:hover,
-        .spotify-lyrics-btn:hover {
-          border-color: #fff;
+        .spotify-play-hero-btn:hover {
+          transform: scale(1.06);
+        }
+
+        .spotify-heart-btn, .spotify-lyrics-btn {
+          background: transparent;
+          border: none;
+          color: rgba(255,255,255,0.6);
+          cursor: pointer;
+          padding: 12px;
+          border-radius: 50%;
+          transition: all 0.15s ease;
+        }
+
+        .spotify-heart-btn:hover, .spotify-lyrics-btn:hover {
+          background: rgba(255,255,255,0.1);
         }
 
         .spotify-heart-btn.active {
-          background: #fff;
-          color: #000;
+          color: #1db954;
         }
 
         .spotify-lyrics-btn.active {
-          background: #fff;
-          color: #000;
+          color: #fff;
         }
 
+        .spotify-icon-btn {
+          background: transparent;
+          border: 1px solid rgba(255,255,255,0.2);
+          color: #fff;
+          cursor: pointer;
+          padding: 10px;
+          border-radius: 50%;
+          transition: all 0.15s ease;
+          display: flex;
+          align-items: center;
+        }
+
+        .spotify-icon-btn:hover {
+          background: rgba(255,255,255,0.1);
+        }
+
+        .spotify-icon-btn.danger:hover {
+          background: rgba(255,0,0,0.2);
+          border-color: rgba(255,0,0,0.3);
+        }
+
+        /* --- LYRICS --- */
         .lyrics-container {
-          background: #0d0d0d;
-          border-radius: 14px;
-          padding: 28px;
           margin-bottom: 32px;
-          border: 1px solid rgba(255,255,255,0.08);
         }
 
         .lyrics-header {
           display: flex;
-          align-items: center;
           gap: 12px;
-          margin-bottom: 20px;
+          align-items: center;
+          margin-bottom: 16px;
+          font-size: 18px;
           font-weight: 700;
-          font-size: 16px;
-          color: #fff;
         }
 
         .lyrics-content {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
+          background: rgba(255,255,255,0.05);
+          border-radius: 12px;
+          padding: 24px;
         }
 
         .lyrics-section {
-          color: rgba(255,255,255,0.75);
+          font-size: 32px;
           font-weight: 700;
-          font-size: 14px;
-          margin-top: 14px;
+          margin: 24px 0;
         }
 
         .lyrics-line {
-          color: rgba(255,255,255,0.55);
-          font-size: 15px;
-          line-height: 1.6;
-        }
-
-        /* --- NEX MUSIC BRANDING (colorful, by design) --- */
-        .nex-branding {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 20px 16px 16px;
-          background: #0d0d0d;
-          border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .nex-logo {
-          position: relative;
-          width: 84px;
-          height: 84px;
+          font-size: 24px;
+          margin: 12px 0;
+          color: rgba(255,255,255,0.6);
           cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 16px;
+          padding: 4px 0;
         }
 
-        .nex-logo-ring {
-          position: absolute;
-          border-radius: 50%;
-          border: 3px solid transparent;
-          animation: nex-ring-rotate 8s linear infinite;
+        .lyrics-line:hover {
+          color: #fff;
         }
 
-        .nex-logo-ring-1 {
-          width: 84px;
-          height: 84px;
-          border-top-color: #ff0080;
-          border-right-color: #00ffff;
-          border-bottom-color: #80ff00;
-          border-left-color: #ff00ff;
-          box-shadow: 0 0 20px rgba(255, 0, 128, 0.5);
-        }
-
-        .nex-logo-ring-2 {
-          width: 66px;
-          height: 66px;
-          border-top-color: #00ff80;
-          border-right-color: #ff8000;
-          border-bottom-color: #8000ff;
-          border-left-color: #0080ff;
-          animation-direction: reverse;
-          animation-duration: 6s;
-          box-shadow: 0 0 16px rgba(0, 255, 128, 0.4);
-        }
-
-        .nex-logo-ring-3 {
-          width: 48px;
-          height: 48px;
-          border-top-color: #ff0000;
-          border-right-color: #00ff00;
-          border-bottom-color: #0000ff;
-          border-left-color: #ffff00;
-          animation-duration: 4s;
-          box-shadow: 0 0 12px rgba(255, 255, 0, 0.4);
-        }
-
-        .nex-logo-text {
-          font-size: 26px;
-          font-weight: 900;
-          background: linear-gradient(90deg, #ff0080, #00ffff, #80ff00, #ff00ff, #ff0080);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          letter-spacing: 2px;
-          z-index: 10;
-          text-shadow: 0 0 30px rgba(255, 0, 128, 0.6);
-          background-size: 200% 100%;
-          animation: text-rgb 4s linear infinite;
-        }
-
-        @keyframes text-rgb {
-          from { background-position: 0% 50%; }
-          to { background-position: 200% 50%; }
-        }
-
-        .nex-logo-animate {
-          animation: nex-bounce 0.6s ease-in-out;
-        }
-
-        .nex-logo-pulse {
-          animation: nex-pulse 0.6s ease-in-out infinite;
-        }
-
-        .nex-logo-pulse .nex-logo-ring-1 {
-          animation: nex-ring-rotate 2s linear infinite, nex-ring-color-1 0.6s ease-in-out infinite alternate;
-        }
-
-        .nex-logo-pulse .nex-logo-ring-2 {
-          animation: nex-ring-rotate-reverse 1.5s linear infinite, nex-ring-color-2 0.6s ease-in-out infinite alternate;
-        }
-
-        .nex-logo-pulse .nex-logo-ring-3 {
-          animation: nex-ring-rotate 1s linear infinite, nex-ring-color-3 0.6s ease-in-out infinite alternate;
-        }
-
-        @keyframes nex-ring-rotate {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        @keyframes nex-ring-rotate-reverse {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(-360deg); }
-        }
-
-        @keyframes nex-ring-color-1 {
-          0% {
-            border-top-color: #ff0080;
-            border-right-color: #00ffff;
-            border-bottom-color: #80ff00;
-            border-left-color: #ff00ff;
-            box-shadow: 0 0 20px rgba(255, 0, 128, 0.5);
-          }
-          100% {
-            border-top-color: #00ffff;
-            border-right-color: #80ff00;
-            border-bottom-color: #ff00ff;
-            border-left-color: #ff0080;
-            box-shadow: 0 0 40px rgba(0, 255, 255, 0.8);
-          }
-        }
-
-        @keyframes nex-ring-color-2 {
-          0% {
-            border-top-color: #00ff80;
-            border-right-color: #ff8000;
-            border-bottom-color: #8000ff;
-            border-left-color: #0080ff;
-            box-shadow: 0 0 16px rgba(0, 255, 128, 0.4);
-          }
-          100% {
-            border-top-color: #ff8000;
-            border-right-color: #8000ff;
-            border-bottom-color: #0080ff;
-            border-left-color: #00ff80;
-            box-shadow: 0 0 32px rgba(255, 128, 0, 0.7);
-          }
-        }
-
-        @keyframes nex-ring-color-3 {
-          0% {
-            border-top-color: #ff0000;
-            border-right-color: #00ff00;
-            border-bottom-color: #0000ff;
-            border-left-color: #ffff00;
-            box-shadow: 0 0 12px rgba(255, 255, 0, 0.4);
-          }
-          100% {
-            border-top-color: #00ff00;
-            border-right-color: #0000ff;
-            border-bottom-color: #ffff00;
-            border-left-color: #ff0000;
-            box-shadow: 0 0 24px rgba(0, 255, 0, 0.6);
-          }
-        }
-
-        @keyframes nex-bounce {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.4); }
-        }
-
-        @keyframes nex-pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.08); }
-        }
-
-        .nex-title {
-          font-size: 26px;
-          font-weight: 900;
-          margin: 0 0 6px 0;
-          background: linear-gradient(90deg, #ff0080, #00ffff, #80ff00, #ff00ff);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          letter-spacing: 3px;
-          background-size: 200% 100%;
-          animation: text-rgb 5s linear infinite;
-        }
-
-        .power-by {
-          font-size: 11px;
-          color: rgba(255, 255, 255, 0.45);
-          letter-spacing: 1.5px;
-          text-transform: uppercase;
-          font-weight: 600;
-        }
-
-        /* --- PLAYER BAR --- */
+        /* --- PLAYER --- */
         .spotify-player {
           position: fixed;
           bottom: 0;
@@ -2400,27 +2936,25 @@ const SpotifyMiniStandalone: React.FC = () => {
           right: 0;
           background: #000;
           border-top: 1px solid rgba(255,255,255,0.08);
-          padding: 14px 24px;
           display: flex;
-          justify-content: space-between;
           align-items: center;
-          gap: 24px;
-          z-index: 999;
+          padding: 12px 16px;
+          gap: 16px;
         }
 
         .spotify-player-left {
           display: flex;
           align-items: center;
-          gap: 16px;
-          min-width: 240px;
+          gap: 12px;
+          min-width: 180px;
+          width: 30%;
         }
 
         .spotify-player-cover {
           width: 56px;
           height: 56px;
-          border-radius: 8px;
+          border-radius: 6px;
           object-fit: cover;
-          flex-shrink: 0;
         }
 
         .spotify-player-info {
@@ -2429,8 +2963,8 @@ const SpotifyMiniStandalone: React.FC = () => {
 
         .spotify-player-title {
           font-size: 14px;
-          font-weight: 700;
-          color: #fff;
+          font-weight: 600;
+          margin-bottom: 2px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -2438,7 +2972,7 @@ const SpotifyMiniStandalone: React.FC = () => {
 
         .spotify-player-artist {
           font-size: 12px;
-          color: rgba(255,255,255,0.55);
+          color: rgba(255,255,255,0.6);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -2447,32 +2981,29 @@ const SpotifyMiniStandalone: React.FC = () => {
         .spotify-player-heart {
           background: transparent;
           border: none;
-          color: rgba(255,255,255,0.55);
+          color: rgba(255,255,255,0.5);
           cursor: pointer;
           padding: 8px;
-          font-size: 22px;
-          transition: all 0.15s;
-          border-radius: 50%;
+          border-radius: 8px;
+          transition: color 0.15s ease;
         }
 
         .spotify-player-heart:hover {
           color: #fff;
-          transform: scale(1.1);
         }
 
         .spotify-player-center {
+          flex: 1;
           display: flex;
           flex-direction: column;
+          gap: 8px;
           align-items: center;
-          gap: 10px;
-          flex: 1;
-          max-width: 720px;
         }
 
         .spotify-player-controls {
           display: flex;
           align-items: center;
-          gap: 20px;
+          gap: 16px;
         }
 
         .spotify-player-btn {
@@ -2481,14 +3012,12 @@ const SpotifyMiniStandalone: React.FC = () => {
           color: rgba(255,255,255,0.6);
           cursor: pointer;
           padding: 8px;
-          font-size: 24px;
-          transition: all 0.15s;
-          border-radius: 50%;
+          border-radius: 8px;
+          transition: all 0.15s ease;
         }
 
         .spotify-player-btn:hover {
           color: #fff;
-          transform: scale(1.08);
         }
 
         .spotify-player-btn.active {
@@ -2496,12 +3025,12 @@ const SpotifyMiniStandalone: React.FC = () => {
         }
 
         .spotify-player-play {
-          width: 38px;
-          height: 38px;
-          border-radius: 50%;
           background: #fff;
           border: none;
           color: #000;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -2516,429 +3045,106 @@ const SpotifyMiniStandalone: React.FC = () => {
         .spotify-player-progress {
           display: flex;
           align-items: center;
-          gap: 14px;
+          gap: 12px;
           width: 100%;
+          max-width: 500px;
         }
 
         .spotify-time {
-          font-size: 12px;
-          color: rgba(255,255,255,0.5);
+          font-size: 11px;
+          color: rgba(255,255,255,0.6);
           min-width: 40px;
           text-align: center;
-          font-weight: 600;
         }
 
         .spotify-progress-bar {
           flex: 1;
-          height: 6px;
-          background: rgba(255, 255, 255, 0.15);
-          border-radius: 4px;
-          cursor: pointer;
+          height: 4px;
+          background: rgba(255,255,255,0.2);
+          border-radius: 2px;
           position: relative;
-          overflow: visible;
-          transition: height 0.15s;
-        }
-
-        .spotify-progress-bar:hover {
-          height: 8px;
+          cursor: pointer;
         }
 
         .spotify-progress-fill {
+          position: absolute;
+          top: 0;
+          left: 0;
           height: 100%;
           background: #fff;
-          border-radius: 4px;
-          position: relative;
-          transition: width 0.1s linear;
-        }
-
-        .spotify-progress-bar::after {
-          content: '';
-          position: absolute;
-          left: calc(var(--progress, 0) - 6px);
-          top: 50%;
-          transform: translateY(-50%) scale(0);
-          width: 13px;
-          height: 13px;
-          background: #fff;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-          transition: transform 0.15s ease;
-        }
-
-        .spotify-progress-bar:hover::after {
-          transform: translateY(-50%) scale(1);
+          border-radius: 2px;
+          width: var(--progress, 0%);
         }
 
         .spotify-player-right {
           display: flex;
           align-items: center;
+          gap: 12px;
           justify-content: flex-end;
-          gap: 18px;
-          min-width: 240px;
+          min-width: 180px;
+          width: 30%;
         }
 
         .spotify-volume {
           display: flex;
           align-items: center;
           gap: 12px;
-          width: 130px;
-          color: rgba(255,255,255,0.6);
         }
 
         .spotify-volume-slider {
           width: 100%;
-          accent-color: #fff;
+          max-width: 100px;
           cursor: pointer;
-          height: 6px;
         }
 
-        /* --- RESPONSIVE STYLES --- */
-        @media (max-width: 768px) {
-          .spotify-sidebar {
-            width: min(100%, 340px);
-          }
-
-          .spotify-main {
-            margin: 0;
-            height: 100vh;
-            border-radius: 0;
-          }
-
-          .spotify-header {
-            padding: 84px 16px 20px;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 14px;
-          }
-
-          .spotify-search-bar {
-            max-width: 100%;
-            width: 100%;
-            padding: 12px 14px;
-            gap: 10px;
-          }
-
-          .spotify-search-input {
-            font-size: 15px;
-          }
-
-          .spotify-search-button {
-            width: 52px;
-            min-width: 52px;
-          }
-
-          .spotify-services {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-          }
-
-          .spotify-service-btn {
-            flex: none;
-            width: 100%;
-            min-width: 0;
-            justify-content: center;
-          }
-
-          .spotify-service-btn.live-btn {
-            justify-content: center;
-          }
-
-          .spotify-content {
-            padding: 24px 16px;
-            padding-bottom: 220px;
-          }
-
-          .spotify-grid {
-            grid-template-columns: 1fr;
-            gap: 16px;
-          }
-
-          .spotify-playlists-grid {
-            grid-template-columns: 1fr;
-            gap: 16px;
-          }
-
-          .spotify-results-header {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .spotify-player {
-            padding: 12px 16px;
-          }
-
-          .spotify-player-left {
-            min-width: auto;
-          }
-
-          .spotify-player-cover {
-            width: 48px;
-            height: 48px;
-          }
-
-          .spotify-card-image {
-            max-height: 180px;
-          }
-
-          .spotify-card-image img {
-            aspect-ratio: 4 / 3;
-            max-height: 170px;
-            width: 100%;
-          }
-
-          .spotify-player-controls {
-            gap: 14px;
-          }
-
-          .spotify-player-btn {
-            font-size: 22px;
-            padding: 6px;
-          }
-
-          .spotify-player-play {
-            width: 40px;
-            height: 40px;
-          }
-
-          .spotify-player-right {
-            min-width: auto;
-            justify-content: space-between;
-            flex-wrap: wrap;
-          }
-
-          .spotify-player-cover,
-          .spotify-playlist-hero-cover {
-            width: 44px;
-            height: 44px;
-          }
-
-          .spotify-volume {
-            width: 90px;
-          }
-
-          .spotify-playlist-header {
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-          }
-
-          .spotify-playlist-hero-cover {
-            width: min(140px, 40vw);
-            height: min(140px, 40vw);
-          }
-
-          .spotify-playlist-hero-title {
-            font-size: 32px;
-          }
-
-          .spotify-autoplay-badge {
-            display: none;
-          }
+        /* Playlist meta */
+        .playlist-meta {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          margin-top: 8px;
         }
 
-        @media (max-width: 640px) {
-          .spotify-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .spotify-playlists-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .spotify-services {
-            gap: 8px;
-          }
-
-          .spotify-service-btn {
-            width: 100%;
-          }
+        .playlist-votes {
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
 
-        @media (max-width: 480px) {
-          .spotify-content {
-            padding: 20px 14px;
-            padding-bottom: 220px;
-          }
-
-          .spotify-search-button {
-            padding: 10px 14px;
-            font-size: 12px;
-          }
-
-          .spotify-search-bar {
-            padding: 12px 14px;
-          }
-
-          .spotify-search-input {
-            font-size: 14px;
-          }
-
-          .spotify-results-header {
-            gap: 10px;
-          }
-
-          .spotify-player-progress {
-            gap: 8px;
-          }
-
-          .spotify-time {
-            min-width: 34px;
-            font-size: 11px;
-          }
-
-          .spotify-volume {
-            width: 70px;
-          }
-
-          .spotify-player-info {
-            display: none;
-          }
-
-          .hamburger-btn {
-            top: 14px;
-            left: 14px;
-          }
+        .vote-btn {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          background: transparent;
+          border: none;
+          color: rgba(255,255,255,0.6);
+          cursor: pointer;
+          padding: 8px 12px;
+          border-radius: 8px;
+          transition: all 0.15s ease;
         }
 
-        /* --- PCN THEME (easter egg: type "PCN" in the search bar) --- */
-        .pcn-theme {
-          background: #18293e;
-        }
-
-        .pcn-theme .spotify-main,
-        .pcn-theme .spotify-sidebar,
-        .pcn-theme .spotify-header,
-        .pcn-theme .spotify-player,
-        .pcn-theme .spotify-sidebar-top,
-        .pcn-theme .spotify-library,
-        .pcn-theme .spotify-card,
-        .pcn-theme .lyrics-container,
-        .pcn-theme .nex-branding {
-          background: #18293e;
-        }
-
-        .pcn-theme .spotify-search-bar,
-        .pcn-theme .spotify-card,
-        .pcn-theme .spotify-nav-tab,
-        .pcn-theme .spotify-service-btn,
-        .pcn-theme .spotify-heart-btn,
-        .pcn-theme .spotify-lyrics-btn,
-        .pcn-theme .spotify-sidebar,
-        .pcn-theme .spotify-library,
-        .pcn-theme .spotify-library-header ~ .spotify-nav-tabs .spotify-nav-tab {
-          border-color: rgba(80, 56, 189, 0.35);
-        }
-
-        .pcn-theme .hamburger-btn {
-          background: #18293e;
-          border-color: rgba(4, 244, 190, 0.35);
-        }
-
-        .pcn-theme .spotify-search-button,
-        .pcn-theme .spotify-play-btn,
-        .pcn-theme .spotify-play-hero-btn,
-        .pcn-theme .spotify-player-play,
-        .pcn-theme .spotify-nav-item.active,
-        .pcn-theme .spotify-nav-tab.active,
-        .pcn-theme .spotify-service-btn.active,
-        .pcn-theme .spotify-heart-btn.active,
-        .pcn-theme .spotify-lyrics-btn.active,
-        .pcn-theme .spotify-btn-icon:hover,
-        .pcn-theme .spotify-add-btn:hover {
-          background: #04f4be;
-          color: #18293e;
-          border-color: #04f4be;
-        }
-
-        .pcn-theme .spotify-track-row.active {
-          background: rgba(4, 244, 190, 0.16);
-        }
-
-        .pcn-theme .spotify-track-row:hover {
-          background: rgba(80, 56, 189, 0.18);
-        }
-
-        .pcn-theme .spotify-progress-fill {
-          background: #04f4be;
-        }
-
-        .pcn-theme .spotify-progress-bar::after {
-          background: #04f4be;
-        }
-
-        .pcn-theme .spotify-volume-slider {
-          accent-color: #04f4be;
-        }
-
-        .pcn-theme .spotify-heart-small:hover,
-        .pcn-theme .spotify-player-heart:hover,
-        .pcn-theme .spotify-player-btn:hover,
-        .pcn-theme .spotify-player-btn.active,
-        .pcn-theme .spotify-track-btn:hover {
-          color: #04f4be;
-        }
-
-        .pcn-theme .spotify-search-bar:focus-within {
-          border-color: #5038BD;
-        }
-
-        .pcn-theme .spotify-service-btn:hover {
-          border-color: #5038BD;
+        .vote-btn:hover {
+          background: rgba(255,255,255,0.1);
           color: #fff;
         }
 
-        .pcn-theme .spotify-nav-item:hover {
-          background: rgba(80, 56, 189, 0.2);
+        .vote-btn.voted {
+          color: #fbbf24;
         }
 
-        .pcn-theme .spotify-playlist-item:hover {
-          background: rgba(80, 56, 189, 0.15);
+        .vote-btn svg {
+          width: 18px;
+          height: 18px;
         }
 
-        .pcn-theme .nex-logo-ring-1 {
-          border-top-color: #04f4be;
-          border-right-color: #5038BD;
-          border-bottom-color: #04f4be;
-          border-left-color: #5038BD;
-          box-shadow: 0 0 20px rgba(4, 244, 190, 0.5);
-        }
-
-        .pcn-theme .nex-logo-ring-2 {
-          border-top-color: #5038BD;
-          border-right-color: #04f4be;
-          border-bottom-color: #5038BD;
-          border-left-color: #04f4be;
-          box-shadow: 0 0 16px rgba(80, 56, 189, 0.5);
-        }
-
-        .pcn-theme .nex-logo-ring-3 {
-          border-top-color: #04f4be;
-          border-right-color: #04f4be;
-          border-bottom-color: #5038BD;
-          border-left-color: #5038BD;
-          box-shadow: 0 0 12px rgba(4, 244, 190, 0.4);
-        }
-
-        .pcn-theme .nex-logo-text,
-        .pcn-theme .nex-title {
-          background: linear-gradient(90deg, #04f4be, #5038BD, #04f4be);
-          -webkit-background-clip: text;
-          background-clip: text;
-          text-shadow: 0 0 30px rgba(4, 244, 190, 0.5);
+        .playlist-meta span {
+          color: rgba(255,255,255,0.6);
+          font-size: 14px;
         }
       `}</style>
     </div>
   );
 };
 
-// --- EXPORT STANDALONE COMPONENT ---
-const SpotifyMiniStandaloneWrapper = () => (
-  <SpotifyMiniStandaloneProvider>
-    <SpotifyMiniStandalone />
-  </SpotifyMiniStandaloneProvider>
-);
-
-export { SpotifyMiniStandaloneWrapper as SpotifyMiniStandalone };
-export { useSpotifyMini };
-export default SpotifyMiniStandaloneWrapper;
+export default SpotifyMiniStandalone;

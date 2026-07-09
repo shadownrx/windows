@@ -1637,6 +1637,27 @@ const SpotifyMiniStandalone: React.FC = () => {
             >
               <Share24Regular />
             </button>
+            {playlists.length > 0 && (
+              <div className="spotify-player-playlist-dropdown">
+                <button
+                  className="spotify-player-heart"
+                  title="Añadir a lista"
+                >
+                  <List24Regular />
+                </button>
+                <div className="spotify-player-dropdown-menu">
+                  {playlists.map(p => (
+                    <div
+                      key={p.id}
+                      className="spotify-dropdown-item"
+                      onClick={() => addTrackToPlaylist(p.id, currentTrack)}
+                    >
+                      {p.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* --- CENTER CONTROLS --- */}
@@ -3022,6 +3043,30 @@ const SpotifyMiniStandalone: React.FC = () => {
           color: #fff;
           background: rgba(255,255,255,0.1);
           transform: scale(1.1);
+        }
+
+        .spotify-player-playlist-dropdown {
+          position: relative;
+        }
+
+        .spotify-player-dropdown-menu {
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          margin-bottom: 12px;
+          background: #1a1a1a;
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 8px;
+          padding: 8px 0;
+          min-width: 160px;
+          display: none;
+          z-index: 1000;
+          box-shadow: 0 -4px 16px rgba(0,0,0,0.5);
+        }
+
+        .spotify-player-playlist-dropdown:hover .spotify-player-dropdown-menu {
+          display: block;
         }
 
         .spotify-player-center {

@@ -2316,6 +2316,7 @@ const SpotifyMiniStandalone: React.FC = () => {
           flex: 1;
           overflow-y: auto;
           padding: 32px;
+          padding-bottom: 120px;
         }
 
         .spotify-search-results h2 {
@@ -2954,7 +2955,10 @@ const SpotifyMiniStandalone: React.FC = () => {
           padding: 16px 24px;
           gap: 16px;
           box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
-          position: relative;
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
           z-index: 100;
         }
 

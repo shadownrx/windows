@@ -624,8 +624,13 @@ const SpotifyMiniStandalone: React.FC = () => {
   const playerRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const progressIntervalRef = useRef<number | null>(null);
+  const nextTrackRef = useRef(nextTrack);
 
   const pcnMode = query.trim().toUpperCase() === 'PCN';
+
+  useEffect(() => {
+    nextTrackRef.current = nextTrack;
+  }, [nextTrack]);
 
   useEffect(() => {
     if (!nickname) {
@@ -696,6 +701,7 @@ const SpotifyMiniStandalone: React.FC = () => {
         playerVars: {
           origin: window.location.origin,
           enablejsapi: 1,
+          autoplay: 1,
         },
         events: {
           onReady: (event: any) => {
@@ -716,7 +722,7 @@ const SpotifyMiniStandalone: React.FC = () => {
               setIsPlaying(false);
               stopProgressTracking();
             } else if (window.YT && event.data === window.YT.PlayerState.ENDED) {
-              nextTrack();
+              nextTrackRef.current();
             }
           },
         },
@@ -903,7 +909,13 @@ const SpotifyMiniStandalone: React.FC = () => {
 
   const addTrackToQueue = async (result: SearchResult | SpotifyResult | YouTubeResult) => {
     const track = await resolveSearchToTrack(result);
-    if (track) addToQueue(track);
+    if (track) {
+      if (!currentTrack) {
+        playTrack(track);
+      } else {
+        addToQueue(track);
+      }
+    }
   };
 
   const suggestFromSearch = async (result: SearchResult | SpotifyResult | YouTubeResult) => {
@@ -2960,27 +2972,37 @@ const SpotifyMiniStandalone: React.FC = () => {
         /* --- PLAYER --- */
         .spotify-player {
           flex-shrink: 0;
-          background: #000;
-          border-top: 1px solid rgba(255,255,255,0.08);
+          background: rgba(18, 18, 18, 0.95);
+          backdrop-filter: blur(20px);
+          border-top: 1px solid rgba(255,255,255,0.05);
           display: flex;
           align-items: center;
-          padding: 12px 16px;
+          padding: 16px 24px;
           gap: 16px;
+          box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
+          position: relative;
+          z-index: 100;
         }
 
         .spotify-player-left {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 14px;
           min-width: 180px;
           width: 30%;
         }
 
         .spotify-player-cover {
-          width: 56px;
-          height: 56px;
-          border-radius: 6px;
+          width: 64px;
+          height: 64px;
+          border-radius: 8px;
           object-fit: cover;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+          transition: transform 0.2s ease;
+        }
+        
+        .spotify-player-cover:hover {
+          transform: scale(1.05);
         }
 
         .spotify-player-info {
@@ -2988,16 +3010,17 @@ const SpotifyMiniStandalone: React.FC = () => {
         }
 
         .spotify-player-title {
-          font-size: 14px;
-          font-weight: 600;
-          margin-bottom: 2px;
+          font-size: 15px;
+          font-weight: 700;
+          margin-bottom: 4px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          color: #fff;
         }
 
         .spotify-player-artist {
-          font-size: 12px;
+          font-size: 13px;
           color: rgba(255,255,255,0.6);
           white-space: nowrap;
           overflow: hidden;
@@ -3010,12 +3033,17 @@ const SpotifyMiniStandalone: React.FC = () => {
           color: rgba(255,255,255,0.5);
           cursor: pointer;
           padding: 8px;
-          border-radius: 8px;
-          transition: color 0.15s ease;
+          border-radius: 50%;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .spotify-player-heart:hover {
           color: #fff;
+          background: rgba(255,255,255,0.1);
+          transform: scale(1.1);
         }
 
         .spotify-player-center {
@@ -3029,7 +3057,7 @@ const SpotifyMiniStandalone: React.FC = () => {
         .spotify-player-controls {
           display: flex;
           align-items: center;
-          gap: 16px;
+          gap: 20px;
         }
 
         .spotify-player-btn {
@@ -3038,34 +3066,41 @@ const SpotifyMiniStandalone: React.FC = () => {
           color: rgba(255,255,255,0.6);
           cursor: pointer;
           padding: 8px;
-          border-radius: 8px;
-          transition: all 0.15s ease;
+          border-radius: 50%;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .spotify-player-btn:hover {
           color: #fff;
+          background: rgba(255,255,255,0.1);
+          transform: scale(1.1);
         }
 
         .spotify-player-btn.active {
-          color: #fff;
+          color: #1db954;
         }
 
         .spotify-player-play {
           background: #fff;
           border: none;
           color: #000;
-          width: 36px;
-          height: 36px;
+          width: 44px;
+          height: 44px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          transition: transform 0.15s ease;
+          transition: all 0.2s ease;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
 
         .spotify-player-play:hover {
-          transform: scale(1.06);
+          transform: scale(1.08);
+          background: #1db954;
         }
 
         .spotify-player-progress {
@@ -3077,10 +3112,11 @@ const SpotifyMiniStandalone: React.FC = () => {
         }
 
         .spotify-time {
-          font-size: 11px;
+          font-size: 12px;
           color: rgba(255,255,255,0.6);
-          min-width: 40px;
+          min-width: 44px;
           text-align: center;
+          font-variant-numeric: tabular-nums;
         }
 
         .spotify-progress-bar {
@@ -3090,6 +3126,11 @@ const SpotifyMiniStandalone: React.FC = () => {
           border-radius: 2px;
           position: relative;
           cursor: pointer;
+          transition: height 0.1s ease;
+        }
+        
+        .spotify-progress-bar:hover {
+          height: 6px;
         }
 
         .spotify-progress-fill {
@@ -3100,6 +3141,30 @@ const SpotifyMiniStandalone: React.FC = () => {
           background: #fff;
           border-radius: 2px;
           width: var(--progress, 0%);
+          transition: background 0.1s ease;
+        }
+        
+        .spotify-progress-bar:hover .spotify-progress-fill {
+          background: #1db954;
+        }
+        
+        .spotify-progress-bar::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: var(--progress, 0%);
+          width: 12px;
+          height: 12px;
+          background: #fff;
+          border-radius: 50%;
+          transform: translate(-50%, -50%) scale(0);
+          transition: transform 0.1s ease, background 0.1s ease;
+          pointer-events: none;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .spotify-progress-bar:hover::after {
+          transform: translate(-50%, -50%) scale(1);
         }
 
         .spotify-player-right {
@@ -3115,12 +3180,25 @@ const SpotifyMiniStandalone: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 12px;
+          color: rgba(255,255,255,0.6);
+          transition: color 0.2s ease;
+        }
+        
+        .spotify-volume:hover {
+          color: #fff;
         }
 
         .spotify-volume-slider {
           width: 100%;
           max-width: 100px;
           cursor: pointer;
+          accent-color: #fff;
+          height: 4px;
+          transition: all 0.2s ease;
+        }
+        
+        .spotify-volume-slider:hover {
+          accent-color: #1db954;
         }
 
         /* Playlist meta */

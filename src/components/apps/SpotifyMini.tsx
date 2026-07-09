@@ -118,6 +118,7 @@ interface SpotifyMiniContextType {
   nickname: string;
   setNickname: (name: string) => void;
   playlists: Playlist[];
+  setPlaylists: React.Dispatch<React.SetStateAction<Playlist[]>>;
   addPlaylist: (name: string) => void;
   deletePlaylist: (id: string) => void;
   updatePlaylist: (id: string, updates: Partial<Playlist>) => void;
@@ -439,6 +440,7 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
         nickname,
         setNickname,
         playlists,
+        setPlaylists,
         addPlaylist,
         deletePlaylist,
         updatePlaylist,
@@ -594,6 +596,7 @@ const SpotifyMiniStandalone: React.FC = () => {
     nickname,
     setNickname,
     playlists,
+    setPlaylists,
     addPlaylist,
     deletePlaylist,
     togglePlaylistPrivacy,
@@ -1295,6 +1298,22 @@ const SpotifyMiniStandalone: React.FC = () => {
                 <h2>Mis Listas de Reproducción</h2>
                 <div className="header-actions">
                   <button
+                    className="spotify-btn-secondary" onClick={() => {
+                      const data = prompt('Pega el código de la lista compartida:');
+                      if (data) {
+                        try {
+                          const p = JSON.parse(decodeURIComponent(atob(data)));
+                          p.id = Date.now().toString(); // unique ID
+                          setPlaylists([...playlists, p]);
+                          alert('Lista importada con éxito!');
+                        } catch(e) {
+                          alert('Código de lista inválido');
+                        }
+                      }
+                    }}>
+                    Importar
+                  </button>
+                  <button
                     className="spotify-btn-primary" onClick={() => setShowAddPlaylistModal(true)}>
                     <Add24Filled /> Nueva Lista
                   </button>
@@ -1309,10 +1328,30 @@ const SpotifyMiniStandalone: React.FC = () => {
                     return (
                       <>
                         <div className="spotify-playlist-header">
-                          <div className="spotify-playlist-hero-cover">
-                            <div className="spotify-hero-placeholder">
-                              <MusicNote224Filled />
-                            </div>
+                          <div className="spotify-playlist-hero-cover" onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.onchange = (e) => {
+                              const file = (e.target as HTMLInputElement).files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (e) => {
+                                  const base64 = e.target?.result as string;
+                                  setPlaylists(playlists.map(p => p.id === activePlaylistId ? { ...p, cover: base64 } : p));
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            };
+                            input.click();
+                          }} style={{cursor: 'pointer', overflow: 'hidden'}} title="Cambiar portada">
+                            {activePlaylist.cover ? (
+                              <img src={activePlaylist.cover} alt={activePlaylist.name} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                            ) : (
+                              <div className="spotify-hero-placeholder">
+                                <MusicNote224Filled />
+                              </div>
+                            )}
                           </div>
                           <div className="spotify-playlist-hero-info">
                             <div className="spotify-playlist-hero-type">Lista de Reproducción</div>

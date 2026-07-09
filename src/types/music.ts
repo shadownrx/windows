@@ -14,6 +14,7 @@ export interface Track {
 export interface Playlist {
   id: string;
   name: string;
+  cover?: string;
   tracks: Track[];
   createdAt: number;
   isPrivate: boolean;

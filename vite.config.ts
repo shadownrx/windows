@@ -7,7 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 // de Vercel local (`vercel dev` en el puerto 3000). Así el frontend de Vite
 // y las funciones serverless corren juntos sin CORS ni rutas 404.
 export default defineConfig({
-  // Acepta VITE_* (local) y NEXT_PUBLIC_* (Vercel / convención Next)
+  // VITE_* es el estándar; NEXT_PUBLIC_* queda por compatibilidad con deploys viejos
   envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
   server: {
     port: 5173,

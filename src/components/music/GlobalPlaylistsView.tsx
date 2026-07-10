@@ -307,7 +307,7 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
         </p>
         {!isSupabaseConfigured && (
           <p className="global-setup-hint">
-            Conectá Supabase (.env) + ejecutá schema.sql y schema-v2.sql
+            Conectá VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en .env + ejecutá schema.sql
           </p>
         )}
         {supabaseAuthError && (

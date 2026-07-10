@@ -3,10 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#ff0080" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#020208" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="NEX Music" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <meta name="description" content="NEX Music - Reproductor de música con YouTube y Spotify, creado por Salvador Juarez." />
     <meta property="og:title" content="NEX Music" />
@@ -19,12 +21,13 @@
       body {
         margin: 0 !important;
         padding: 0 !important;
-        min-height: 100vh !important;
-        height: auto !important;
+        min-height: 100dvh !important;
+        height: 100% !important;
         width: 100% !important;
         max-width: 100% !important;
         background: #000 !important;
         overflow-x: hidden !important;
+        overscroll-behavior: none;
       }
 
       * {
@@ -43,19 +46,19 @@
       #root {
         width: 100% !important;
         max-width: 100% !important;
-        min-height: 100vh !important;
-        height: auto !important;
+        min-height: 100dvh !important;
+        height: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
         overflow-x: hidden !important;
       }
 
-      /* Ensure the app can grow naturally on mobile without forcing a fixed viewport height */
+      /* Keep layout stable in standalone PWA — avoid collapsing on mobile tab switch */
       .spotify-root {
         width: 100% !important;
         max-width: 100% !important;
-        min-height: 100vh !important;
-        height: auto !important;
+        min-height: 100dvh !important;
+        height: 100% !important;
         overflow-x: hidden !important;
       }
 

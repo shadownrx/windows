@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect, createContext, useContext } from 'react';
+import React, { useState, useCallback, useRef, useEffect, createContext, useContext, lazy, Suspense } from 'react';
 import {
   Play24Filled,
   Pause24Filled,
@@ -27,8 +27,17 @@ import {
   Sparkle24Regular,
 } from '@fluentui/react-icons';
 import { useMusicSync } from '../../hooks/useMusicSync';
+import { useMobilePlaybackPersistence, loadPlaybackSession } from '../../hooks/useMobilePlaybackPersistence';
+import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
+import { useCloudLibrary, type CloudSyncStatus } from '../../hooks/useCloudLibrary';
 import LiveRoomPanel from '../music/LiveRoomPanel';
+import GlobalPlaylistsView, { PublishToCloudButton } from '../music/GlobalPlaylistsView';
+import CloudSyncBadge from '../music/CloudSyncBadge';
 import type { Track, ChatMessage, LiveReaction, RoomUser, DjEqSettings, DjModeState, DjVoteEntry, Playlist } from '../../types/music';
+import { shuffleTracks, PREVIEW_SECONDS, type CloudPlayMode } from '../../utils/cloudPlaylist';
+import { getSupabase } from '../../lib/supabase';
+
+const PartyMode3DBackground = lazy(() => import('../music/PartyMode3DBackground'));
 
 // --- SPOTIFY SDK GLOBAL TYPES ---
 declare global {
@@ -131,6 +140,7 @@ interface SpotifyMiniContextType {
   unvoteForPlaylist: (playlistId: string) => void;
   activePlaylistId: string | null;
   setActivePlaylistId: (id: string | null) => void;
+  cloudSyncStatus: CloudSyncStatus;
 }
 
 const SpotifyMiniContext = createContext<SpotifyMiniContextType | undefined>(undefined);
@@ -138,16 +148,19 @@ const SpotifyMiniContext = createContext<SpotifyMiniContextType | undefined>(und
 // (no default tracks — the playlist starts empty)
 
 export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(80);
-  const [progress, setProgress] = useState(0);
+  const restoredSession = loadPlaybackSession();
+
+  const [currentTrack, setCurrentTrack] = useState<Track | null>(() => restoredSession?.currentTrack ?? null);
+  const [isPlaying, setIsPlaying] = useState(() => restoredSession?.isPlaying ?? false);
+  const [volume, setVolume] = useState(() => restoredSession?.volume ?? 80);
+  const [progress, setProgress] = useState(() => restoredSession?.progress ?? 0);
   const [duration, setDuration] = useState(0);
-  const [queue, setQueue] = useState<Track[]>([]);
+  const [queue, setQueue] = useState<Track[]>(() => restoredSession?.queue ?? []);
   const [showLivePanel, setShowLivePanel] = useState(false);
   const remoteUpdateRef = useRef(false);
 
   const sync = useMusicSync();
+  const { userId, isReady: authReady } = useSupabaseAuth();
 
   const [nickname, setNickname] = useState<string>(() => {
     try {
@@ -274,6 +287,16 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
   useEffect(() => {
     localStorage.setItem('spotifyMiniHistory', JSON.stringify(history));
   }, [history]);
+
+  const { cloudSyncStatus } = useCloudLibrary({
+    userId,
+    isAuthReady: authReady,
+    nickname,
+    favorites,
+    history,
+    setFavorites,
+    setHistory,
+  });
 
   useEffect(() => {
     sync.onRemotePlayback((state) => {
@@ -522,6 +545,7 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
         unvoteForPlaylist,
         activePlaylistId,
         setActivePlaylistId,
+        cloudSyncStatus,
       }}
     >
       {children}
@@ -683,6 +707,7 @@ const SpotifyMiniStandalone: React.FC = () => {
     unvoteForPlaylist,
     activePlaylistId,
     setActivePlaylistId,
+    cloudSyncStatus,
   } = useSpotifyMini();
 
   const [activeService, setActiveService] = useState<ServiceType>('youtube');
@@ -713,6 +738,7 @@ const SpotifyMiniStandalone: React.FC = () => {
   const playerRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const progressIntervalRef = useRef<number | null>(null);
+  const previewTimerRef = useRef<number | null>(null);
   const nextTrackRef = useRef(nextTrack);
 
   const pcnMode = query.trim().toUpperCase() === 'PCN';
@@ -728,10 +754,25 @@ const SpotifyMiniStandalone: React.FC = () => {
   }, [nextTrack]);
 
   useEffect(() => {
+    sessionStorage.setItem('nexMusicPartyMode', String(isPartyMode));
+  }, [isPartyMode]);
+
+  useEffect(() => {
     if (!nickname) {
       setShowNicknameModal(true);
     }
   }, [nickname]);
+
+  useEffect(() => {
+    const onPrev = () => prevTrack();
+    const onNext = () => nextTrack();
+    window.addEventListener('nex-music-prev', onPrev);
+    window.addEventListener('nex-music-next', onNext);
+    return () => {
+      window.removeEventListener('nex-music-prev', onPrev);
+      window.removeEventListener('nex-music-next', onNext);
+    };
+  }, [prevTrack, nextTrack]);
 
   // --- CARGA DEL SCRIPT DE YOUTUBE IFRAME API ---
   useEffect(() => {
@@ -762,6 +803,7 @@ const SpotifyMiniStandalone: React.FC = () => {
   useEffect(() => {
     return () => {
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
     };
   }, []);
 
@@ -846,6 +888,18 @@ const SpotifyMiniStandalone: React.FC = () => {
       progressIntervalRef.current = null;
     }
   };
+
+  useMobilePlaybackPersistence({
+    currentTrack,
+    isPlaying,
+    progress,
+    volume,
+    queue,
+    playerRef,
+    startProgressTracking,
+    stopProgressTracking,
+    setIsPlaying,
+  });
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -1020,12 +1074,41 @@ const SpotifyMiniStandalone: React.FC = () => {
 
   const showDjSuggest = !!roomCode && djMode.enabled;
 
-  const getGlobalPlaylists = () => {
-    // Filter public playlists and sort by vote count
-    return playlists
-      .filter(p => !p.isPrivate)
-      .sort((a, b) => b.votes.length - a.votes.length);
-  };
+  const playCloudPlaylist = useCallback((
+    tracks: Track[],
+    mode: CloudPlayMode,
+    meta?: { playlistId?: string; playlistName?: string },
+  ) => {
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+
+    let list = [...tracks];
+    if (mode === 'shuffle') list = shuffleTracks(list);
+    if (list.length === 0) return;
+
+    playTrack(list[0]);
+
+    if (mode === 'preview') {
+      previewTimerRef.current = window.setTimeout(() => {
+        if (playerRef.current?.pauseVideo) {
+          playerRef.current.pauseVideo();
+          setIsPlaying(false);
+          stopProgressTracking();
+        }
+        showToast('Preview de 30s finalizado', 'info');
+      }, PREVIEW_SECONDS * 1000);
+      return;
+    }
+
+    list.slice(1).forEach((t) => addToQueue(t));
+
+    if (meta?.playlistId) {
+      const supabase = getSupabase();
+      supabase?.rpc('increment_playlist_plays', { playlist_uuid: meta.playlistId });
+    }
+  }, [playTrack, addToQueue, setIsPlaying, showToast]);
 
   // Helper to format time
   const formatTime = (secs: number) => {
@@ -1034,8 +1117,23 @@ const SpotifyMiniStandalone: React.FC = () => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  const togglePartyMode = () => {
+    const next = !isPartyMode;
+    setIsPartyMode(next);
+    showToast(
+      next ? 'Party Mode · Experiencia 3D activada ✨' : 'Party Mode desactivado',
+      next ? 'premium' : 'info',
+    );
+  };
+
   return (
-    <div className={`spotify-root ${pcnMode ? 'pcn-theme' : ''} ${isPartyMode ? 'party-mode' : ''}`}>
+    <div className={`spotify-root ${pcnMode ? 'pcn-theme' : ''} ${isPartyMode ? 'party-mode party-active' : ''}`}>
+      {isPartyMode && (
+        <Suspense fallback={null}>
+          <PartyMode3DBackground isPlaying={isPlaying} />
+        </Suspense>
+      )}
+
       {/* --- PERMANENT YOUTUBE IFRAME (always in DOM) --- */}
       <div className="spotify-iframe-permanent">
         <div id="youtube-player" />
@@ -1222,6 +1320,7 @@ const SpotifyMiniStandalone: React.FC = () => {
           <h1 className="nex-title">NEX MUSIC</h1>
           <span className="power-by">Creado por Salvador Juarez</span>
           {nickname && <span className="user-nickname">@{nickname}</span>}
+          <CloudSyncBadge status={cloudSyncStatus} />
         </div>
         {/* --- TOP MENU --- */}
         <div className="spotify-sidebar-top">
@@ -1245,6 +1344,7 @@ const SpotifyMiniStandalone: React.FC = () => {
           <div className="spotify-library-title">
             <Library24Filled />
             <span>Tu biblioteca</span>
+            <CloudSyncBadge status={cloudSyncStatus} compact />
           </div>
           <div className="spotify-library-actions">
             <button className="spotify-btn-icon" title="Crear lista" onClick={() => setShowAddPlaylistModal(true)}>
@@ -1613,6 +1713,11 @@ const SpotifyMiniStandalone: React.FC = () => {
                               >
                                 {activePlaylist.isPrivate ? <LockClosedRegular /> : <Globe24Regular />}
                               </button>
+                              <PublishToCloudButton
+                                playlist={activePlaylist}
+                                nickname={nickname}
+                                showToast={showToast}
+                              />
                               {editingPlaylistId !== activePlaylistId && (
                                 <button
                                   className="spotify-icon-btn"
@@ -1705,71 +1810,14 @@ const SpotifyMiniStandalone: React.FC = () => {
 
           {/* --- GLOBAL PLAYLISTS TAB --- */}
           {activeTab === 'global-playlists' && (
-            <div className="spotify-list-view">
-              <div className="spotify-list-header">
-                <h2>Listas Globales</h2>
-                <p>Las listas más votadas por la comunidad</p>
-              </div>
-
-              {getGlobalPlaylists().length === 0 ? (
-                <div className="spotify-empty">
-                  <Globe24Regular />
-                  <p>No hay listas públicas aún. Crea una y hazla pública!</p>
-                </div>
-              ) : (
-                <div className="spotify-grid">
-                  {getGlobalPlaylists().map((playlist) => (
-                    <div key={playlist.id} className="spotify-card">
-                      <div className="spotify-card-image">
-                        {playlist.cover ? (
-                          <img src={playlist.cover} alt={playlist.name} style={{width: '100%', height: '100%', objectFit: 'cover', aspectRatio: '1', borderRadius: '10px'}} />
-                        ) : (
-                          <div className="spotify-hero-placeholder">
-                            <MusicNote224Filled />
-                          </div>
-                        )}
-                        <button
-                          className="spotify-play-btn"
-                          onClick={() => {
-                            if (playlist.tracks.length > 0) {
-                              playTrack(playlist.tracks[0]);
-                            }
-                          }}
-                        >
-                          <Play24Filled />
-                        </button>
-                      </div>
-                      <div className="spotify-card-info">
-                        <div className="spotify-card-title">{playlist.name}</div>
-                        <div className="spotify-card-artist">
-                          Por {playlist.ownerName}
-                        </div>
-                      </div>
-                      <div className="playlist-meta">
-                        <div className="playlist-votes">
-                          <button
-                          onClick={() => {
-                            if (nickname) {
-                              if (playlist.votes.includes(nickname)) {
-                                unvoteForPlaylist(playlist.id);
-                              } else {
-                                voteForPlaylist(playlist.id);
-                              }
-                            }
-                          }}
-                          className={`vote-btn ${playlist.votes.includes(nickname) ? 'voted' : ''}`}
-                        >
-                            {playlist.votes.includes(nickname) ? <Star24Filled /> : <Star24Regular />}
-                            <span>{playlist.votes.length}</span>
-                          </button>
-                          <span>{playlist.tracks.length} canciones</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <GlobalPlaylistsView
+              nickname={nickname}
+              localFallback={playlists}
+              playCloudPlaylist={playCloudPlaylist}
+              voteForPlaylist={voteForPlaylist}
+              unvoteForPlaylist={unvoteForPlaylist}
+              showToast={showToast}
+            />
           )}
 
           {/* --- QUEUE TAB --- */}
@@ -1978,9 +2026,10 @@ const SpotifyMiniStandalone: React.FC = () => {
           {/* --- RIGHT VOLUME --- */}
           <div className="spotify-player-right">
             <button
-              className={`spotify-player-btn ${isPartyMode ? 'active' : ''}`}
-              onClick={() => setIsPartyMode(!isPartyMode)}
-              title="Party Mode!"
+              className={`spotify-player-btn party-toggle ${isPartyMode ? 'active' : ''}`}
+              onClick={togglePartyMode}
+              title={isPartyMode ? 'Desactivar Party Mode' : 'Activar Party Mode · 3D'}
+              aria-pressed={isPartyMode}
             >
               <Sparkle24Regular />
             </button>
@@ -3249,71 +3298,96 @@ const SpotifyMiniStandalone: React.FC = () => {
           color: rgba(255,255,255,0.6);
         }
 
-        /* --- PARTY MODE --- */
-        .party-mode {
-          animation: partyBackground 5s linear infinite;
+        /* --- PARTY MODE (Anyma-style immersive) --- */
+        .party-3d-bg {
+          position: fixed;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
         }
 
-        @keyframes partyBackground {
-          0% { filter: hue-rotate(0deg); }
-          100% { filter: hue-rotate(360deg); }
+        .party-3d-vignette {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(ellipse at center, transparent 30%, rgba(2,2,8,0.85) 100%);
+          pointer-events: none;
         }
 
-        .party-mode .spotify-track-cover img, 
-        .party-mode .spotify-album-art {
-          animation: spin 3s linear infinite, pop 0.5s ease-in-out infinite alternate;
+        .party-active {
+          background: transparent !important;
         }
 
-        .party-mode .spotify-play-btn,
-        .party-mode .spotify-player-play {
-          animation: pulseColor 0.5s infinite alternate;
+        .party-active .spotify-main,
+        .party-active .spotify-sidebar,
+        .party-active .spotify-sidebar-top,
+        .party-active .spotify-library {
+          background: rgba(8, 8, 16, 0.55);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
         }
 
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        .party-active .spotify-player {
+          background: rgba(8, 8, 16, 0.72);
+          border-top-color: rgba(56, 189, 248, 0.2);
+          box-shadow: 0 -8px 40px rgba(56, 189, 248, 0.08);
         }
 
-        @keyframes pop {
-          from { transform: scale(1) translateY(0); }
-          to { transform: scale(1.1) translateY(-10px); }
+        .party-active .spotify-header {
+          background: rgba(8, 8, 16, 0.45);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
         }
 
-        @keyframes pulseColor {
-          from { background-color: #1ed760; box-shadow: 0 0 10px #1ed760; }
-          to { background-color: #ff00ff; box-shadow: 0 0 20px #ff00ff; }
+        .party-active .spotify-track-cover img,
+        .party-active .spotify-album-art,
+        .party-active .spotify-player-cover {
+          box-shadow: 0 0 40px rgba(56, 189, 248, 0.35), 0 0 80px rgba(168, 85, 247, 0.2);
+          animation: partyArtPulse 3s ease-in-out infinite;
         }
 
-        .party-mode h1, .party-mode h2, .party-mode .spotify-track-title {
-          background: linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+        @keyframes partyArtPulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 30px rgba(56,189,248,0.3); }
+          50% { transform: scale(1.02); box-shadow: 0 0 50px rgba(168,85,247,0.45); }
+        }
+
+        .party-active .spotify-play-btn,
+        .party-active .spotify-player-play {
+          box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+        }
+
+        .party-active h1,
+        .party-active h2,
+        .party-active .spotify-track-title,
+        .party-active .nex-title {
+          background: linear-gradient(90deg, #38bdf8, #a855f7, #2dd4bf, #38bdf8);
           background-size: 200% auto;
           color: transparent;
           -webkit-background-clip: text;
           background-clip: text;
-          animation: rainbowText 2s linear infinite;
+          animation: rainbowText 4s linear infinite;
         }
 
         @keyframes rainbowText {
           to { background-position: 200% center; }
         }
 
-        .party-mode::before {
-          content: '';
-          position: absolute;
-          top: 0; left: 0; right: 0; bottom: 0;
-          pointer-events: none;
-          background: radial-gradient(circle, rgba(255,255,255,0.1) 10%, transparent 10.01%),
-                      radial-gradient(circle, rgba(255,255,255,0.1) 10%, transparent 10.01%);
-          background-size: 50px 50px;
-          background-position: 0 0, 25px 25px;
-          animation: discoLights 1s infinite alternate;
-          z-index: 9999;
-          opacity: 0.5;
+        .party-toggle.active {
+          color: #38bdf8 !important;
+          filter: drop-shadow(0 0 6px rgba(56,189,248,0.8));
         }
 
-        @keyframes discoLights {
-          from { opacity: 0.2; transform: scale(1); }
-          to { opacity: 0.8; transform: scale(1.1); }
+        .party-active::after {
+          content: '';
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          background: linear-gradient(180deg, transparent 60%, rgba(56,189,248,0.04) 100%);
+          z-index: 1;
+        }
+
+        .party-active > *:not(.party-3d-bg) {
+          position: relative;
+          z-index: 2;
         }
 
         .lyrics-line {
@@ -3711,6 +3785,138 @@ const SpotifyMiniStandalone: React.FC = () => {
 
         .nex-toast-msg {
           flex: 1;
+        }
+
+        /* --- MOBILE UX --- */
+        @media (max-width: 768px) {
+          .spotify-main {
+            margin-left: 0 !important;
+            width: 100% !important;
+          }
+
+          .spotify-header {
+            padding: 64px 14px 14px;
+            flex-direction: column;
+            gap: 12px;
+          }
+
+          .spotify-search-bar {
+            width: 100%;
+          }
+
+          .spotify-services {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            width: 100%;
+          }
+
+          .spotify-service-btn {
+            font-size: 12px;
+            padding: 8px 10px;
+            justify-content: center;
+          }
+
+          .spotify-content {
+            padding: 16px 14px 200px;
+          }
+
+          .spotify-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+          }
+
+          .spotify-card-title {
+            font-size: 13px;
+          }
+
+          .spotify-card-artist {
+            font-size: 11px;
+          }
+
+          .spotify-player {
+            flex-wrap: wrap;
+            padding: 10px 12px;
+            gap: 8px;
+            min-height: auto;
+          }
+
+          .spotify-player-left {
+            width: 100%;
+            min-width: 0;
+          }
+
+          .spotify-player-center {
+            width: 100%;
+            order: 3;
+          }
+
+          .spotify-player-right {
+            width: auto;
+            min-width: 0;
+            margin-left: auto;
+          }
+
+          .spotify-player-progress {
+            max-width: 100%;
+          }
+
+          .spotify-volume-slider {
+            max-width: 72px;
+          }
+
+          .spotify-player-left .spotify-player-heart:nth-child(n+4) {
+            display: none;
+          }
+
+          .spotify-playlist-hero {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+          }
+
+          .spotify-playlist-hero-cover {
+            width: 140px;
+            height: 140px;
+          }
+
+          .hamburger-btn {
+            top: 14px;
+            left: 14px;
+            width: 44px;
+            height: 44px;
+          }
+
+          .nex-toast-container {
+            right: 12px;
+            left: 12px;
+            bottom: 120px;
+          }
+
+          .nex-toast {
+            min-width: 0;
+            max-width: 100%;
+          }
+
+          .modal-content {
+            width: calc(100% - 32px);
+            padding: 24px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .spotify-player-controls {
+            gap: 14px;
+          }
+
+          .spotify-player-play {
+            width: 40px;
+            height: 40px;
+          }
+
+          .spotify-volume {
+            display: none;
+          }
         }
       `}</style>
     </div>

@@ -189,8 +189,8 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
           p.id = Date.now().toString(); // unique ID
           loadedPlaylists.push(p);
           window.history.replaceState({}, document.title, window.location.pathname);
-          // Wait briefly then alert for UX
-          setTimeout(() => alert(`Lista compartida "${p.name}" importada con éxito!`), 500);
+          // Wait briefly then show toast for UX
+          setTimeout(() => (window as any).__nexShowToast?.(`Lista compartida "${p.name}" importada con éxito! 🎵`, 'success'), 500);
         } catch (e) {
           console.error("Invalid shared playlist", e);
         }
@@ -536,7 +536,7 @@ const NicknameModal: React.FC<{
       setNickname(input.trim());
       onClose();
       if (isNewUser) {
-        setTimeout(() => alert('Bienvenido a Nex Music, te damos la suscripción premium de por vida 🎉'), 300);
+        setTimeout(() => (window as any).__nexShowToast?.('Bienvenido a Nex Music, te damos la suscripción premium de por vida 🎉', 'premium'), 300);
       }
     }
   };
@@ -647,6 +647,15 @@ const SpotifyMiniStandalone: React.FC = () => {
   const [editingPlaylistId, setEditingPlaylistId] = useState<string | null>(null);
   const [editPlaylistName, setEditPlaylistName] = useState('');
   const [isPartyMode, setIsPartyMode] = useState(false);
+  const [toasts, setToasts] = useState<{id: number; message: string; type: 'success'|'error'|'info'|'premium'}[]>([]);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importCode, setImportCode] = useState('');
+
+  const showToast = (message: string, type: 'success'|'error'|'info'|'premium' = 'success') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+  };
 
   const abortRef = useRef<AbortController | null>(null);
   const playerRef = useRef<any>(null);
@@ -655,6 +664,12 @@ const SpotifyMiniStandalone: React.FC = () => {
   const nextTrackRef = useRef(nextTrack);
 
   const pcnMode = query.trim().toUpperCase() === 'PCN';
+
+  // Expose showToast globally for use in useState initializers
+  useEffect(() => {
+    (window as any).__nexShowToast = showToast;
+    return () => { delete (window as any).__nexShowToast; };
+  }, []);
 
   useEffect(() => {
     nextTrackRef.current = nextTrack;
@@ -988,6 +1003,64 @@ const SpotifyMiniStandalone: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* --- IMPORT MODAL --- */}
+      {showImportModal && (
+        <div className="modal-overlay" onClick={() => setShowImportModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Importar Lista</h2>
+            <p>Pega el enlace o código que te compartieron</p>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const data = importCode.trim();
+              if (!data) return;
+              try {
+                // Support both full URL and raw code
+                let code = data;
+                try {
+                  const url = new URL(data);
+                  code = url.searchParams.get('playlist') || data;
+                } catch {}
+                const p = JSON.parse(decodeURIComponent(atob(code)));
+                p.id = Date.now().toString();
+                setPlaylists([...playlists, p]);
+                setImportCode('');
+                setShowImportModal(false);
+                showToast(`Lista "${p.name}" importada con éxito! 🎉`, 'success');
+              } catch {
+                showToast('Enlace o código inválido. Verifica e intenta de nuevo.', 'error');
+              }
+            }}>
+              <input
+                type="text"
+                value={importCode}
+                onChange={(e) => setImportCode(e.target.value)}
+                placeholder="Pega el enlace aquí..."
+                autoFocus
+              />
+              <div className="modal-actions">
+                <button type="button" className="modal-btn-secondary" onClick={() => setShowImportModal(false)}>Cancelar</button>
+                <button type="submit" className="modal-btn-primary">Importar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- TOAST NOTIFICATIONS --- */}
+      <div className="nex-toast-container">
+        {toasts.map(toast => (
+          <div key={toast.id} className={`nex-toast nex-toast-${toast.type}`}>
+            <span className="nex-toast-icon">
+              {toast.type === 'success' && '✅'}
+              {toast.type === 'error' && '❌'}
+              {toast.type === 'info' && 'ℹ️'}
+              {toast.type === 'premium' && '⭐'}
+            </span>
+            <span className="nex-toast-msg">{toast.message}</span>
+          </div>
+        ))}
+      </div>
 
       {/* --- HAMBURGER MENU BUTTON --- */}
       <button
@@ -1323,19 +1396,7 @@ const SpotifyMiniStandalone: React.FC = () => {
                 <h2>Mis Listas de Reproducción</h2>
                 <div className="header-actions">
                   <button
-                    className="spotify-btn-secondary" onClick={() => {
-                      const data = prompt('Pega el código de la lista compartida:');
-                      if (data) {
-                        try {
-                          const p = JSON.parse(decodeURIComponent(atob(data)));
-                          p.id = Date.now().toString(); // unique ID
-                          setPlaylists([...playlists, p]);
-                          alert('Lista importada con éxito!');
-                        } catch(e) {
-                          alert('Código de lista inválido');
-                        }
-                      }
-                    }}>
+                    className="spotify-btn-secondary" onClick={() => setShowImportModal(true)}>
                     Importar
                   </button>
                   <button
@@ -1430,7 +1491,7 @@ const SpotifyMiniStandalone: React.FC = () => {
                                     const code = btoa(encodeURIComponent(JSON.stringify(activePlaylist)));
                                     const url = `${window.location.origin}${window.location.pathname}?playlist=${code}`;
                                     navigator.clipboard.writeText(url).then(() => {
-                                      alert('Enlace de la lista copiado al portapapeles. ¡Pásalo a un amigo!');
+                                      showToast('Enlace copiado al portapapeles 🚀', 'success');
                                     });
                                   }}
                                   title="Compartir lista"
@@ -3434,6 +3495,74 @@ const SpotifyMiniStandalone: React.FC = () => {
         .playlist-meta span {
           color: rgba(255,255,255,0.6);
           font-size: 14px;
+        }
+
+        /* --- TOAST NOTIFICATIONS --- */
+        .nex-toast-container {
+          position: fixed;
+          bottom: 100px;
+          right: 24px;
+          z-index: 99999;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          pointer-events: none;
+        }
+
+        .nex-toast {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 20px;
+          border-radius: 14px;
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,255,255,0.12);
+          min-width: 260px;
+          max-width: 380px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+          animation: toastIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          font-size: 14px;
+          font-weight: 500;
+          line-height: 1.4;
+        }
+
+        @keyframes toastIn {
+          from { opacity: 0; transform: translateX(80px) scale(0.9); }
+          to   { opacity: 1; transform: translateX(0)   scale(1); }
+        }
+
+        .nex-toast-success {
+          background: rgba(16, 185, 129, 0.15);
+          border-color: rgba(16, 185, 129, 0.35);
+          color: #d1fae5;
+        }
+
+        .nex-toast-error {
+          background: rgba(239, 68, 68, 0.15);
+          border-color: rgba(239, 68, 68, 0.35);
+          color: #fee2e2;
+        }
+
+        .nex-toast-info {
+          background: rgba(59, 130, 246, 0.15);
+          border-color: rgba(59, 130, 246, 0.35);
+          color: #dbeafe;
+        }
+
+        .nex-toast-premium {
+          background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(217,70,239,0.2));
+          border-color: rgba(251,191,36,0.4);
+          color: #fef3c7;
+        }
+
+        .nex-toast-icon {
+          font-size: 18px;
+          flex-shrink: 0;
+        }
+
+        .nex-toast-msg {
+          flex: 1;
         }
       `}</style>
     </div>

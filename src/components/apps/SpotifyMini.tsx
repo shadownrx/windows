@@ -24,6 +24,7 @@ import {
   Globe24Regular,
   Star24Filled,
   Delete24Regular,
+  Sparkle24Regular,
 } from '@fluentui/react-icons';
 import { useMusicSync } from '../../hooks/useMusicSync';
 import LiveRoomPanel from '../music/LiveRoomPanel';
@@ -178,7 +179,24 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
   const [playlists, setPlaylists] = useState<Playlist[]>(() => {
     try {
       const saved = localStorage.getItem('spotifyMiniPlaylists');
-      return saved ? JSON.parse(saved) : [];
+      const loadedPlaylists = saved ? JSON.parse(saved) : [];
+      
+      const params = new URLSearchParams(window.location.search);
+      const sharedPlaylist = params.get('playlist');
+      if (sharedPlaylist) {
+        try {
+          const p = JSON.parse(decodeURIComponent(atob(sharedPlaylist)));
+          p.id = Date.now().toString(); // unique ID
+          loadedPlaylists.push(p);
+          window.history.replaceState({}, document.title, window.location.pathname);
+          // Wait briefly then alert for UX
+          setTimeout(() => alert(`Lista compartida "${p.name}" importada con éxito!`), 500);
+        } catch (e) {
+          console.error("Invalid shared playlist", e);
+        }
+      }
+      
+      return loadedPlaylists;
     } catch {
       return [];
     }
@@ -514,13 +532,19 @@ const NicknameModal: React.FC<{
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim()) {
+      const isNewUser = !nickname;
       setNickname(input.trim());
       onClose();
+      if (isNewUser) {
+        setTimeout(() => alert('Bienvenido a Nex Music, te damos la suscripción premium de por vida 🎉'), 300);
+      }
     }
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={() => {
+      if (nickname) onClose();
+    }}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <h2>¿Cuál es tu nombre?</h2>
         <p>Tu nombre se mostrará en tus listas públicas</p>
@@ -622,6 +646,7 @@ const SpotifyMiniStandalone: React.FC = () => {
   const [showAddPlaylistModal, setShowAddPlaylistModal] = useState(false);
   const [editingPlaylistId, setEditingPlaylistId] = useState<string | null>(null);
   const [editPlaylistName, setEditPlaylistName] = useState('');
+  const [isPartyMode, setIsPartyMode] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const playerRef = useRef<any>(null);
@@ -917,7 +942,7 @@ const SpotifyMiniStandalone: React.FC = () => {
   };
 
   return (
-    <div className={`spotify-root ${pcnMode ? 'pcn-theme' : ''}`}>
+    <div className={`spotify-root ${pcnMode ? 'pcn-theme' : ''} ${isPartyMode ? 'party-mode' : ''}`}>
       {/* --- PERMANENT YOUTUBE IFRAME (always in DOM) --- */}
       <div className="spotify-iframe-permanent">
         <div id="youtube-player" />
@@ -1399,6 +1424,19 @@ const SpotifyMiniStandalone: React.FC = () => {
                               >
                                 {activePlaylist.isPrivate ? <LockClosedRegular /> : <Globe24Regular />}
                               </button>
+                                <button
+                                  className="spotify-icon-btn"
+                                  onClick={() => {
+                                    const code = btoa(encodeURIComponent(JSON.stringify(activePlaylist)));
+                                    const url = `${window.location.origin}${window.location.pathname}?playlist=${code}`;
+                                    navigator.clipboard.writeText(url).then(() => {
+                                      alert('Enlace de la lista copiado al portapapeles. ¡Pásalo a un amigo!');
+                                    });
+                                  }}
+                                  title="Compartir lista"
+                                >
+                                  <Share24Regular />
+                                </button>
                               {editingPlaylistId !== activePlaylistId && (
                                 <button
                                   className="spotify-icon-btn"
@@ -1733,6 +1771,13 @@ const SpotifyMiniStandalone: React.FC = () => {
 
           {/* --- RIGHT VOLUME --- */}
           <div className="spotify-player-right">
+            <button
+              className={`spotify-player-btn ${isPartyMode ? 'active' : ''}`}
+              onClick={() => setIsPartyMode(!isPartyMode)}
+              title="Party Mode!"
+            >
+              <Sparkle24Regular />
+            </button>
             <button
               className={`spotify-player-btn ${showLyrics ? 'active' : ''}`}
               onClick={() => setShowLyrics(!showLyrics)}
@@ -2996,6 +3041,76 @@ const SpotifyMiniStandalone: React.FC = () => {
           font-size: 24px;
           margin: 12px 0;
           color: rgba(255,255,255,0.6);
+        }
+
+        /* --- PARTY MODE --- */
+        .party-mode {
+          animation: partyBackground 5s linear infinite;
+        }
+
+        @keyframes partyBackground {
+          0% { filter: hue-rotate(0deg); }
+          100% { filter: hue-rotate(360deg); }
+        }
+
+        .party-mode .spotify-track-cover img, 
+        .party-mode .spotify-album-art {
+          animation: spin 3s linear infinite, pop 0.5s ease-in-out infinite alternate;
+        }
+
+        .party-mode .spotify-play-btn,
+        .party-mode .spotify-player-play {
+          animation: pulseColor 0.5s infinite alternate;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes pop {
+          from { transform: scale(1) translateY(0); }
+          to { transform: scale(1.1) translateY(-10px); }
+        }
+
+        @keyframes pulseColor {
+          from { background-color: #1ed760; box-shadow: 0 0 10px #1ed760; }
+          to { background-color: #ff00ff; box-shadow: 0 0 20px #ff00ff; }
+        }
+
+        .party-mode h1, .party-mode h2, .party-mode .spotify-track-title {
+          background: linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+          background-size: 200% auto;
+          color: transparent;
+          -webkit-background-clip: text;
+          background-clip: text;
+          animation: rainbowText 2s linear infinite;
+        }
+
+        @keyframes rainbowText {
+          to { background-position: 200% center; }
+        }
+
+        .party-mode::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 0;
+          pointer-events: none;
+          background: radial-gradient(circle, rgba(255,255,255,0.1) 10%, transparent 10.01%),
+                      radial-gradient(circle, rgba(255,255,255,0.1) 10%, transparent 10.01%);
+          background-size: 50px 50px;
+          background-position: 0 0, 25px 25px;
+          animation: discoLights 1s infinite alternate;
+          z-index: 9999;
+          opacity: 0.5;
+        }
+
+        @keyframes discoLights {
+          from { opacity: 0.2; transform: scale(1); }
+          to { opacity: 0.8; transform: scale(1.1); }
+        }
+
+        .lyrics-line {
           cursor: pointer;
           padding: 4px 0;
         }

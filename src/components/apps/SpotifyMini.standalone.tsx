@@ -181,12 +181,65 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
       const saved = localStorage.getItem('spotifyMiniPlaylists');
       const loadedPlaylists = saved ? JSON.parse(saved) : [];
       
+      // Check for old query params first (backward compatibility)
       const params = new URLSearchParams(window.location.search);
-      const sharedPlaylist = params.get('playlist');
-      if (sharedPlaylist) {
+      let sharedPlaylistCode = params.get('playlist');
+      
+      // Check for new hash format
+      if (!sharedPlaylistCode && window.location.hash) {
+        const hashParts = window.location.hash.split('/');
+        if (hashParts.length > 1) {
+          sharedPlaylistCode = hashParts[hashParts.length - 1];
+        }
+      }
+      
+      if (sharedPlaylistCode) {
         try {
-          const p = JSON.parse(decodeURIComponent(atob(sharedPlaylist)));
-          p.id = Date.now().toString(); // unique ID
+          const decoded = JSON.parse(decodeURIComponent(atob(sharedPlaylistCode)));
+          let p: Playlist;
+          
+          // Detectar la estructura (array = ultra compacto)
+          if (Array.isArray(decoded)) {
+            // Ultra compact format: [name, tracks] where tracks is [[id, title, artist, cover, videoId], ...]
+            p = {
+              id: Date.now().toString(),
+              name: decoded[0],
+              tracks: (decoded[1] || []).map((tr: any) => ({
+                id: tr[0],
+                title: tr[1],
+                artist: tr[2],
+                cover: tr[3],
+                url: '',
+                service: 'youtube',
+                kind: 'video',
+                videoId: tr[4]
+              })),
+              createdAt: Date.now(),
+              isPrivate: false,
+              ownerName: 'Anonymous',
+              votes: []
+            };
+          } else {
+            // Older formats (object-based)
+            p = {
+              id: Date.now().toString(),
+              name: decoded.name || decoded.n, // Support both full and compact formats
+              tracks: (decoded.tracks || decoded.t || []).map((tr: any) => ({
+                id: tr.id || tr.i,
+                title: tr.title || tr.ti,
+                artist: tr.artist || tr.a,
+                cover: tr.cover || tr.c,
+                url: tr.url || '',
+                service: tr.service || 'youtube',
+                kind: tr.kind || 'video',
+                videoId: tr.videoId || tr.v
+              })),
+              createdAt: Date.now(),
+              isPrivate: decoded.isPrivate || false,
+              ownerName: decoded.ownerName || decoded.o || 'Anonymous',
+              votes: decoded.votes || []
+            };
+          }
           loadedPlaylists.push(p);
           window.history.replaceState({}, document.title, window.location.pathname);
           // Wait briefly then show toast for UX
@@ -1043,10 +1096,61 @@ const SpotifyMiniStandalone: React.FC = () => {
                 let code = data;
                 try {
                   const url = new URL(data);
+                  // Try query params first (backward compatibility)
                   code = url.searchParams.get('playlist') || data;
+                  // If not found, try hash
+                  if (code === data && url.hash) {
+                    const hashParts = url.hash.split('/');
+                    if (hashParts.length > 1) {
+                      code = hashParts[hashParts.length - 1];
+                    }
+                  }
                 } catch {}
-                const p = JSON.parse(decodeURIComponent(atob(code)));
-                p.id = Date.now().toString();
+                const decoded = JSON.parse(decodeURIComponent(atob(code)));
+                let p: Playlist;
+                
+                // Detectar la estructura (array = ultra compacto)
+                if (Array.isArray(decoded)) {
+                  // Ultra compact format: [name, tracks] where tracks is [[id, title, artist, cover, videoId], ...]
+                  p = {
+                    id: Date.now().toString(),
+                    name: decoded[0],
+                    tracks: (decoded[1] || []).map((tr: any) => ({
+                      id: tr[0],
+                      title: tr[1],
+                      artist: tr[2],
+                      cover: tr[3],
+                      url: '',
+                      service: 'youtube',
+                      kind: 'video',
+                      videoId: tr[4]
+                    })),
+                    createdAt: Date.now(),
+                    isPrivate: false,
+                    ownerName: 'Anonymous',
+                    votes: []
+                  };
+                } else {
+                  // Older formats (object-based)
+                  p = {
+                    id: Date.now().toString(),
+                    name: decoded.name || decoded.n,
+                    tracks: (decoded.tracks || decoded.t || []).map((tr: any) => ({
+                      id: tr.id || tr.i,
+                      title: tr.title || tr.ti,
+                      artist: tr.artist || tr.a,
+                      cover: tr.cover || tr.c,
+                      url: tr.url || '',
+                      service: tr.service || 'youtube',
+                      kind: tr.kind || 'video',
+                      videoId: tr.videoId || tr.v
+                    })),
+                    createdAt: Date.now(),
+                    isPrivate: decoded.isPrivate || false,
+                    ownerName: decoded.ownerName || decoded.o || 'Anonymous',
+                    votes: decoded.votes || []
+                  };
+                }
                 setPlaylists([...playlists, p]);
                 setImportCode('');
                 setShowImportModal(false);
@@ -1524,8 +1628,21 @@ const SpotifyMiniStandalone: React.FC = () => {
                               <button
                                 className="spotify-icon-btn"
                                 onClick={() => {
-                                  const code = btoa(encodeURIComponent(JSON.stringify(activePlaylist)));
-                                  const url = `${window.location.origin}${window.location.pathname}?playlist=${code}`;
+                                  // Versión ultra compacta de la playlist (solo lo imprescindible)
+                                  const compactPlaylist = [
+                                    activePlaylist.name, // index 0: name
+                                    activePlaylist.tracks.map(tr => [
+                                      tr.id, // 0
+                                      tr.title, // 1
+                                      tr.artist, // 2
+                                      tr.cover, // 3
+                                      tr.videoId // 4
+                                    ]) // index 1: tracks
+                                  ];
+                                  const code = btoa(encodeURIComponent(JSON.stringify(compactPlaylist)));
+                                  // Usamos hash y slug legible
+                                  const slug = encodeURIComponent(activePlaylist.name.toLowerCase().replace(/\s+/g, '-'));
+                                  const url = `${window.location.origin}${window.location.pathname}#${slug}/${code}`;
                                   navigator.clipboard.writeText(url).then(() => {
                                     showToast('Enlace copiado al portapapeles 🚀', 'success');
                                   });

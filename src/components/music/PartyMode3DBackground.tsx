@@ -61,7 +61,7 @@ const EtherealCore: React.FC<{ isPlaying: boolean }> = ({ isPlaying }) => {
 const FloatingOrbs: React.FC = () => {
   const orbs = useMemo(
     () =>
-      Array.from({ length: 12 }).map((_, i) => ({
+      Array.from({ length: 6 }).map((_, i) => ({
         position: [
           (Math.random() - 0.5) * 14,
           (Math.random() - 0.5) * 8,
@@ -120,8 +120,8 @@ const PartyScene: React.FC<{ isPlaying: boolean }> = ({ isPlaying }) => (
     <pointLight position={[4, 3, 4]} intensity={2} color="#38bdf8" />
     <pointLight position={[-5, -2, 2]} intensity={1.5} color="#a855f7" />
     <pointLight position={[0, -4, -3]} intensity={0.8} color="#2dd4bf" />
-    <Stars radius={80} depth={40} count={3000} factor={3} saturation={0} fade speed={0.5} />
-    <Sparkles count={120} scale={14} size={2.5} speed={0.35} color="#67e8f9" opacity={0.6} />
+    <Stars radius={60} depth={30} count={800} factor={2.5} saturation={0} fade speed={0.4} />
+    <Sparkles count={40} scale={12} size={2} speed={0.3} color="#67e8f9" opacity={0.5} />
     <EtherealCore isPlaying={isPlaying} />
     <FloatingOrbs />
     <CameraDrift />
@@ -132,8 +132,14 @@ const PartyMode3DBackground: React.FC<PartyMode3DBackgroundProps> = ({ isPlaying
   <div className="party-3d-bg" aria-hidden="true">
     <Canvas
       camera={{ position: [0, 0, 7], fov: 55 }}
-      dpr={[1, 1.5]}
-      gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+      dpr={[1, 1.25]}
+      gl={{
+        antialias: false,
+        alpha: true,
+        powerPreference: 'high-performance',
+        failIfMajorPerformanceCaveat: false,
+      }}
+      frameloop="always"
     >
       <PartyScene isPlaying={isPlaying} />
     </Canvas>

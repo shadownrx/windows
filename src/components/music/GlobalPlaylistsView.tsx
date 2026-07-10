@@ -14,12 +14,18 @@ import {
   useGlobalPlaylists,
   type CloudPlaylistView,
 } from '../../hooks/useGlobalPlaylists';
-import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import type { CloudPlayMode } from '../../utils/cloudPlaylist';
 import type { Playlist, Track } from '../../types/music';
 
-interface GlobalPlaylistsViewProps {
+interface SupabaseAuthProps {
+  supabaseUserId: string | null;
+  supabaseAuthReady: boolean;
+  supabaseAuthError: string | null;
+  supabaseRetry?: () => void;
+}
+
+interface GlobalPlaylistsViewProps extends SupabaseAuthProps {
   nickname: string;
   localFallback: Playlist[];
   playCloudPlaylist: (
@@ -36,9 +42,16 @@ export const PublishToCloudButton: React.FC<{
   playlist: Playlist;
   nickname: string;
   showToast: GlobalPlaylistsViewProps['showToast'];
-}> = ({ playlist, nickname, showToast }) => {
-  const { userId, isReady } = useSupabaseAuth();
-  const { enabled, publishPlaylist, getCloudId } = useGlobalPlaylists(nickname, userId);
+} & SupabaseAuthProps> = ({
+  playlist,
+  nickname,
+  showToast,
+  supabaseUserId,
+  supabaseAuthReady,
+  supabaseAuthError,
+  supabaseRetry,
+}) => {
+  const { enabled, publishPlaylist, getCloudId } = useGlobalPlaylists(nickname, supabaseUserId);
   const [publishing, setPublishing] = useState(false);
   const [cloudId, setCloudId] = useState(() => getCloudId(playlist.id));
 
@@ -47,14 +60,20 @@ export const PublishToCloudButton: React.FC<{
   return (
     <button
       className="spotify-btn-secondary publish-cloud-btn"
-      disabled={publishing || !isReady || playlist.tracks.length === 0}
+      disabled={publishing || !supabaseAuthReady || playlist.tracks.length === 0}
       onClick={async () => {
         if (!nickname) {
           showToast('Configurá tu nickname primero', 'info');
           return;
         }
-        if (!userId) {
+        if (supabaseAuthError) {
+          showToast(supabaseAuthError, 'error');
+          supabaseRetry?.();
+          return;
+        }
+        if (!supabaseUserId) {
           showToast('Conectando con la nube… intentá de nuevo', 'info');
+          supabaseRetry?.();
           return;
         }
         setPublishing(true);
@@ -65,8 +84,11 @@ export const PublishToCloudButton: React.FC<{
             cloudId ? 'Lista actualizada en la nube ☁️' : 'Lista publicada en la comunidad ☁️',
             'success',
           );
-        } catch {
-          showToast('No se pudo publicar. Revisá la config de Supabase.', 'error');
+        } catch (err) {
+          showToast(
+            err instanceof Error ? err.message : 'No se pudo publicar. Revisá Supabase.',
+            'error',
+          );
         } finally {
           setPublishing(false);
         }
@@ -92,23 +114,23 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
   voteForPlaylist,
   unvoteForPlaylist,
   showToast,
+  supabaseUserId,
+  supabaseAuthReady,
+  supabaseAuthError,
+  supabaseRetry,
 }) => {
-  const { userId, isReady: authReady } = useSupabaseAuth();
-  const cloud = useGlobalPlaylists(nickname, userId);
+  const cloud = useGlobalPlaylists(nickname, supabaseUserId);
   const [showReactionsFor, setShowReactionsFor] = useState<string | null>(null);
 
   const localPublic = localFallback
     .filter((p) => !p.isPrivate)
     .sort((a, b) => b.votes.length - a.votes.length);
 
-  const usingCloud = cloud.enabled && authReady;
+  const usingCloud = cloud.enabled && supabaseAuthReady && !!supabaseUserId;
   const displayCloud = usingCloud ? cloud.playlists : [];
   const isEmpty = usingCloud ? displayCloud.length === 0 && !cloud.loading : localPublic.length === 0;
 
-  const handleCloudPlay = (
-    playlist: CloudPlaylistView,
-    mode: CloudPlayMode,
-  ) => {
+  const handleCloudPlay = (playlist: CloudPlaylistView, mode: CloudPlayMode) => {
     if (playlist.tracks.length === 0) return;
     playCloudPlaylist(playlist.tracks, mode, {
       playlistId: playlist.id,
@@ -157,6 +179,7 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
             </div>
           )}
           <button
+            type="button"
             className="spotify-play-btn"
             onClick={() => {
               if (isCloud && cloudView) {
@@ -178,6 +201,7 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
         {isCloud && cloudView && (
           <div className="global-play-actions">
             <button
+              type="button"
               className="global-action-btn"
               title="Preview 30 segundos"
               onClick={() => handleCloudPlay(cloudView, 'preview')}
@@ -185,6 +209,7 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
               <Clock24Regular /> 30s
             </button>
             <button
+              type="button"
               className="global-action-btn"
               title="Reproducir en shuffle"
               onClick={() => handleCloudPlay(cloudView, 'shuffle')}
@@ -197,14 +222,15 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
         <div className="playlist-meta">
           <div className="playlist-votes">
             <button
+              type="button"
               onClick={async () => {
                 if (!nickname) {
                   showToast('Configurá tu nickname para votar', 'info');
                   return;
                 }
                 if (isCloud) {
-                  if (!userId) {
-                    showToast('Conectando… intentá de nuevo', 'info');
+                  if (!supabaseUserId) {
+                    showToast(supabaseAuthError ?? 'Conectando…', 'info');
                     return;
                   }
                   await cloud.toggleVote(id, hasVoted);
@@ -223,14 +249,12 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
             {isCloud && cloudView && cloudView.playCount > 0 && (
               <span className="play-count-badge">{cloudView.playCount} plays</span>
             )}
-            {isCloud && cloudView && cloud.ranking === 'weekly' && cloudView.weeklyVotes > 0 && (
-              <span className="weekly-badge">+{cloudView.weeklyVotes} esta semana</span>
-            )}
           </div>
 
           {isCloud && (
             <div className="global-reactions">
               <button
+                type="button"
                 className="reaction-toggle-btn"
                 onClick={() => setShowReactionsFor(showReactionsFor === id ? null : id)}
               >
@@ -250,10 +274,11 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
             {REACTION_EMOJIS.map((emoji) => (
               <button
                 key={emoji}
+                type="button"
                 className="reaction-emoji-btn"
                 onClick={async () => {
-                  if (!nickname || !userId) {
-                    showToast('Conectando con la nube…', 'info');
+                  if (!nickname || !supabaseUserId) {
+                    showToast(supabaseAuthError ?? 'Conectando con la nube…', 'info');
                     return;
                   }
                   await cloud.sendReaction(id, emoji);
@@ -276,18 +301,31 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
         <p>
           {usingCloud
             ? 'Escuchá sin importar · votá y reaccioná en tiempo real'
-            : 'Las listas más votadas por la comunidad (local)'}
+            : cloud.enabled && supabaseAuthReady && !supabaseUserId
+              ? 'Modo local — no se pudo conectar a la nube'
+              : 'Las listas más votadas por la comunidad (local)'}
         </p>
         {!isSupabaseConfigured && (
           <p className="global-setup-hint">
             Conectá Supabase (.env) + ejecutá schema.sql y schema-v2.sql
           </p>
         )}
+        {supabaseAuthError && (
+          <div className="global-error-banner">
+            {supabaseAuthError}
+            {supabaseRetry && (
+              <button type="button" className="global-retry-btn" onClick={supabaseRetry}>
+                Reintentar
+              </button>
+            )}
+          </div>
+        )}
         {usingCloud && (
           <div className="global-ranking-tabs">
             {RANKING_TABS.map((tab) => (
               <button
                 key={tab.id}
+                type="button"
                 className={`global-ranking-tab ${cloud.ranking === tab.id ? 'active' : ''}`}
                 onClick={() => cloud.setRanking(tab.id)}
               >
@@ -327,6 +365,17 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
       )}
 
       <style>{`
+        .global-retry-btn {
+          margin-left: 12px;
+          background: rgba(255,255,255,0.15);
+          border: 1px solid rgba(255,255,255,0.25);
+          color: #fff;
+          border-radius: 8px;
+          padding: 4px 12px;
+          cursor: pointer;
+          font-size: 13px;
+        }
+        .global-retry-btn:hover { background: rgba(255,255,255,0.25); }
         .global-playlist-card { position: relative; }
         .global-playlist-card.reaction-live { animation: reactionPulse 0.6s ease; }
         @keyframes reactionPulse {
@@ -334,141 +383,58 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
           50% { box-shadow: 0 0 24px rgba(56,189,248,0.45); }
         }
         .global-trending-badge {
-          position: absolute;
-          top: 8px;
-          left: 8px;
-          z-index: 5;
+          position: absolute; top: 8px; left: 8px; z-index: 5;
           background: linear-gradient(135deg, #f97316, #ef4444);
-          padding: 2px 8px;
-          border-radius: 999px;
-          font-size: 11px;
-          font-weight: 700;
+          padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
         }
         .global-live-reaction {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          z-index: 5;
-          background: rgba(0,0,0,0.75);
-          backdrop-filter: blur(8px);
-          padding: 4px 10px;
-          border-radius: 999px;
-          font-size: 13px;
+          position: absolute; top: 8px; right: 8px; z-index: 5;
+          background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+          padding: 4px 10px; border-radius: 999px; font-size: 13px;
           animation: floatUp 2s ease forwards;
         }
         @keyframes floatUp {
           from { opacity: 1; transform: translateY(0); }
           to { opacity: 0; transform: translateY(-20px); }
         }
-        .global-ranking-tabs {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-top: 12px;
-        }
+        .global-ranking-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
         .global-ranking-tab {
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.1);
-          color: rgba(255,255,255,0.75);
-          border-radius: 999px;
-          padding: 8px 14px;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
+          background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+          color: rgba(255,255,255,0.75); border-radius: 999px; padding: 8px 14px;
+          font-size: 13px; font-weight: 600; cursor: pointer;
         }
-        .global-ranking-tab.active {
-          background: #fff;
-          color: #000;
-          border-color: #fff;
-        }
-        .global-play-actions {
-          display: flex;
-          gap: 8px;
-          padding: 0 4px 4px;
-          width: 100%;
-        }
+        .global-ranking-tab.active { background: #fff; color: #000; border-color: #fff; }
+        .global-play-actions { display: flex; gap: 8px; padding: 0 4px 4px; width: 100%; }
         .global-action-btn {
-          flex: 1;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          background: rgba(255,255,255,0.08);
-          border: 1px solid rgba(255,255,255,0.1);
-          color: #fff;
-          border-radius: 8px;
-          padding: 6px 10px;
-          font-size: 12px;
-          cursor: pointer;
+          flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+          background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+          color: #fff; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
         }
         .global-action-btn:hover { background: rgba(255,255,255,0.15); }
-        .play-count-badge, .weekly-badge {
-          font-size: 11px;
-          color: rgba(255,255,255,0.5);
-        }
+        .play-count-badge, .weekly-badge { font-size: 11px; color: rgba(255,255,255,0.5); }
         .weekly-badge { color: #fbbf24; }
         .global-reactions {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 6px;
-          margin-top: 8px;
-          width: 100%;
+          display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; width: 100%;
         }
         .reaction-toggle-btn {
-          background: rgba(255,255,255,0.08);
-          border: 1px solid rgba(255,255,255,0.12);
-          color: #fff;
-          border-radius: 999px;
-          padding: 4px 12px;
-          font-size: 12px;
-          cursor: pointer;
+          background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+          color: #fff; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer;
         }
-        .reaction-toggle-btn:hover { background: rgba(255,255,255,0.15); }
         .reaction-pill {
-          font-size: 12px;
-          background: rgba(255,255,255,0.06);
-          padding: 2px 8px;
-          border-radius: 999px;
+          font-size: 12px; background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 999px;
         }
-        .reaction-picker {
-          display: flex;
-          gap: 6px;
-          padding: 8px 0 4px;
-          width: 100%;
-        }
+        .reaction-picker { display: flex; gap: 6px; padding: 8px 0 4px; width: 100%; }
         .reaction-emoji-btn {
-          background: rgba(255,255,255,0.08);
-          border: none;
-          border-radius: 10px;
-          font-size: 20px;
-          padding: 6px 10px;
-          cursor: pointer;
-          transition: transform 0.15s;
+          background: rgba(255,255,255,0.08); border: none; border-radius: 10px;
+          font-size: 20px; padding: 6px 10px; cursor: pointer;
         }
-        .reaction-emoji-btn:hover {
-          transform: scale(1.2);
-          background: rgba(255,255,255,0.15);
-        }
-        .global-setup-hint {
-          color: rgba(255,255,255,0.45);
-          font-size: 13px;
-          margin-top: 4px;
-        }
+        .global-setup-hint { color: rgba(255,255,255,0.45); font-size: 13px; margin-top: 4px; }
         .global-error-banner {
-          background: rgba(239,68,68,0.15);
-          border: 1px solid rgba(239,68,68,0.35);
-          color: #fecaca;
-          padding: 12px 16px;
-          border-radius: 10px;
-          margin-bottom: 16px;
-          font-size: 14px;
+          background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.35);
+          color: #fecaca; padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; font-size: 14px;
+          display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
         }
-        .publish-cloud-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-        }
+        .publish-cloud-btn { display: inline-flex; align-items: center; gap: 8px; }
       `}</style>
     </div>
   );

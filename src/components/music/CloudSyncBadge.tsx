@@ -14,12 +14,18 @@ const CloudSyncBadge: React.FC<CloudSyncBadgeProps> = ({ status, compact }) => {
       ? 'Conectando…'
       : status === 'saving'
         ? 'Guardando en la nube…'
-        : 'Biblioteca sincronizada';
+        : status === 'error'
+          ? 'Error de sync'
+          : 'Biblioteca sincronizada';
 
   return (
     <div
       className={`cloud-sync-badge cloud-sync-${status}${compact ? ' cloud-sync-compact' : ''}`}
-      title="Favoritos e historial respaldados en Supabase"
+      title={
+        status === 'error'
+          ? 'No se pudo sincronizar con Supabase. Revisá auth anónima y variables de entorno.'
+          : 'Favoritos e historial respaldados en Supabase'
+      }
       role="status"
       aria-live="polite"
     >
@@ -64,6 +70,11 @@ const CloudSyncBadge: React.FC<CloudSyncBadgeProps> = ({ status, compact }) => {
           background: rgba(56,189,248,0.12);
           border-color: rgba(56,189,248,0.35);
           box-shadow: 0 0 12px rgba(56,189,248,0.15);
+        }
+        .cloud-sync-error {
+          color: #fecaca;
+          background: rgba(239,68,68,0.12);
+          border-color: rgba(239,68,68,0.35);
         }
         .cloud-sync-synced .cloud-sync-icon {
           animation: cloudGlow 2.5s ease-in-out infinite;

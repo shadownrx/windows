@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect, createContext, useContext, lazy, Suspense } from 'react';
+import React, { useState, useCallback, useRef, useEffect, createContext, useContext } from 'react';
 import {
   Play24Filled,
   Pause24Filled,
@@ -28,7 +28,7 @@ import {
 } from '@fluentui/react-icons';
 import { useMusicSync } from '../../hooks/useMusicSync';
 import { useMobilePlaybackPersistence, loadPlaybackSession } from '../../hooks/useMobilePlaybackPersistence';
-import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
+import { SupabaseAuthProvider, useSupabaseAuthContext } from '../../context/SupabaseAuthContext';
 import { useCloudLibrary, type CloudSyncStatus } from '../../hooks/useCloudLibrary';
 import LiveRoomPanel from '../music/LiveRoomPanel';
 import GlobalPlaylistsView, { PublishToCloudButton } from '../music/GlobalPlaylistsView';
@@ -36,8 +36,7 @@ import CloudSyncBadge from '../music/CloudSyncBadge';
 import type { Track, ChatMessage, LiveReaction, RoomUser, DjEqSettings, DjModeState, DjVoteEntry, Playlist } from '../../types/music';
 import { shuffleTracks, PREVIEW_SECONDS, type CloudPlayMode } from '../../utils/cloudPlaylist';
 import { getSupabase } from '../../lib/supabase';
-
-const PartyMode3DBackground = lazy(() => import('../music/PartyMode3DBackground'));
+import PartyModeLayer from '../music/PartyModeLayer';
 
 // --- SPOTIFY SDK GLOBAL TYPES ---
 declare global {
@@ -141,13 +140,23 @@ interface SpotifyMiniContextType {
   activePlaylistId: string | null;
   setActivePlaylistId: (id: string | null) => void;
   cloudSyncStatus: CloudSyncStatus;
+  supabaseUserId: string | null;
+  supabaseAuthReady: boolean;
+  supabaseAuthError: string | null;
+  supabaseRetry: () => void;
 }
 
 const SpotifyMiniContext = createContext<SpotifyMiniContextType | undefined>(undefined);
 
 // (no default tracks — the playlist starts empty)
 
-export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <SupabaseAuthProvider>
+    <SpotifyMiniStandaloneProviderInner>{children}</SpotifyMiniStandaloneProviderInner>
+  </SupabaseAuthProvider>
+);
+
+const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const restoredSession = loadPlaybackSession();
 
   const [currentTrack, setCurrentTrack] = useState<Track | null>(() => restoredSession?.currentTrack ?? null);
@@ -160,7 +169,7 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
   const remoteUpdateRef = useRef(false);
 
   const sync = useMusicSync();
-  const { userId, isReady: authReady } = useSupabaseAuth();
+  const { userId, isReady: authReady, error: authError, retry: supabaseRetry } = useSupabaseAuthContext();
 
   const [nickname, setNickname] = useState<string>(() => {
     try {
@@ -291,6 +300,7 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
   const { cloudSyncStatus } = useCloudLibrary({
     userId,
     isAuthReady: authReady,
+    authError,
     nickname,
     favorites,
     history,
@@ -546,6 +556,10 @@ export const SpotifyMiniStandaloneProvider: React.FC<{ children: React.ReactNode
         activePlaylistId,
         setActivePlaylistId,
         cloudSyncStatus,
+        supabaseUserId: userId,
+        supabaseAuthReady: authReady,
+        supabaseAuthError: authError,
+        supabaseRetry,
       }}
     >
       {children}
@@ -708,6 +722,10 @@ const SpotifyMiniStandalone: React.FC = () => {
     activePlaylistId,
     setActivePlaylistId,
     cloudSyncStatus,
+    supabaseUserId,
+    supabaseAuthReady,
+    supabaseAuthError,
+    supabaseRetry,
   } = useSpotifyMini();
 
   const [activeService, setActiveService] = useState<ServiceType>('youtube');
@@ -1117,7 +1135,9 @@ const SpotifyMiniStandalone: React.FC = () => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const togglePartyMode = () => {
+  const togglePartyMode = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     const next = !isPartyMode;
     setIsPartyMode(next);
     showToast(
@@ -1128,11 +1148,7 @@ const SpotifyMiniStandalone: React.FC = () => {
 
   return (
     <div className={`spotify-root ${pcnMode ? 'pcn-theme' : ''} ${isPartyMode ? 'party-mode party-active' : ''}`}>
-      {isPartyMode && (
-        <Suspense fallback={null}>
-          <PartyMode3DBackground isPlaying={isPlaying} />
-        </Suspense>
-      )}
+      <PartyModeLayer enabled={isPartyMode} isPlaying={isPlaying} />
 
       {/* --- PERMANENT YOUTUBE IFRAME (always in DOM) --- */}
       <div className="spotify-iframe-permanent">
@@ -1620,15 +1636,23 @@ const SpotifyMiniStandalone: React.FC = () => {
           {/* --- MY PLAYLISTS TAB --- */}
           {activeTab === 'my-playlists' && (
             <div className="spotify-list-view">
-              <div className="spotify-list-header">
-                <h2>Mis Listas de Reproducción</h2>
+              <div className="spotify-list-header spotify-list-header-with-actions">
+                <div className="spotify-list-header-text">
+                  <h2>Mis Listas de Reproducción</h2>
+                </div>
                 <div className="header-actions">
                   <button
-                    className="spotify-btn-secondary" onClick={() => setShowImportModal(true)}>
+                    type="button"
+                    className="spotify-btn-secondary"
+                    onClick={() => setShowImportModal(true)}
+                  >
                     Importar
                   </button>
                   <button
-                    className="spotify-btn-primary" onClick={() => setShowAddPlaylistModal(true)}>
+                    type="button"
+                    className="spotify-btn-primary"
+                    onClick={() => setShowAddPlaylistModal(true)}
+                  >
                     <Add24Filled /> Nueva Lista
                   </button>
                 </div>
@@ -1717,6 +1741,10 @@ const SpotifyMiniStandalone: React.FC = () => {
                                 playlist={activePlaylist}
                                 nickname={nickname}
                                 showToast={showToast}
+                                supabaseUserId={supabaseUserId}
+                                supabaseAuthReady={supabaseAuthReady}
+                                supabaseAuthError={supabaseAuthError}
+                                supabaseRetry={supabaseRetry}
                               />
                               {editingPlaylistId !== activePlaylistId && (
                                 <button
@@ -1817,6 +1845,10 @@ const SpotifyMiniStandalone: React.FC = () => {
               voteForPlaylist={voteForPlaylist}
               unvoteForPlaylist={unvoteForPlaylist}
               showToast={showToast}
+              supabaseUserId={supabaseUserId}
+              supabaseAuthReady={supabaseAuthReady}
+              supabaseAuthError={supabaseAuthError}
+              supabaseRetry={supabaseRetry}
             />
           )}
 
@@ -2026,6 +2058,7 @@ const SpotifyMiniStandalone: React.FC = () => {
           {/* --- RIGHT VOLUME --- */}
           <div className="spotify-player-right">
             <button
+              type="button"
               className={`spotify-player-btn party-toggle ${isPartyMode ? 'active' : ''}`}
               onClick={togglePartyMode}
               title={isPartyMode ? 'Desactivar Party Mode' : 'Activar Party Mode · 3D'}
@@ -2959,6 +2992,35 @@ const SpotifyMiniStandalone: React.FC = () => {
           gap: 6px;
         }
 
+        .spotify-list-header-with-actions {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 16px;
+          margin-bottom: 4px;
+        }
+
+        @media (min-width: 640px) {
+          .spotify-list-header-with-actions {
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+          }
+        }
+
+        .spotify-list-header-text {
+          min-width: 0;
+          flex: 1;
+        }
+
+        .header-actions {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+
         .spotify-list-header h2 {
           font-size: 24px;
           font-weight: 800;
@@ -2975,19 +3037,47 @@ const SpotifyMiniStandalone: React.FC = () => {
         .spotify-btn-primary {
           display: inline-flex;
           align-items: center;
+          justify-content: center;
           gap: 8px;
           background: #1db954;
           border: none;
           color: #fff;
           padding: 10px 20px;
-          border-radius: 8px;
+          border-radius: 999px;
           font-weight: 600;
           cursor: pointer;
           font-size: 14px;
+          white-space: nowrap;
+          flex-shrink: 0;
+          transition: background 0.15s ease, transform 0.15s ease;
         }
 
         .spotify-btn-primary:hover {
+          background: #1ed760;
           transform: scale(1.02);
+        }
+
+        .spotify-btn-secondary {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.22);
+          color: #fff;
+          padding: 10px 18px;
+          border-radius: 999px;
+          font-weight: 600;
+          cursor: pointer;
+          font-size: 14px;
+          white-space: nowrap;
+          flex-shrink: 0;
+          transition: background 0.15s ease, border-color 0.15s ease;
+        }
+
+        .spotify-btn-secondary:hover {
+          background: rgba(255,255,255,0.12);
+          border-color: rgba(255,255,255,0.35);
         }
 
         .spotify-track-list {
@@ -3326,6 +3416,18 @@ const SpotifyMiniStandalone: React.FC = () => {
           -webkit-backdrop-filter: blur(24px);
         }
 
+        .party-active .spotify-main,
+        .party-active .spotify-sidebar,
+        .party-active .spotify-sidebar-top,
+        .party-active .spotify-library,
+        .party-active .spotify-player,
+        .party-active .spotify-header,
+        .party-active .hamburger-btn,
+        .party-active .nex-toast-container {
+          position: relative;
+          z-index: 2;
+        }
+
         .party-active .spotify-player {
           background: rgba(8, 8, 16, 0.72);
           border-top-color: rgba(56, 189, 248, 0.2);
@@ -3383,11 +3485,6 @@ const SpotifyMiniStandalone: React.FC = () => {
           pointer-events: none;
           background: linear-gradient(180deg, transparent 60%, rgba(56,189,248,0.04) 100%);
           z-index: 1;
-        }
-
-        .party-active > *:not(.party-3d-bg) {
-          position: relative;
-          z-index: 2;
         }
 
         .lyrics-line {

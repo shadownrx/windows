@@ -25,9 +25,18 @@ import {
   Star24Filled,
   Delete24Regular,
   Sparkle24Regular,
+  Dismiss24Regular,
 } from '@fluentui/react-icons';
 import { useMusicSync } from '../../hooks/useMusicSync';
 import { useMobilePlaybackPersistence, loadPlaybackSession } from '../../hooks/useMobilePlaybackPersistence';
+import {
+  closeSidebarWithHistory,
+  exitMobileApp,
+  useIsMobile,
+  useIsStandalonePwa,
+  useMobileScrollLock,
+  useSidebarBackClose,
+} from '../../hooks/useMobileAppShell';
 import { SupabaseAuthProvider, useSupabaseAuthContext } from '../../context/SupabaseAuthContext';
 import { useCloudLibrary, type CloudSyncStatus } from '../../hooks/useCloudLibrary';
 import LiveRoomPanel from '../music/LiveRoomPanel';
@@ -735,6 +744,18 @@ const SpotifyMiniStandalone: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [logoAnimating, setLogoAnimating] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
+  const isStandalonePwa = useIsStandalonePwa();
+
+  const closeSidebar = useCallback(() => {
+    closeSidebarWithHistory(() => setSidebarOpen(false));
+  }, []);
+
+  const openSidebar = useCallback(() => setSidebarOpen(true), []);
+
+  useMobileScrollLock(isMobile && sidebarOpen);
+  useSidebarBackClose(isMobile && sidebarOpen, closeSidebar);
+
   const [bumpHeartId, setBumpHeartId] = useState<string | null>(null);
   const [showNicknameModal, setShowNicknameModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -751,6 +772,47 @@ const SpotifyMiniStandalone: React.FC = () => {
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   };
+
+  const handleMobileClose = useCallback(() => {
+    if (sidebarOpen) {
+      closeSidebar();
+      return;
+    }
+    if (showLivePanel) {
+      setShowLivePanel(false);
+      return;
+    }
+    if (showAddPlaylistModal) {
+      setShowAddPlaylistModal(false);
+      return;
+    }
+    if (showImportModal) {
+      setShowImportModal(false);
+      return;
+    }
+    if (showNicknameModal && nickname) {
+      setShowNicknameModal(false);
+      return;
+    }
+    exitMobileApp(() => {
+      showToast(
+        isStandalonePwa
+          ? 'Deslizá hacia arriba o usá el botón Inicio para salir de la app'
+          : 'Cerrá esta pestaña o volvé atrás en el navegador',
+        'info',
+      );
+    });
+  }, [
+    sidebarOpen,
+    closeSidebar,
+    showLivePanel,
+    setShowLivePanel,
+    showAddPlaylistModal,
+    showImportModal,
+    showNicknameModal,
+    nickname,
+    isStandalonePwa,
+  ]);
 
   const abortRef = useRef<AbortController | null>(null);
   const playerRef = useRef<any>(null);
@@ -1147,7 +1209,7 @@ const SpotifyMiniStandalone: React.FC = () => {
   };
 
   return (
-    <div className={`spotify-root ${pcnMode ? 'pcn-theme' : ''} ${isPartyMode ? 'party-mode party-active' : ''}`}>
+    <div className={`spotify-root ${isMobile ? 'is-mobile' : 'is-desktop'} ${isStandalonePwa ? 'is-standalone' : ''} ${pcnMode ? 'pcn-theme' : ''} ${isPartyMode ? 'party-mode party-active' : ''}`}>
       <PartyModeLayer enabled={isPartyMode} isPlaying={isPlaying} />
 
       {/* --- PERMANENT YOUTUBE IFRAME (always in DOM) --- */}
@@ -1304,24 +1366,53 @@ const SpotifyMiniStandalone: React.FC = () => {
         ))}
       </div>
 
-      {/* --- HAMBURGER MENU BUTTON --- */}
-      <button
-        className={`hamburger-btn ${sidebarOpen ? 'open' : ''}`}
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        aria-label={sidebarOpen ? 'Cerrar menú' : 'Abrir menú'}
-      >
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
+      {/* --- MOBILE TOP BAR / DESKTOP HAMBURGER --- */}
+      {isMobile ? (
+        <header className="mobile-top-bar">
+          <button
+            type="button"
+            className={`mobile-top-btn mobile-menu-btn ${sidebarOpen ? 'open' : ''}`}
+            onClick={() => (sidebarOpen ? closeSidebar() : openSidebar())}
+            aria-label={sidebarOpen ? 'Cerrar menú' : 'Abrir menú'}
+          >
+            <span /><span /><span />
+          </button>
+          <div className="mobile-top-center">
+            <span className="mobile-top-title">NEX Music</span>
+            {nickname && <span className="mobile-top-user">@{nickname}</span>}
+          </div>
+          <button
+            type="button"
+            className="mobile-top-btn mobile-close-btn"
+            onClick={handleMobileClose}
+            aria-label="Cerrar"
+          >
+            <Dismiss24Regular />
+          </button>
+        </header>
+      ) : (
+        <button
+          type="button"
+          className={`hamburger-btn ${sidebarOpen ? 'open' : ''}`}
+          onClick={() => (sidebarOpen ? closeSidebar() : openSidebar())}
+          aria-label={sidebarOpen ? 'Cerrar menú' : 'Abrir menú'}
+        >
+          <span /><span /><span />
+        </button>
+      )}
 
       {/* --- SIDEBAR OVERLAY --- */}
       {sidebarOpen && (
-        <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
+        <div className="sidebar-overlay" onClick={closeSidebar} />
       )}
 
       {/* --- LEFT SIDEBAR --- */}
-      <div className={`spotify-sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
+      <div className={`spotify-sidebar ${sidebarOpen ? 'sidebar-open' : ''} ${isMobile ? 'spotify-sidebar-mobile' : ''}`}>
+        {isMobile && (
+          <button type="button" className="sidebar-close-btn" onClick={closeSidebar} aria-label="Cerrar menú">
+            <Dismiss24Regular />
+          </button>
+        )}
         {/* --- NEX MUSIC BRANDING --- */}
         <div className="nex-branding">
           <div
@@ -1340,15 +1431,15 @@ const SpotifyMiniStandalone: React.FC = () => {
         </div>
         {/* --- TOP MENU --- */}
         <div className="spotify-sidebar-top">
-          <div className={`spotify-nav-item ${activeTab === 'search' ? 'active' : ''}`} onClick={() => { setActiveTab('search'); setSidebarOpen(false); }}>
+          <div className={`spotify-nav-item ${activeTab === 'search' ? 'active' : ''}`} onClick={() => { setActiveTab('search'); closeSidebar(); }}>
             <Search24Regular />
             <span>Buscar</span>
           </div>
-          <div className={`spotify-nav-item ${activeTab === 'my-playlists' ? 'active' : ''}`} onClick={() => { setActiveTab('my-playlists'); setSidebarOpen(false); }}>
+          <div className={`spotify-nav-item ${activeTab === 'my-playlists' ? 'active' : ''}`} onClick={() => { setActiveTab('my-playlists'); closeSidebar(); }}>
             <Home24Filled />
             <span>Mis Listas</span>
           </div>
-          <div className={`spotify-nav-item ${activeTab === 'global-playlists' ? 'active' : ''}`} onClick={() => { setActiveTab('global-playlists'); setSidebarOpen(false); }}>
+          <div className={`spotify-nav-item ${activeTab === 'global-playlists' ? 'active' : ''}`} onClick={() => { setActiveTab('global-playlists'); closeSidebar(); }}>
             <Globe24Regular />
             <span>Listas Globales</span>
           </div>
@@ -1373,19 +1464,19 @@ const SpotifyMiniStandalone: React.FC = () => {
           <div className="spotify-nav-tabs">
             <button
               className={`spotify-nav-tab ${activeTab === 'favorites' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('favorites'); setSidebarOpen(false); }}
+              onClick={() => { setActiveTab('favorites'); closeSidebar(); }}
             >
               <Heart24Filled />
             </button>
             <button
               className={`spotify-nav-tab ${activeTab === 'history' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('history'); setSidebarOpen(false); }}
+              onClick={() => { setActiveTab('history'); closeSidebar(); }}
             >
               <History24Regular />
             </button>
             <button
               className={`spotify-nav-tab ${activeTab === 'queue' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('queue'); setSidebarOpen(false); }}
+              onClick={() => { setActiveTab('queue'); closeSidebar(); }}
             >
               <List24Regular />
             </button>
@@ -1398,7 +1489,7 @@ const SpotifyMiniStandalone: React.FC = () => {
               <div
                 key={playlist.id}
                 className="spotify-playlist-item"
-                onClick={() => { setActivePlaylistId(playlist.id); setActiveTab('my-playlists'); setSidebarOpen(false); }}
+                onClick={() => { setActivePlaylistId(playlist.id); setActiveTab('my-playlists'); closeSidebar(); }}
               >
                 <div className="spotify-playlist-cover">
                   <MusicNote224Filled />
@@ -1410,7 +1501,7 @@ const SpotifyMiniStandalone: React.FC = () => {
               </div>
             ))}
 
-            <div className="spotify-playlist-item" onClick={() => { setActiveTab('favorites'); setSidebarOpen(false); }}>
+            <div className="spotify-playlist-item" onClick={() => { setActiveTab('favorites'); closeSidebar(); }}>
               <div className="spotify-playlist-cover spotify-cover-liked">
                 <Heart24Filled />
               </div>
@@ -1421,7 +1512,7 @@ const SpotifyMiniStandalone: React.FC = () => {
             </div>
 
             {/* --- HISTORY ITEM --- */}
-            <div className="spotify-playlist-item" onClick={() => { setActiveTab('history'); setSidebarOpen(false); }}>
+            <div className="spotify-playlist-item" onClick={() => { setActiveTab('history'); closeSidebar(); }}>
               <div className="spotify-playlist-cover spotify-cover-history">
                 <History24Regular />
               </div>
@@ -2130,6 +2221,12 @@ const SpotifyMiniStandalone: React.FC = () => {
           color: #fff;
           overflow: hidden;
           position: relative;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .is-mobile.spotify-root {
+          height: 100dvh;
+          max-height: 100dvh;
         }
 
         .spotify-iframe-permanent {
@@ -2283,6 +2380,105 @@ const SpotifyMiniStandalone: React.FC = () => {
           transform: rotate(-45deg) translateY(-7px);
         }
 
+        /* --- MOBILE TOP BAR --- */
+        .mobile-top-bar {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 1001;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: max(8px, env(safe-area-inset-top)) 10px 8px;
+          background: rgba(0, 0, 0, 0.92);
+          backdrop-filter: blur(16px);
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .mobile-top-center {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1px;
+        }
+
+        .mobile-top-title {
+          font-size: 15px;
+          font-weight: 800;
+          letter-spacing: 0.02em;
+        }
+
+        .mobile-top-user {
+          font-size: 11px;
+          color: #1db954;
+          font-weight: 600;
+        }
+
+        .mobile-top-btn {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.06);
+          color: #fff;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          flex-shrink: 0;
+          padding: 0;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .mobile-menu-btn {
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .mobile-menu-btn span {
+          width: 16px;
+          height: 2px;
+          background: #fff;
+          border-radius: 2px;
+          transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+
+        .mobile-menu-btn.open span:nth-child(1) {
+          transform: translateY(6px) rotate(45deg);
+        }
+
+        .mobile-menu-btn.open span:nth-child(2) {
+          opacity: 0;
+        }
+
+        .mobile-menu-btn.open span:nth-child(3) {
+          transform: translateY(-6px) rotate(-45deg);
+        }
+
+        .sidebar-close-btn {
+          position: absolute;
+          top: max(10px, env(safe-area-inset-top));
+          right: 10px;
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.08);
+          color: #fff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          z-index: 2;
+        }
+
+        .is-mobile .hamburger-btn {
+          display: none;
+        }
+
         .sidebar-overlay {
           position: fixed;
           inset: 0;
@@ -2317,6 +2513,161 @@ const SpotifyMiniStandalone: React.FC = () => {
 
         .spotify-sidebar.sidebar-open {
           left: 0;
+        }
+
+        .spotify-sidebar-mobile {
+          width: min(88vw, 300px);
+          height: 100dvh;
+          padding-top: max(12px, env(safe-area-inset-top));
+          padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .spotify-sidebar-mobile .spotify-sidebar-top {
+          margin-top: 44px;
+        }
+
+        .spotify-sidebar-mobile .nex-branding {
+          padding: 12px 8px;
+          gap: 8px;
+        }
+
+        .spotify-sidebar-mobile .nex-logo {
+          width: 56px;
+          height: 56px;
+        }
+
+        .spotify-sidebar-mobile .nex-title {
+          font-size: 18px;
+        }
+
+        .spotify-sidebar-mobile .power-by {
+          display: none;
+        }
+
+        .spotify-sidebar-mobile .spotify-nav-item {
+          padding: 10px 12px;
+          font-size: 14px;
+          gap: 12px;
+        }
+
+        .spotify-sidebar-mobile .spotify-library-header {
+          padding: 14px 16px;
+        }
+
+        .is-mobile .spotify-main {
+          padding-top: calc(52px + env(safe-area-inset-top));
+        }
+
+        .is-mobile .spotify-header {
+          padding: 10px 12px !important;
+          gap: 10px;
+        }
+
+        .is-mobile .spotify-search-bar {
+          padding: 8px 12px;
+          border-radius: 999px;
+        }
+
+        .is-mobile .spotify-search-input {
+          font-size: 14px;
+        }
+
+        .is-mobile .spotify-services {
+          gap: 6px !important;
+        }
+
+        .is-mobile .spotify-service-btn {
+          font-size: 11px !important;
+          padding: 7px 8px !important;
+        }
+
+        .is-mobile .spotify-content {
+          padding: 12px 12px calc(140px + env(safe-area-inset-bottom)) !important;
+        }
+
+        .is-mobile .spotify-list-header h2 {
+          font-size: 20px;
+        }
+
+        .is-mobile .spotify-playlist-hero-cover {
+          width: 112px !important;
+          height: 112px !important;
+        }
+
+        .is-mobile .spotify-playlist-hero-title {
+          font-size: 22px !important;
+        }
+
+        .is-mobile .spotify-playlist-hero-actions {
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .is-mobile .publish-cloud-btn {
+          font-size: 12px;
+          padding: 8px 12px;
+        }
+
+        .is-mobile .spotify-player {
+          padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+          gap: 6px;
+          min-height: 64px;
+        }
+
+        .is-mobile .spotify-player-cover {
+          width: 44px !important;
+          height: 44px !important;
+        }
+
+        .is-mobile .spotify-player-title {
+          font-size: 13px;
+        }
+
+        .is-mobile .spotify-player-artist {
+          font-size: 11px;
+        }
+
+        .is-mobile .spotify-player-center {
+          order: 0;
+          width: auto;
+          flex: 0;
+        }
+
+        .is-mobile .spotify-player-controls {
+          gap: 8px;
+        }
+
+        .is-mobile .spotify-player-play {
+          width: 36px;
+          height: 36px;
+        }
+
+        .is-mobile .spotify-player-progress {
+          display: none;
+        }
+
+        .is-mobile .spotify-player-left {
+          flex: 1;
+          width: auto;
+          min-width: 0;
+        }
+
+        .is-mobile .spotify-player-right {
+          gap: 4px;
+        }
+
+        .is-mobile .spotify-player-left .spotify-player-heart {
+          display: none;
+        }
+
+        .is-mobile .nex-toast-container {
+          bottom: calc(88px + env(safe-area-inset-bottom));
+        }
+
+        .is-standalone.is-mobile {
+          height: 100dvh;
+          max-height: 100dvh;
+          overflow: hidden;
         }
 
         .spotify-sidebar-top {

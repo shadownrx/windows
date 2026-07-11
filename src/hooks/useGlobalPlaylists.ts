@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ensureSupabaseSession,
   getSupabase,
+  getSupabaseErrorMessage,
   isSupabaseConfigured,
   type DbGlobalPlaylist,
   type DbPlaylistReaction,
@@ -226,9 +228,19 @@ export function useGlobalPlaylists(nickname: string, userId: string | null) {
   const sortedPlaylists = sortCloudPlaylists(playlists, ranking);
 
   const publishPlaylist = useCallback(
-    async (playlist: Playlist): Promise<string | null> => {
+    async (playlist: Playlist): Promise<string> => {
       const supabase = getSupabase();
-      if (!supabase || !nickname) return null;
+      if (!supabase) {
+        throw new Error('Supabase no configurado. Revisá VITE_SUPABASE_URL en .env');
+      }
+      if (!nickname?.trim()) {
+        throw new Error('Configurá tu nickname primero');
+      }
+      if (playlist.tracks.length === 0) {
+        throw new Error('La lista está vacía — agregá canciones antes de publicar');
+      }
+
+      const ownerUserId = userId ?? (await ensureSupabaseSession());
 
       const cover =
         playlist.cover?.startsWith('http')
@@ -249,36 +261,45 @@ export function useGlobalPlaylists(nickname: string, userId: string | null) {
       const map = getCloudMap();
       const cloudId = map[playlist.id];
 
-      const row = {
+      const row: Record<string, unknown> = {
         name: playlist.name,
         cover,
         tracks,
         owner_nickname: nickname,
-        owner_user_id: userId,
         updated_at: new Date().toISOString(),
       };
+      if (ownerUserId) row.owner_user_id = ownerUserId;
+
+      const publishTimeoutMs = 15_000;
+      const withTimeout = <T,>(promise: PromiseLike<T>, label: string) =>
+        Promise.race([
+          Promise.resolve(promise),
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout: ${label} (15s)`)), publishTimeoutMs),
+          ),
+        ]);
 
       if (cloudId) {
-        const { error: updateErr } = await supabase
-          .from('global_playlists')
-          .update(row)
-          .eq('id', cloudId);
-
+        const { error: updateErr } = await withTimeout(
+          supabase.from('global_playlists').update(row).eq('id', cloudId),
+          'actualizar lista',
+        );
         if (updateErr) throw updateErr;
-        await refresh();
+        void refresh();
         return cloudId;
       }
 
-      const { data, error: insertErr } = await supabase
-        .from('global_playlists')
-        .insert(row)
-        .select('id')
-        .single();
+      const { data, error: insertErr } = await withTimeout(
+        supabase.from('global_playlists').insert(row).select('id').single(),
+        'publicar lista',
+      );
 
       if (insertErr) throw insertErr;
+      if (!data?.id) throw new Error('Supabase no devolvió el ID de la lista');
+
       map[playlist.id] = data.id;
       saveCloudMap(map);
-      await refresh();
+      void refresh();
       return data.id;
     },
     [nickname, userId, refresh],

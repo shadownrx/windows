@@ -38,6 +38,41 @@ export function getSupabase(): SupabaseClient | null {
   return client;
 }
 
+export function getSupabaseErrorMessage(err: unknown, fallback = 'Error de Supabase'): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === 'object') {
+    const o = err as { message?: string; details?: string; hint?: string; code?: string };
+    if (o.message) {
+      if (o.message.includes('owner_user_id')) {
+        return `${o.message} — ejecutá supabase/schema-v2.sql en el SQL Editor`;
+      }
+      if (o.code === '42501') return 'Sin permiso (RLS). Revisá las políticas en Supabase.';
+      return o.details ? `${o.message}: ${o.details}` : o.message;
+    }
+  }
+  return fallback;
+}
+
+export async function ensureSupabaseSession(): Promise<string> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error('Supabase no configurado (VITE_SUPABASE_URL / KEY)');
+
+  const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+  if (sessionErr) throw new Error(sessionErr.message);
+  if (sessionData.session?.user?.id) return sessionData.session.user.id;
+
+  const { data, error: signErr } = await supabase.auth.signInAnonymously();
+  if (signErr) {
+    throw new Error(
+      signErr.message.includes('Anonymous')
+        ? 'Activá Anonymous sign-ins en Supabase → Authentication → Providers'
+        : signErr.message,
+    );
+  }
+  if (!data.user?.id) throw new Error('No se pudo iniciar sesión anónima');
+  return data.user.id;
+}
+
 export interface DbGlobalPlaylist {
   id: string;
   name: string;

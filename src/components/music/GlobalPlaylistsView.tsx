@@ -14,7 +14,7 @@ import {
   useGlobalPlaylists,
   type CloudPlaylistView,
 } from '../../hooks/useGlobalPlaylists';
-import { isSupabaseConfigured } from '../../lib/supabase';
+import { isSupabaseConfigured, getSupabaseErrorMessage } from '../../lib/supabase';
 import type { CloudPlayMode } from '../../utils/cloudPlaylist';
 import type { Playlist, Track } from '../../types/music';
 
@@ -55,44 +55,65 @@ export const PublishToCloudButton: React.FC<{
   const [publishing, setPublishing] = useState(false);
   const [cloudId, setCloudId] = useState(() => getCloudId(playlist.id));
 
-  if (!enabled || playlist.isPrivate) return null;
+  if (!enabled) return null;
+
+  if (playlist.isPrivate) {
+    return (
+      <button
+        type="button"
+        className="spotify-btn-secondary publish-cloud-btn publish-cloud-disabled-hint"
+        onClick={() => showToast('Hacé la lista pública (🌐) antes de publicar en la nube', 'info')}
+        title="La lista debe ser pública"
+      >
+        <CloudArrowUp24Regular />
+        Publicar en nube
+      </button>
+    );
+  }
+
+  const handlePublish = async () => {
+    if (!nickname?.trim()) {
+      showToast('Configurá tu nickname primero', 'info');
+      return;
+    }
+    if (!supabaseAuthReady) {
+      showToast('Conectando con Supabase… esperá unos segundos', 'info');
+      return;
+    }
+    if (supabaseAuthError) {
+      showToast(supabaseAuthError, 'error');
+      supabaseRetry?.();
+      return;
+    }
+    if (playlist.tracks.length === 0) {
+      showToast('Agregá canciones a la lista antes de publicar', 'info');
+      return;
+    }
+
+    setPublishing(true);
+    const wasUpdate = Boolean(cloudId);
+    try {
+      const id = await publishPlaylist(playlist);
+      setCloudId(id);
+      showToast(
+        wasUpdate ? 'Lista actualizada en la nube ☁️' : 'Lista publicada en la comunidad ☁️',
+        'success',
+      );
+    } catch (err) {
+      console.error('[NEX Music] publish:', err);
+      showToast(getSupabaseErrorMessage(err, 'No se pudo publicar. Revisá Supabase.'), 'error');
+      if (!supabaseUserId) supabaseRetry?.();
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   return (
     <button
-      className="spotify-btn-secondary publish-cloud-btn"
-      disabled={publishing || !supabaseAuthReady || playlist.tracks.length === 0}
-      onClick={async () => {
-        if (!nickname) {
-          showToast('Configurá tu nickname primero', 'info');
-          return;
-        }
-        if (supabaseAuthError) {
-          showToast(supabaseAuthError, 'error');
-          supabaseRetry?.();
-          return;
-        }
-        if (!supabaseUserId) {
-          showToast('Conectando con la nube… intentá de nuevo', 'info');
-          supabaseRetry?.();
-          return;
-        }
-        setPublishing(true);
-        try {
-          const id = await publishPlaylist(playlist);
-          if (id) setCloudId(id);
-          showToast(
-            cloudId ? 'Lista actualizada en la nube ☁️' : 'Lista publicada en la comunidad ☁️',
-            'success',
-          );
-        } catch (err) {
-          showToast(
-            err instanceof Error ? err.message : 'No se pudo publicar. Revisá Supabase.',
-            'error',
-          );
-        } finally {
-          setPublishing(false);
-        }
-      }}
+      type="button"
+      className={`spotify-btn-secondary publish-cloud-btn${publishing ? ' publish-cloud-loading' : ''}`}
+      disabled={publishing}
+      onClick={() => void handlePublish()}
       title="Publicar en listas globales (tiempo real)"
     >
       <CloudArrowUp24Regular />
@@ -435,6 +456,8 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
           display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
         }
         .publish-cloud-btn { display: inline-flex; align-items: center; gap: 8px; }
+        .publish-cloud-loading { opacity: 0.7; cursor: wait; }
+        .publish-cloud-disabled-hint { opacity: 0.85; }
       `}</style>
     </div>
   );

@@ -1579,7 +1579,7 @@ const SpotifyMiniStandalone: React.FC = () => {
               {!query.trim() && !searchResults.length && (
                 <div className="spotify-empty">
                   <Search24Regular />
-                  <p>Escribe algo en la barra de búsqueda para empezar</p>
+                  <p>{isMobile ? 'Buscá canciones, artistas o playlists arriba ↑' : 'Escribe algo en la barra de búsqueda para empezar'}</p>
                 </div>
               )}
 
@@ -2389,8 +2389,9 @@ const SpotifyMiniStandalone: React.FC = () => {
           z-index: 1001;
           display: flex;
           align-items: center;
-          gap: 8px;
-          padding: max(8px, env(safe-area-inset-top)) 10px 8px;
+          gap: 6px;
+          padding: max(6px, env(safe-area-inset-top)) 8px 6px;
+          min-height: 48px;
           background: rgba(0, 0, 0, 0.92);
           backdrop-filter: blur(16px);
           border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -2555,34 +2556,88 @@ const SpotifyMiniStandalone: React.FC = () => {
         }
 
         .is-mobile .spotify-main {
-          padding-top: calc(52px + env(safe-area-inset-top));
+          padding-top: calc(48px + env(safe-area-inset-top));
         }
 
         .is-mobile .spotify-header {
-          padding: 10px 12px !important;
-          gap: 10px;
+          flex-direction: column;
+          align-items: stretch;
+          padding: 8px 12px !important;
+          gap: 8px;
+          flex-shrink: 0;
         }
 
         .is-mobile .spotify-search-bar {
-          padding: 8px 12px;
+          width: 100%;
+          max-width: none;
+          min-width: 0;
+          padding: 6px 10px;
+          gap: 8px;
           border-radius: 999px;
+        }
+
+        .is-mobile .spotify-search-icon {
+          width: 18px;
+          height: 18px;
         }
 
         .is-mobile .spotify-search-input {
           font-size: 14px;
         }
 
+        .is-mobile .spotify-search-button {
+          padding: 6px 10px;
+          min-width: 34px;
+          min-height: 34px;
+        }
+
         .is-mobile .spotify-services {
+          display: flex !important;
+          flex-wrap: nowrap !important;
+          grid-template-columns: none !important;
+          overflow-x: auto;
+          width: 100%;
           gap: 6px !important;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          padding-bottom: 2px;
+        }
+
+        .is-mobile .spotify-services::-webkit-scrollbar {
+          display: none;
         }
 
         .is-mobile .spotify-service-btn {
+          flex-shrink: 0;
+          white-space: nowrap;
           font-size: 11px !important;
-          padding: 7px 8px !important;
+          padding: 6px 10px !important;
+          border-radius: 999px;
         }
 
         .is-mobile .spotify-content {
-          padding: 12px 12px calc(140px + env(safe-area-inset-bottom)) !important;
+          padding: 8px 12px calc(88px + env(safe-area-inset-bottom)) !important;
+        }
+
+        .is-mobile .spotify-search-results h2 {
+          font-size: 16px;
+          font-weight: 700;
+          margin-bottom: 10px;
+        }
+
+        .is-mobile .spotify-empty {
+          padding: 28px 12px;
+          gap: 10px;
+          min-height: 0;
+        }
+
+        .is-mobile .spotify-empty svg {
+          font-size: 32px;
+        }
+
+        .is-mobile .spotify-empty p {
+          font-size: 13px;
+          line-height: 1.4;
         }
 
         .is-mobile .spotify-list-header h2 {
@@ -4235,43 +4290,16 @@ const SpotifyMiniStandalone: React.FC = () => {
           flex: 1;
         }
 
-        /* --- MOBILE UX --- */
+        /* --- MOBILE UX (legacy media — prefer .is-mobile rules above) --- */
         @media (max-width: 768px) {
           .spotify-main {
             margin-left: 0 !important;
             width: 100% !important;
           }
 
-          .spotify-header {
-            padding: 64px 14px 14px;
-            flex-direction: column;
-            gap: 12px;
-          }
-
-          .spotify-search-bar {
-            width: 100%;
-          }
-
-          .spotify-services {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px;
-            width: 100%;
-          }
-
-          .spotify-service-btn {
-            font-size: 12px;
-            padding: 8px 10px;
-            justify-content: center;
-          }
-
-          .spotify-content {
-            padding: 16px 14px 200px;
-          }
-
           .spotify-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
+            gap: 10px;
           }
 
           .spotify-card-title {
@@ -4282,50 +4310,10 @@ const SpotifyMiniStandalone: React.FC = () => {
             font-size: 11px;
           }
 
-          .spotify-player {
-            flex-wrap: wrap;
-            padding: 10px 12px;
-            gap: 8px;
-            min-height: auto;
-          }
-
-          .spotify-player-left {
-            width: 100%;
-            min-width: 0;
-          }
-
-          .spotify-player-center {
-            width: 100%;
-            order: 3;
-          }
-
-          .spotify-player-right {
-            width: auto;
-            min-width: 0;
-            margin-left: auto;
-          }
-
-          .spotify-player-progress {
-            max-width: 100%;
-          }
-
-          .spotify-volume-slider {
-            max-width: 72px;
-          }
-
-          .spotify-player-left .spotify-player-heart:nth-child(n+4) {
-            display: none;
-          }
-
           .spotify-playlist-hero {
             flex-direction: column;
             align-items: flex-start;
-            gap: 16px;
-          }
-
-          .spotify-playlist-hero-cover {
-            width: 140px;
-            height: 140px;
+            gap: 12px;
           }
 
           .hamburger-btn {
@@ -4353,16 +4341,11 @@ const SpotifyMiniStandalone: React.FC = () => {
         }
 
         @media (max-width: 480px) {
-          .spotify-player-controls {
-            gap: 14px;
+          .is-mobile .spotify-volume {
+            display: none;
           }
 
-          .spotify-player-play {
-            width: 40px;
-            height: 40px;
-          }
-
-          .spotify-volume {
+          .is-mobile .spotify-player-right .spotify-player-btn:not(.party-toggle) {
             display: none;
           }
         }

@@ -1810,6 +1810,7 @@ const SpotifyMiniStandalone: React.FC = () => {
               supabaseAuthReady={supabaseAuthReady}
               supabaseAuthError={supabaseAuthError}
               supabaseRetry={supabaseRetry}
+              onOpenSpotifyImport={() => setShowSpotifyImportModal(true)}
             />
           )}
 

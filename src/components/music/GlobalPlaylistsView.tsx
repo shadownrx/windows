@@ -36,6 +36,7 @@ interface GlobalPlaylistsViewProps extends SupabaseAuthProps {
   voteForPlaylist?: (playlistId: string) => void;
   unvoteForPlaylist?: (playlistId: string) => void;
   showToast: (message: string, type?: 'success' | 'error' | 'info' | 'premium') => void;
+  onOpenSpotifyImport?: () => void;
 }
 
 export const PublishToCloudButton: React.FC<{
@@ -139,6 +140,7 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
   supabaseAuthReady,
   supabaseAuthError,
   supabaseRetry,
+  onOpenSpotifyImport,
 }) => {
   const cloud = useGlobalPlaylists(nickname, supabaseUserId);
   const [showReactionsFor, setShowReactionsFor] = useState<string | null>(null);
@@ -240,7 +242,7 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
           </div>
         )}
 
-        <div className="playlist-meta">
+        <div className="playlist-meta global-card-meta">
           <div className="playlist-votes">
             <button
               type="button"
@@ -266,7 +268,7 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
               {hasVoted ? <Star24Filled /> : <Star24Regular />}
               <span>{voteCount}</span>
             </button>
-            <span>{playlist.tracks.length} canciones</span>
+            <span className="global-track-count">{playlist.tracks.length} canciones</span>
             {isCloud && cloudView && cloudView.playCount > 0 && (
               <span className="play-count-badge">{cloudView.playCount} plays</span>
             )}
@@ -277,55 +279,71 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
               <button
                 type="button"
                 className="reaction-toggle-btn"
+                aria-expanded={showReactionsFor === id}
                 onClick={() => setShowReactionsFor(showReactionsFor === id ? null : id)}
               >
-                Reaccionar
+                {showReactionsFor === id ? 'Cerrar' : 'Reaccionar'}
               </button>
-              {Object.entries(cloudView?.reactionSummary ?? {}).map(([emoji, count]) => (
-                <span key={emoji} className="reaction-pill">
-                  {emoji} {count}
-                </span>
+              <div className="reaction-pills">
+                {Object.entries(cloudView?.reactionSummary ?? {}).map(([emoji, count]) => (
+                  <span key={emoji} className="reaction-pill">
+                    {emoji} {count}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isCloud && showReactionsFor === id && (
+            <div className="reaction-picker">
+              {REACTION_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className="reaction-emoji-btn"
+                  onClick={async () => {
+                    if (!nickname || !supabaseUserId) {
+                      showToast(supabaseAuthError ?? 'Conectando con la nube…', 'info');
+                      return;
+                    }
+                    await cloud.sendReaction(id, emoji);
+                    setShowReactionsFor(null);
+                  }}
+                >
+                  {emoji}
+                </button>
               ))}
             </div>
           )}
         </div>
-
-        {isCloud && showReactionsFor === id && (
-          <div className="reaction-picker">
-            {REACTION_EMOJIS.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                className="reaction-emoji-btn"
-                onClick={async () => {
-                  if (!nickname || !supabaseUserId) {
-                    showToast(supabaseAuthError ?? 'Conectando con la nube…', 'info');
-                    return;
-                  }
-                  await cloud.sendReaction(id, emoji);
-                  setShowReactionsFor(null);
-                }}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     );
   };
 
   return (
     <div className="spotify-list-view">
-      <div className="spotify-list-header">
-        <h2>Listas Globales</h2>
-        <p>
-          {usingCloud
-            ? 'Escuchá sin importar · votá y reaccioná en tiempo real'
-            : cloud.enabled && supabaseAuthReady && !supabaseUserId
-              ? 'Modo local — no se pudo conectar a la nube'
-              : 'Las listas más votadas por la comunidad (local)'}
-        </p>
+      <div className="spotify-list-header global-list-header">
+        <div className="global-list-header-top">
+          <div>
+            <h2>Listas Globales</h2>
+            <p>
+              {usingCloud
+                ? 'Escuchá sin importar · votá y reaccioná en tiempo real'
+                : cloud.enabled && supabaseAuthReady && !supabaseUserId
+                  ? 'Modo local — no se pudo conectar a la nube'
+                  : 'Las listas más votadas por la comunidad (local)'}
+            </p>
+          </div>
+          {onOpenSpotifyImport && (
+            <button
+              type="button"
+              className="global-spotify-import-btn"
+              onClick={onOpenSpotifyImport}
+            >
+              Importar de Spotify
+            </button>
+          )}
+        </div>
         {!isSupabaseConfigured && (
           <p className="global-setup-hint">
             Conectá VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en .env + ejecutá schema.sql
@@ -376,6 +394,11 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
               ? 'Aún no hay listas en la nube. Publicá una desde Mis Listas.'
               : 'No hay listas públicas aún. Creá una y hacela pública.'}
           </p>
+          {onOpenSpotifyImport && (
+            <button type="button" className="global-spotify-import-btn global-spotify-import-btn-empty" onClick={onOpenSpotifyImport}>
+              Importar playlist de Spotify
+            </button>
+          )}
         </div>
       ) : (
         <div className="spotify-grid">
@@ -397,7 +420,70 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
           font-size: 13px;
         }
         .global-retry-btn:hover { background: rgba(255,255,255,0.25); }
-        .global-playlist-card { position: relative; }
+        .global-list-header-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+          width: 100%;
+        }
+        .global-spotify-import-btn {
+          flex-shrink: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 8px 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(30, 215, 96, 0.45);
+          background: rgba(30, 215, 96, 0.1);
+          color: #1ed760;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+        .global-spotify-import-btn:hover {
+          background: rgba(30, 215, 96, 0.18);
+          border-color: rgba(30, 215, 96, 0.65);
+        }
+        .global-spotify-import-btn-empty { margin-top: 8px; }
+        .global-playlist-card {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          min-width: 0;
+        }
+        .global-playlist-card .spotify-card-info {
+          min-width: 0;
+          width: 100%;
+        }
+        .global-playlist-card .spotify-card-title {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .global-playlist-card .global-card-meta {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 8px;
+          width: 100%;
+          margin-top: auto;
+          padding-top: 8px;
+        }
+        .global-playlist-card .playlist-votes {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+          width: 100%;
+        }
+        .global-playlist-card .global-track-count {
+          color: rgba(255,255,255,0.6);
+          font-size: 12px;
+        }
         .global-playlist-card.reaction-live { animation: reactionPulse 0.6s ease; }
         @keyframes reactionPulse {
           0%, 100% { box-shadow: none; }
@@ -425,26 +511,49 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
           font-size: 13px; font-weight: 600; cursor: pointer;
         }
         .global-ranking-tab.active { background: #fff; color: #000; border-color: #fff; }
-        .global-play-actions { display: flex; gap: 8px; padding: 0 4px 4px; width: 100%; }
+        .global-play-actions { display: flex; gap: 8px; padding: 0; width: 100%; margin-top: 4px; }
         .global-action-btn {
           flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
           background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
           color: #fff; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+          min-width: 0;
         }
         .global-action-btn:hover { background: rgba(255,255,255,0.15); }
         .play-count-badge, .weekly-badge { font-size: 11px; color: rgba(255,255,255,0.5); }
         .weekly-badge { color: #fbbf24; }
         .global-reactions {
-          display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; width: 100%;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+          width: 100%;
+        }
+        .reaction-pills {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+          flex: 1;
+          min-width: 0;
         }
         .reaction-toggle-btn {
           background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
-          color: #fff; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+          color: #fff; border-radius: 999px; padding: 5px 12px; font-size: 12px; cursor: pointer;
+          flex-shrink: 0;
         }
+        .reaction-toggle-btn:hover { background: rgba(255,255,255,0.14); }
         .reaction-pill {
-          font-size: 12px; background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 999px;
+          font-size: 12px; background: rgba(255,255,255,0.06); padding: 3px 8px; border-radius: 999px;
+          white-space: nowrap;
         }
-        .reaction-picker { display: flex; gap: 6px; padding: 8px 0 4px; width: 100%; }
+        .reaction-picker {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          width: 100%;
+          padding: 8px 0 0;
+          border-top: 1px solid rgba(255,255,255,0.08);
+        }
         .reaction-emoji-btn {
           background: rgba(255,255,255,0.08); border: none; border-radius: 10px;
           font-size: 20px; padding: 6px 10px; cursor: pointer;

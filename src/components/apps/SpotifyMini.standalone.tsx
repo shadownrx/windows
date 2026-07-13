@@ -1235,32 +1235,78 @@ const SpotifyMiniStandalone: React.FC = () => {
   const loadInto = (player: any, videoId: string) => {
     if (!player?.loadVideoById) return;
     const { settings, applyHdQuality } = audioEnhanceRef.current;
-    if (settings.hd) {
+    const useHd = settings.hd && !isMobile;
+    if (useHd) {
       player.loadVideoById({ videoId, suggestedQuality: 'hd1080' });
       applyHdQuality(player);
     } else {
-      player.loadVideoById(videoId);
+      player.loadVideoById({ videoId, suggestedQuality: 'small' });
     }
   };
 
   const createYtPlayer = (elementId: string, videoId: string | undefined, slot: 'a' | 'b') => {
     if (!window.YT) return;
+    const lockIframeTiny = (target: any) => {
+      try {
+        const iframe = target?.getIframe?.() as HTMLIFrameElement | undefined;
+        if (!iframe) return;
+        iframe.setAttribute('playsinline', '1');
+        iframe.setAttribute('webkit-playsinline', '1');
+        iframe.removeAttribute('allowfullscreen');
+        iframe.setAttribute(
+          'allow',
+          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture',
+        );
+        Object.assign(iframe.style, {
+          width: '1px',
+          height: '1px',
+          maxWidth: '1px',
+          maxHeight: '1px',
+          position: 'absolute',
+          left: '0',
+          top: '0',
+          opacity: '0',
+          pointerEvents: 'none',
+          border: '0',
+        });
+      } catch { /* ignore */ }
+    };
+    const exitForcedFullscreen = () => {
+      try {
+        if (document.fullscreenElement) void document.exitFullscreen?.();
+        const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => void };
+        if (doc.webkitFullscreenElement) doc.webkitExitFullscreen?.();
+      } catch { /* ignore */ }
+    };
+
     const player = new window.YT.Player(elementId, {
       videoId: videoId || undefined,
+      width: 1,
+      height: 1,
       playerVars: {
         origin: window.location.origin,
         enablejsapi: 1,
         autoplay: slot === 'a' && videoId ? 1 : 0,
+        // Critical on iOS/Android: keep video inline so it doesn't cover the UI in black fullscreen
+        playsinline: 1,
+        controls: 0,
+        modestbranding: 1,
+        rel: 0,
+        fs: 0,
+        disablekb: 1,
       },
       events: {
         onReady: (event: any) => {
           const { settings, applyHdQuality, startTrackEnvelope } = audioEnhanceRef.current;
+          lockIframeTiny(event.target);
+
           if (slot === 'a') {
             playerARef.current = event.target;
             activeYtSlotRef.current = 'a';
             syncPlayerRef();
             if (event.target.getDuration) setDuration(event.target.getDuration());
-            if (settings.hd) applyHdQuality(event.target);
+            // HD on mobile often expands the video surface → black fullscreen
+            if (settings.hd && !isMobile) applyHdQuality(event.target);
             startTrackEnvelope(event.target, volumeRef.current);
             isFirstVideoLoadRef.current = false;
             setIsPlaying(true);
@@ -1278,7 +1324,9 @@ const SpotifyMiniStandalone: React.FC = () => {
           if (!isActive) return;
 
           if (window.YT && event.data === window.YT.PlayerState.PLAYING) {
-            if (audioEnhanceRef.current.settings.hd) {
+            lockIframeTiny(event.target);
+            exitForcedFullscreen();
+            if (audioEnhanceRef.current.settings.hd && !isMobile) {
               audioEnhanceRef.current.applyHdQuality(event.target);
             }
             setIsPlaying(true);
@@ -2904,18 +2952,32 @@ const SpotifyMiniStandalone: React.FC = () => {
         }
 
         .spotify-iframe-permanent {
-          position: fixed;
-          left: -9999px;
-          top: -9999px;
-          width: 1px;
-          height: 1px;
-          opacity: 0;
-          pointer-events: none;
-          overflow: hidden;
-        }
-        .spotify-iframe-permanent iframe {
+          /* Keep a real 1×1 paint box off-screen — full clip can break audio on some WebViews */
+          position: fixed !important;
+          left: -2px !important;
+          top: -2px !important;
           width: 1px !important;
           height: 1px !important;
+          max-width: 1px !important;
+          max-height: 1px !important;
+          opacity: 0.01;
+          pointer-events: none !important;
+          overflow: hidden !important;
+          z-index: -1 !important;
+          border: 0 !important;
+        }
+        .spotify-iframe-permanent iframe,
+        .spotify-iframe-permanent > div {
+          width: 1px !important;
+          height: 1px !important;
+          max-width: 1px !important;
+          max-height: 1px !important;
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          opacity: 0.01 !important;
+          pointer-events: none !important;
+          border: none !important;
         }
 
         /* --- MODALS --- */

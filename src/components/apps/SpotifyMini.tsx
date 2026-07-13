@@ -1037,29 +1037,61 @@ const SpotifyMiniStandalone: React.FC = () => {
     if (window.YT && !playerRef.current) {
       playerRef.current = new window.YT.Player('youtube-player', {
         videoId,
+        width: 1,
+        height: 1,
         playerVars: {
           origin: window.location.origin,
           enablejsapi: 1,
           autoplay: 1,
+          playsinline: 1,
+          controls: 0,
+          modestbranding: 1,
+          rel: 0,
+          fs: 0,
+          disablekb: 1,
         },
         events: {
           onReady: (event: any) => {
             const { settings, applyHdQuality, startTrackEnvelope } = audioEnhanceRef.current;
+            try {
+              const iframe = event.target?.getIframe?.() as HTMLIFrameElement | undefined;
+              if (iframe) {
+                iframe.setAttribute('playsinline', '1');
+                iframe.setAttribute('webkit-playsinline', '1');
+                iframe.removeAttribute('allowfullscreen');
+                iframe.setAttribute(
+                  'allow',
+                  'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture',
+                );
+                Object.assign(iframe.style, {
+                  width: '1px',
+                  height: '1px',
+                  opacity: '0.01',
+                  pointerEvents: 'none',
+                  position: 'absolute',
+                });
+              }
+            } catch { /* ignore */ }
             playerRef.current = event.target;
             if (playerRef.current.getDuration) {
               setDuration(playerRef.current.getDuration());
             }
             startTrackEnvelope(playerRef.current, volumeRef.current);
-            if (settings.hd) applyHdQuality(playerRef.current);
+            const mobile = window.matchMedia('(max-width: 768px)').matches;
+            if (settings.hd && !mobile) applyHdQuality(playerRef.current);
             isFirstVideoLoadRef.current = false;
             setIsPlaying(true);
             playerRef.current.playVideo();
           },
           onStateChange: (event: any) => {
             if (window.YT && event.data === window.YT.PlayerState.PLAYING) {
-              if (audioEnhanceRef.current.settings.hd) {
+              const mobile = window.matchMedia('(max-width: 768px)').matches;
+              if (audioEnhanceRef.current.settings.hd && !mobile) {
                 audioEnhanceRef.current.applyHdQuality(event.target);
               }
+              try {
+                if (document.fullscreenElement) void document.exitFullscreen?.();
+              } catch { /* ignore */ }
               setIsPlaying(true);
               startProgressTracking();
             } else if (window.YT && event.data === window.YT.PlayerState.PAUSED) {
@@ -2443,13 +2475,21 @@ const SpotifyMiniStandalone: React.FC = () => {
         }
 
         .spotify-iframe-permanent {
-          position: fixed;
-          left: -9999px;
-          top: -9999px;
-          width: 1px;
-          height: 1px;
-          opacity: 0;
-          pointer-events: none;
+          position: fixed !important;
+          left: -2px !important;
+          top: -2px !important;
+          width: 1px !important;
+          height: 1px !important;
+          opacity: 0.01;
+          pointer-events: none !important;
+          overflow: hidden !important;
+          z-index: -1 !important;
+        }
+        .spotify-iframe-permanent iframe {
+          width: 1px !important;
+          height: 1px !important;
+          opacity: 0.01 !important;
+          pointer-events: none !important;
         }
 
         /* --- MODALS --- */

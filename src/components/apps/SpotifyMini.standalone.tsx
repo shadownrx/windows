@@ -34,6 +34,8 @@ import {
 import { useMusicSync } from '../../hooks/useMusicSync';
 import { useMobilePlaybackPersistence, loadPlaybackSession } from '../../hooks/useMobilePlaybackPersistence';
 import { useNexAudioEnhance } from '../../hooks/useNexAudioEnhance';
+import { useNexDspEngine } from '../../hooks/useNexDspEngine';
+import { useNexStreamPlayer } from '../../hooks/useNexStreamPlayer';
 import {
   closeSidebarWithHistory,
   exitMobileApp,
@@ -902,6 +904,22 @@ const SpotifyMiniStandalone: React.FC = () => {
   audioEnhanceRef.current = audioEnhance;
   const volumeRef = useRef(volume);
   volumeRef.current = volume;
+  const { getEngine } = useNexDspEngine();
+  const streamPlayer = useNexStreamPlayer({
+    getEngine,
+    getSettings: () => audioEnhanceRef.current.settings,
+    getUiVolume: () => volumeRef.current,
+    onEnded: () => nextTrackRef.current(),
+    onPlayingChange: (playing) => setIsPlaying(playing),
+    onTime: (current, dur) => {
+      if (Number.isFinite(dur) && dur > 0) {
+        setDuration(dur);
+        setProgress((current / dur) * 100);
+      }
+    },
+  });
+  const streamPlayerRef = useRef(streamPlayer);
+  streamPlayerRef.current = streamPlayer;
   const isFirstVideoLoadRef = useRef(true);
   const crossfadingRef = useRef(false);
   const pendingRoomRef = useRef<string | null>(null);
@@ -977,6 +995,17 @@ const SpotifyMiniStandalone: React.FC = () => {
   const progressIntervalRef = useRef<number | null>(null);
   const previewTimerRef = useRef<number | null>(null);
   const nextTrackRef = useRef(nextTrack);
+
+  const muteYtPlayers = useCallback(() => {
+    try {
+      playerARef.current?.mute?.();
+      playerARef.current?.pauseVideo?.();
+      playerBRef.current?.mute?.();
+      playerBRef.current?.pauseVideo?.();
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const pcnMode = query.trim().toUpperCase() === 'PCN';
 
@@ -1283,10 +1312,14 @@ const SpotifyMiniStandalone: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTrack]);
 
-  // Update YouTube player volume whenever volume / audio settings change
+  // Update volume: DSP gain when live, else YouTube iframe volume
   useEffect(() => {
+    if (streamPlayer.isDspActive) {
+      streamPlayer.syncSettings();
+      return;
+    }
     audioEnhance.applyVolume(playerRef.current, volume);
-  }, [volume, audioEnhance.settings, audioEnhance.applyVolume]);
+  }, [volume, audioEnhance.settings, audioEnhance.applyVolume, streamPlayer.isDspActive, streamPlayer.syncSettings]);
 
   const getActiveYt = () =>
     activeYtSlotRef.current === 'a' ? playerARef.current : playerBRef.current;
@@ -1423,75 +1456,84 @@ const SpotifyMiniStandalone: React.FC = () => {
     if (crossfadingRef.current) return;
     const videoId = currentTrack.videoId;
 
-    if (!window.YT) {
-      setTimeout(initPlayer, 100);
-      return;
-    }
-
-    if (!playerARef.current) {
-      createYtPlayer('youtube-player-a', videoId, 'a');
-      // Dual player often triggers iOS native fullscreen / black cover — desktop only
-      if (!isMobile) createYtPlayer('youtube-player-b', undefined, 'b');
-      return;
-    }
-
-    if (!playerARef.current?.loadVideoById) {
-      setTimeout(initPlayer, 100);
-      return;
-    }
-
-    syncPlayerRef();
-    const { settings, crossfadeToNext, startTrackEnvelope } = audioEnhanceRef.current;
-    const shouldCrossfade = !isFirstVideoLoadRef.current && settings.crossfadeSec > 0 && !isMobile;
-    const active = getActiveYt();
-    const idle = getIdleYt();
-
-    // Wait briefly for B so first crossfade can be real overlap
-    if (shouldCrossfade && settings.dualCrossfade && !idle?.loadVideoById) {
-      if (dualReadyWaitRef.current < 25) {
-        dualReadyWaitRef.current += 1;
-        setTimeout(initPlayer, 120);
+    // Prefer real DSP pipeline (our output). Fall back to YouTube iframe.
+    void (async () => {
+      const ok = await streamPlayerRef.current.playVideoId(videoId);
+      if (ok) {
+        muteYtPlayers();
+        stopProgressTracking();
+        isFirstVideoLoadRef.current = false;
         return;
       }
-    }
-    dualReadyWaitRef.current = 0;
+      // YouTube fallback
+      if (!window.YT) {
+        setTimeout(initPlayer, 100);
+        return;
+      }
 
-    if (shouldCrossfade) {
-      crossfadingRef.current = true;
-      const useDual = Boolean(settings.dualCrossfade && idle?.loadVideoById);
+      if (!playerARef.current) {
+        createYtPlayer('youtube-player-a', videoId, 'a');
+        if (!isMobile) createYtPlayer('youtube-player-b', undefined, 'b');
+        return;
+      }
 
-      void crossfadeToNext(
-        active,
-        volumeRef.current,
-        () => {
-          loadInto(useDual ? idle : active, videoId);
-          setIsPlaying(true);
-        },
-        useDual
-          ? {
-              nextPlayer: idle,
-              onSwapped: () => {
-                activeYtSlotRef.current = activeYtSlotRef.current === 'a' ? 'b' : 'a';
-                syncPlayerRef();
-              },
-            }
-          : undefined,
-      ).finally(() => {
-        crossfadingRef.current = false;
-        isFirstVideoLoadRef.current = false;
-      });
-      return;
-    }
+      if (!playerARef.current?.loadVideoById) {
+        setTimeout(initPlayer, 100);
+        return;
+      }
 
-    isFirstVideoLoadRef.current = false;
-    loadInto(active, videoId);
-    if (isMobile) {
-      audioEnhanceRef.current.applyVolume(active, volumeRef.current);
-    } else {
-      startTrackEnvelope(active, volumeRef.current);
-    }
-    setIsPlaying(true);
-    try { active?.playVideo?.(); } catch { /* ignore */ }
+      syncPlayerRef();
+      const { settings, crossfadeToNext, startTrackEnvelope } = audioEnhanceRef.current;
+      const shouldCrossfade = !isFirstVideoLoadRef.current && settings.crossfadeSec > 0 && !isMobile;
+      const active = getActiveYt();
+      const idle = getIdleYt();
+
+      if (shouldCrossfade && settings.dualCrossfade && !idle?.loadVideoById) {
+        if (dualReadyWaitRef.current < 25) {
+          dualReadyWaitRef.current += 1;
+          setTimeout(initPlayer, 120);
+          return;
+        }
+      }
+      dualReadyWaitRef.current = 0;
+
+      if (shouldCrossfade) {
+        crossfadingRef.current = true;
+        const useDual = Boolean(settings.dualCrossfade && idle?.loadVideoById);
+
+        void crossfadeToNext(
+          active,
+          volumeRef.current,
+          () => {
+            loadInto(useDual ? idle : active, videoId);
+            setIsPlaying(true);
+          },
+          useDual
+            ? {
+                nextPlayer: idle,
+                onSwapped: () => {
+                  activeYtSlotRef.current = activeYtSlotRef.current === 'a' ? 'b' : 'a';
+                  syncPlayerRef();
+                },
+              }
+            : undefined,
+        ).finally(() => {
+          crossfadingRef.current = false;
+          isFirstVideoLoadRef.current = false;
+        });
+        return;
+      }
+
+      isFirstVideoLoadRef.current = false;
+      loadInto(active, videoId);
+      if (isMobile) {
+        audioEnhanceRef.current.applyVolume(active, volumeRef.current);
+      } else {
+        startTrackEnvelope(active, volumeRef.current);
+      }
+      setIsPlaying(true);
+      try { active?.playVideo?.(); } catch { /* ignore */ }
+    })();
   };
 
   const startProgressTracking = () => {
@@ -1527,12 +1569,21 @@ const SpotifyMiniStandalone: React.FC = () => {
     startProgressTracking,
     stopProgressTracking,
     setIsPlaying,
+    onResumePlayback: () => {
+      if (!streamPlayerRef.current.isDspActive) return false;
+      void streamPlayerRef.current.play();
+      return true;
+    },
   });
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const percent = ((e.clientX - rect.left) / rect.width) * 100;
     seekTo(percent);
+    if (streamPlayerRef.current.isDspActive && duration > 0) {
+      streamPlayerRef.current.seekTo((percent / 100) * duration);
+      return;
+    }
     if (playerRef.current && duration > 0) {
       const seekTime = (percent / 100) * duration;
       playerRef.current.seekTo(seekTime, true);
@@ -1540,6 +1591,13 @@ const SpotifyMiniStandalone: React.FC = () => {
   };
 
   const seekBySeconds = useCallback((delta: number) => {
+    if (streamPlayerRef.current.isDspActive) {
+      const current = streamPlayerRef.current.getCurrentTime();
+      const next = Math.max(0, current + delta);
+      streamPlayerRef.current.seekTo(next);
+      if (duration > 0) setProgress((next / duration) * 100);
+      return;
+    }
     if (!playerRef.current?.getCurrentTime || !playerRef.current?.seekTo) return;
     const current = playerRef.current.getCurrentTime();
     const next = Math.max(0, current + delta);
@@ -1548,6 +1606,16 @@ const SpotifyMiniStandalone: React.FC = () => {
   }, [duration, setProgress]);
 
   const handleTogglePlay = () => {
+    if (streamPlayerRef.current.isDspActive) {
+      if (isPlaying) {
+        streamPlayerRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        void streamPlayerRef.current.play();
+        setIsPlaying(true);
+      }
+      return;
+    }
     // --- YOUTUBE ---
     if (currentTrack?.videoId && playerRef.current) {
       if (isPlaying) {
@@ -2897,9 +2965,10 @@ const SpotifyMiniStandalone: React.FC = () => {
                 onClose={() => setShowAudioPanel(false)}
                 settings={audioEnhance.settings}
                 onChange={audioEnhance.setSettings}
+                playbackMode={streamPlayer.mode}
                 onEnablePower={() => {
                   audioEnhance.enablePowerPreset();
-                  showToast('Modo Potencia ON · Club + overlap', 'premium');
+                  showToast('Modo Potencia ON · DSP + Club + 8D', 'premium');
                 }}
               />
             </div>

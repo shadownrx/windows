@@ -46,6 +46,8 @@ interface UseMobilePlaybackPersistenceOptions {
   startProgressTracking: () => void;
   stopProgressTracking: () => void;
   setIsPlaying: (playing: boolean) => void;
+  /** Optional: resume DSP / custom player instead of YouTube */
+  onResumePlayback?: () => boolean | void;
 }
 
 export function useMobilePlaybackPersistence({
@@ -59,10 +61,13 @@ export function useMobilePlaybackPersistence({
   startProgressTracking,
   stopProgressTracking,
   setIsPlaying,
+  onResumePlayback,
 }: UseMobilePlaybackPersistenceOptions) {
   const wasPlayingRef = useRef(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const saveTimerRef = useRef<number | null>(null);
+  const onResumeRef = useRef(onResumePlayback);
+  onResumeRef.current = onResumePlayback;
 
   // Persist session — debounce progress writes (every tick was freezing phones)
   useEffect(() => {
@@ -84,7 +89,12 @@ export function useMobilePlaybackPersistence({
   // Resume playback when returning from background / bfcache
   useEffect(() => {
     const resumeIfNeeded = () => {
-      if (!wasPlayingRef.current || !playerRef.current?.playVideo) return;
+      if (!wasPlayingRef.current) return;
+      if (onResumeRef.current?.()) {
+        setIsPlaying(true);
+        return;
+      }
+      if (!playerRef.current?.playVideo) return;
       playerRef.current.playVideo();
       setIsPlaying(true);
       startProgressTracking();

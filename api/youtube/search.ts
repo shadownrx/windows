@@ -66,6 +66,104 @@ function isRateLimited(ip: string): boolean {
   return timestamps.length > MAX_REQUESTS;
 }
 
+/** Piped instances — public proxies that rewrite googlevideo with CORS *. */
+const PIPED_INSTANCES = [
+  'https://api.piped.private.coffee',
+  'https://pipedapi.adminforge.de',
+  'https://pipedapi.ducks.party',
+  'https://pipedapi.reallyawakening.tech',
+];
+
+interface PipedStream {
+  url?: string;
+  bitrate?: number;
+  codec?: string;
+  mimeType?: string;
+  quality?: string;
+  format?: string;
+  videoOnly?: boolean;
+}
+
+interface PipedStreamsResponse {
+  title?: string;
+  duration?: number;
+  audioStreams?: PipedStream[];
+  videoStreams?: PipedStream[];
+  proxyUrl?: string;
+}
+
+export interface ResolvedAudioStream {
+  url: string;
+  mimeType: string;
+  quality: string;
+  kind: 'audio' | 'muxed';
+  title?: string;
+  duration?: number;
+  source: string;
+}
+
+function pickBestStream(data: PipedStreamsResponse): Omit<ResolvedAudioStream, 'source'> | null {
+  const audios = (data.audioStreams || [])
+    .filter((s) => s.url && s.videoOnly !== true)
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+  if (audios[0]?.url) {
+    return {
+      url: audios[0].url,
+      mimeType: audios[0].mimeType || 'audio/mp4',
+      quality: audios[0].quality || 'audio',
+      kind: 'audio',
+      title: data.title,
+      duration: data.duration,
+    };
+  }
+
+  // YouTube SABR often empties audioStreams — use muxed progressive MP4 (has audio).
+  const muxed = (data.videoStreams || [])
+    .filter(
+      (s) =>
+        s.url &&
+        s.videoOnly === false &&
+        typeof s.mimeType === 'string' &&
+        s.mimeType.includes('mp4') &&
+        !String(s.quality || '').toUpperCase().includes('LBRY'),
+    )
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+  if (muxed[0]?.url) {
+    return {
+      url: muxed[0].url,
+      mimeType: muxed[0].mimeType || 'video/mp4',
+      quality: muxed[0].quality || '360p',
+      kind: 'muxed',
+      title: data.title,
+      duration: data.duration,
+    };
+  }
+  return null;
+}
+
+async function resolvePipedStream(videoId: string): Promise<ResolvedAudioStream | null> {
+  for (const base of PIPED_INSTANCES) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 9000);
+      const res = await fetch(`${base}/streams/${encodeURIComponent(videoId)}`, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const data = (await res.json()) as PipedStreamsResponse;
+      const picked = pickBestStream(data);
+      if (picked) {
+        return { ...picked, source: base };
+      }
+    } catch (err) {
+      console.warn('Piped resolve fail', base, err);
+    }
+  }
+  return null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
@@ -75,6 +173,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
   if (isRateLimited(ip)) {
     return res.status(429).json({ error: 'Demasiadas búsquedas, esperá un momento.' });
+  }
+
+  // DSP path: resolve playable audio/muxed URL (no YouTube API key needed).
+  const streamParam = Array.isArray(req.query.stream) ? req.query.stream[0] : req.query.stream;
+  const streamId = typeof streamParam === 'string' ? streamParam.trim() : '';
+  if (streamId) {
+    if (!/^[a-zA-Z0-9_-]{6,20}$/.test(streamId)) {
+      return res.status(400).json({ error: 'videoId inválido' });
+    }
+    try {
+      const resolved = await resolvePipedStream(streamId);
+      if (!resolved) {
+        return res.status(502).json({ error: 'No se pudo resolver el stream de audio' });
+      }
+      res.setHeader('Cache-Control', 's-maxage=180, stale-while-revalidate=420');
+      return res.status(200).json(resolved);
+    } catch (err) {
+      console.error('Error resolviendo stream:', err);
+      return res.status(500).json({ error: 'Error interno al resolver stream' });
+    }
   }
 
   const apiKey = process.env.YOUTUBE_API_KEY;

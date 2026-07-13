@@ -7,6 +7,8 @@ interface AudioEnhancePanelProps {
   settings: NexAudioSettings;
   onChange: (patch: Partial<NexAudioSettings>) => void;
   onEnablePower?: () => void;
+  /** 'dsp' = Web Audio real; 'youtube' = iframe loudness only */
+  playbackMode?: 'idle' | 'dsp' | 'youtube';
 }
 
 const PRESETS: { id: AudioPreset; label: string; hint: string }[] = [
@@ -24,8 +26,11 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
   settings,
   onChange,
   onEnablePower,
+  playbackMode = 'idle',
 }) => {
   if (!open) return null;
+
+  const dspLive = playbackMode === 'dsp';
 
   return (
     <div className="audio-enhance-panel" role="dialog" aria-label="Sonido Potencia">
@@ -36,9 +41,17 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
         </button>
       </div>
 
+      <div className={`audio-mode-pill ${dspLive ? 'live' : ''}`}>
+        {dspLive
+          ? 'DSP en vivo · EQ + compresor + salida nuestra'
+          : playbackMode === 'youtube'
+            ? 'Fallback YouTube · loudness solamente'
+            : 'Esperando reproducción'}
+      </div>
+
       {onEnablePower && (
         <button type="button" className="audio-power-cta" onClick={onEnablePower}>
-          Activar Modo Potencia
+          Activar Modo Potencia + 8D
         </button>
       )}
 
@@ -54,6 +67,67 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
         <div className="audio-power-meter" aria-hidden>
           <div className="audio-power-fill" style={{ width: `${settings.power}%` }} />
         </div>
+      </div>
+
+      <label className="audio-enhance-row">
+        <span>Pipeline DSP (salida propia)</span>
+        <input
+          type="checkbox"
+          checked={settings.preferDsp !== false}
+          onChange={(e) => onChange({ preferDsp: e.target.checked })}
+        />
+      </label>
+
+      <label className="audio-enhance-row">
+        <span>8D espacial {dspLive ? '' : '(requiere DSP)'}</span>
+        <input
+          type="checkbox"
+          checked={settings.spatial8d}
+          onChange={(e) => onChange({ spatial8d: e.target.checked })}
+        />
+      </label>
+
+      {settings.spatial8d && (
+        <div className="audio-enhance-block">
+          <div className="audio-enhance-label">Velocidad 8D · {settings.spatialSpeed}</div>
+          <input
+            type="range"
+            min={5}
+            max={100}
+            value={settings.spatialSpeed}
+            onChange={(e) => onChange({ spatialSpeed: Number(e.target.value) })}
+          />
+        </div>
+      )}
+
+      <div className="audio-enhance-block">
+        <div className="audio-enhance-label">EQ · Bass {settings.eqBass > 0 ? '+' : ''}{settings.eqBass}</div>
+        <input
+          type="range"
+          min={-8}
+          max={8}
+          step={0.5}
+          value={settings.eqBass}
+          onChange={(e) => onChange({ eqBass: Number(e.target.value) })}
+        />
+        <div className="audio-enhance-label">EQ · Mid {settings.eqMid > 0 ? '+' : ''}{settings.eqMid}</div>
+        <input
+          type="range"
+          min={-8}
+          max={8}
+          step={0.5}
+          value={settings.eqMid}
+          onChange={(e) => onChange({ eqMid: Number(e.target.value) })}
+        />
+        <div className="audio-enhance-label">EQ · Treble {settings.eqTreble > 0 ? '+' : ''}{settings.eqTreble}</div>
+        <input
+          type="range"
+          min={-8}
+          max={8}
+          step={0.5}
+          value={settings.eqTreble}
+          onChange={(e) => onChange({ eqTreble: Number(e.target.value) })}
+        />
       </div>
 
       <label className="audio-enhance-row">
@@ -142,8 +216,8 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
       </div>
 
       <p className="audio-enhance-note">
-        YouTube no deja EQ real (CORS). Potencia = loudness + HD + punch + crossfade overlap.
-        Tip: perfil Club + potencia 80+.
+        Con DSP activo nosotros controlamos la salida (EQ, compresor, 8D). Si el stream no
+        resuelve, cae a YouTube iframe (solo loudness). Tip: Club + potencia 85+ + 8D.
       </p>
 
       <style>{`
@@ -158,12 +232,14 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
           padding: 14px;
           z-index: 120;
           box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+          max-height: min(70vh, 560px);
+          overflow-y: auto;
         }
         .audio-enhance-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 12px;
+          margin-bottom: 10px;
           font-size: 14px;
         }
         .audio-enhance-close {
@@ -172,6 +248,18 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
           color: rgba(255,255,255,0.7);
           cursor: pointer;
           font-size: 14px;
+        }
+        .audio-mode-pill {
+          font-size: 11px;
+          padding: 6px 10px;
+          border-radius: 8px;
+          margin-bottom: 10px;
+          background: rgba(255,255,255,0.06);
+          color: rgba(255,255,255,0.55);
+        }
+        .audio-mode-pill.live {
+          background: rgba(29,185,84,0.18);
+          color: #6dff9a;
         }
         .audio-power-cta {
           width: 100%;

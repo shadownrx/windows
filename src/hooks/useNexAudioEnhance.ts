@@ -17,9 +17,19 @@ export interface NexAudioSettings {
   /** Crossfade con 2 players (overlap). Si false, solo fade out/in. */
   dualCrossfade: boolean;
   preset: AudioPreset;
+  /** Preferir stream propio + Web Audio (EQ/8D real). Si falla → YouTube iframe. */
+  preferDsp: boolean;
+  /** Stereo pan oscilante (8D) — solo con pipeline DSP */
+  spatial8d: boolean;
+  /** Velocidad del barrido 8D (0–100) */
+  spatialSpeed: number;
+  /** EQ manual extra (dB), sumado al preset */
+  eqBass: number;
+  eqMid: number;
+  eqTreble: number;
 }
 
-const STORAGE_KEY = 'nexMusicAudioEnhance_v2';
+const STORAGE_KEY = 'nexMusicAudioEnhance_v3';
 
 export const DEFAULT_AUDIO_SETTINGS: NexAudioSettings = {
   hd: true,
@@ -31,6 +41,12 @@ export const DEFAULT_AUDIO_SETTINGS: NexAudioSettings = {
   punch: true,
   dualCrossfade: true,
   preset: 'loud',
+  preferDsp: true,
+  spatial8d: false,
+  spatialSpeed: 40,
+  eqBass: 0,
+  eqMid: 0,
+  eqTreble: 0,
 };
 
 const PRESET_MULT: Record<AudioPreset, number> = {
@@ -44,7 +60,10 @@ const PRESET_MULT: Record<AudioPreset, number> = {
 
 export function loadAudioSettings(): NexAudioSettings {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('nexMusicAudioEnhance');
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ||
+      localStorage.getItem('nexMusicAudioEnhance_v2') ||
+      localStorage.getItem('nexMusicAudioEnhance');
     if (!raw) return { ...DEFAULT_AUDIO_SETTINGS };
     return { ...DEFAULT_AUDIO_SETTINGS, ...JSON.parse(raw) };
   } catch {
@@ -308,9 +327,13 @@ export function useNexAudioEnhance() {
       punch: true,
       hd: true,
       dualCrossfade: true,
-      power: Math.max(prev.power, 80),
+      preferDsp: true,
+      spatial8d: true,
+      power: Math.max(prev.power, 88),
       preset: 'club',
       crossfadeSec: Math.max(prev.crossfadeSec, 3),
+      eqBass: Math.max(prev.eqBass, 2),
+      eqTreble: Math.max(prev.eqTreble, 1),
     }));
   }, []);
 

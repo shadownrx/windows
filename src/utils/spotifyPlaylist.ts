@@ -53,9 +53,22 @@ export async function fetchSpotifyPlaylist(source: string): Promise<SpotifyPlayl
   const id = parseSpotifyPlaylistId(source);
   const query = id ? `id=${encodeURIComponent(id)}` : `url=${encodeURIComponent(source.trim())}`;
   const res = await fetch(`/api/spotify/playlist?${query}`);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || 'No se pudo importar la playlist de Spotify');
+
+  let data: { error?: string } = {};
+  const text = await res.text();
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(
+      res.status === 404
+        ? 'API de Spotify no disponible en el deploy (404). Esperá el redeploy o revisá Vercel.'
+        : `Respuesta inválida del servidor (${res.status})`,
+    );
   }
+
+  if (!res.ok) {
+    throw new Error(data.error || `No se pudo importar la playlist de Spotify (${res.status})`);
+  }
+
   return data as SpotifyPlaylistApiResponse;
 }

@@ -1,20 +1,21 @@
 /**
  * GET /api/spotify/playlist?id=... | ?url=...
- * Importa metadata de una playlist pública de Spotify (Client Credentials).
+ * Importa metadata de una playlist pública de Spotify.
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getSpotifyAccessToken } from '../../lib/spotifyToken';
-
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
+const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const MAX_TRACKS = 500;
 const PAGE_SIZE = 100;
 
-const requestLog = new Map<string, number[]>();
+let accessToken = null;
+let tokenExpiresAt = 0;
+
+const requestLog = new Map();
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 10;
 
-function isRateLimited(ip: string): boolean {
+function isRateLimited(ip) {
   const now = Date.now();
   const timestamps = (requestLog.get(ip) || []).filter((t) => now - t < WINDOW_MS);
   timestamps.push(now);
@@ -22,10 +23,9 @@ function isRateLimited(ip: string): boolean {
   return timestamps.length > MAX_REQUESTS;
 }
 
-function parsePlaylistId(raw: string): string | null {
-  const input = raw.trim();
+function parsePlaylistId(raw) {
+  const input = String(raw || '').trim();
   if (!input) return null;
-
   if (/^[a-zA-Z0-9]{10,30}$/.test(input)) return input;
 
   try {
@@ -38,36 +38,61 @@ function parsePlaylistId(raw: string): string | null {
   }
 
   const uriMatch = input.match(/^spotify:playlist:([a-zA-Z0-9]+)$/i);
-  if (uriMatch) return uriMatch[1];
-
-  return null;
+  return uriMatch ? uriMatch[1] : null;
 }
 
-interface SpotifyPlaylistTrackItem {
-  track: {
-    id: string;
-    name: string;
-    artists: { name: string }[];
-    album: { images: { url: string }[] };
-    duration_ms: number;
-    uri: string;
-  } | null;
+async function getSpotifyAccessToken() {
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Faltan SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET en Vercel');
+  }
+
+  if (accessToken && Date.now() < tokenExpiresAt) {
+    return accessToken;
+  }
+
+  const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  const response = await fetch(SPOTIFY_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${authHeader}`,
+    },
+    body: 'grant_type=client_credentials',
+  });
+
+  if (!response.ok) {
+    throw new Error('No se pudo obtener token de Spotify');
+  }
+
+  const data = await response.json();
+  accessToken = data.access_token;
+  tokenExpiresAt = Date.now() + data.expires_in * 1000 - 60_000;
+  return accessToken;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0] || req.socket?.remoteAddress || 'unknown';
   if (isRateLimited(ip)) {
     return res.status(429).json({ error: 'Demasiadas solicitudes, esperá un momento.' });
   }
 
   const idParam = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
   const urlParam = Array.isArray(req.query.url) ? req.query.url[0] : req.query.url;
-  const playlistId = parsePlaylistId(String(idParam || urlParam || ''));
+  const playlistId = parsePlaylistId(idParam || urlParam || '');
 
   if (!playlistId) {
     return res.status(400).json({
@@ -78,7 +103,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const token = await getSpotifyAccessToken();
 
-    // Client Credentials no tiene país de usuario: market=from_token falla.
     const metaRes = await fetch(`${SPOTIFY_API_BASE}/playlists/${playlistId}?market=AR`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -89,28 +113,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!metaRes.ok) {
       const body = await metaRes.text();
       console.error('Spotify playlist meta:', metaRes.status, body);
-      return res.status(502).json({
-        error: 'No se pudo leer la playlist en Spotify',
-        details: body.slice(0, 200),
-      });
+      return res.status(502).json({ error: 'No se pudo leer la playlist en Spotify' });
     }
 
-    const meta = (await metaRes.json()) as {
-      name: string;
-      images: { url: string }[];
-      tracks: { total: number };
-    };
-
-    const tracks: {
-      id: string;
-      title: string;
-      artist: string;
-      cover: string;
-      duration: number;
-      uri: string;
-    }[] = [];
-
+    const meta = await metaRes.json();
+    const tracks = [];
     let offset = 0;
+
     while (tracks.length < MAX_TRACKS) {
       const itemsRes = await fetch(
         `${SPOTIFY_API_BASE}/playlists/${playlistId}/tracks?limit=${PAGE_SIZE}&offset=${offset}&market=AR`,
@@ -122,25 +131,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         break;
       }
 
-      const page = (await itemsRes.json()) as {
-        items: SpotifyPlaylistTrackItem[];
-        next: string | null;
-      };
-
-      for (const item of page.items) {
-        if (!item.track?.id) continue;
+      const page = await itemsRes.json();
+      for (const item of page.items || []) {
+        const track = item.track;
+        if (!track?.id) continue;
         tracks.push({
-          id: item.track.id,
-          title: item.track.name,
-          artist: item.track.artists.map((a) => a.name).join(', '),
-          cover: item.track.album.images[0]?.url || meta.images[0]?.url || '',
-          duration: item.track.duration_ms,
-          uri: item.track.uri,
+          id: track.id,
+          title: track.name,
+          artist: (track.artists || []).map((a) => a.name).join(', '),
+          cover: track.album?.images?.[0]?.url || meta.images?.[0]?.url || '',
+          duration: track.duration_ms,
+          uri: track.uri,
         });
         if (tracks.length >= MAX_TRACKS) break;
       }
 
-      if (!page.next || page.items.length === 0) break;
+      if (!page.next || !(page.items || []).length) break;
       offset += PAGE_SIZE;
     }
 
@@ -152,7 +158,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       id: playlistId,
       name: meta.name,
-      cover: meta.images[0]?.url || tracks[0]?.cover || '',
+      cover: meta.images?.[0]?.url || tracks[0]?.cover || '',
       trackCount: meta.tracks?.total ?? tracks.length,
       importedCount: tracks.length,
       truncated: (meta.tracks?.total ?? tracks.length) > tracks.length,
@@ -160,12 +166,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (err) {
     console.error('Error importando playlist Spotify:', err);
-    const message = err instanceof Error ? err.message : 'Error interno al importar playlist';
-    const status = message.includes('credentials') ? 503 : 500;
-    return res.status(status).json({
-      error: message.includes('credentials')
-        ? 'Faltan SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET en Vercel'
-        : message,
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : 'Error interno al importar playlist',
     });
   }
 }

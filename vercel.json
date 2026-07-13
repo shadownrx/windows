@@ -8,5 +8,13 @@
       "source": "/nex-music/",
       "destination": "/nex-music.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/spotify/playlist.js": {
+      "maxDuration": 30
+    },
+    "api/spotify/search.js": {
+      "maxDuration": 15
+    }
+  }
 }

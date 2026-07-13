@@ -14,7 +14,8 @@ import {
   type OwnerPlaylistSummary,
   type UserProfile,
 } from '../../utils/userProfiles';
-import { isFollowingCreator, toggleFollowCreator } from '../../utils/socialCloud';
+import { isFollowingCreator, toggleFollowCreator, fetchFollowStats, fetchFollowerNicknames, fetchFollowingNicknames } from '../../utils/socialCloud';
+import { useVerifiedMap } from '../../hooks/useUserProfiles';
 import {
   buildCloudPlaylistShareUrl,
   buildNexMusicHomeUrl,
@@ -58,16 +59,25 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [followers, setFollowers] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [listMode, setListMode] = useState<'followers' | 'following' | null>(null);
+  const [listNames, setListNames] = useState<string[]>([]);
+  const [listLoading, setListLoading] = useState(false);
+  const { isVerified: nickIsVerified, reasonFor } = useVerifiedMap(listNames);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, lists] = await Promise.all([
+      const [p, lists, stats] = await Promise.all([
         fetchProfileByNickname(targetNickname),
         fetchPlaylistsByOwnerNickname(targetNickname),
+        fetchFollowStats(targetNickname),
       ]);
       setProfile(p);
       setPlaylists(lists);
+      setFollowers(stats.followers);
+      setFollowingCount(stats.following);
       if (p) {
         setDisplayName(p.displayName || p.nickname);
         setBio(p.bio || '');
@@ -83,6 +93,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const openFollowList = async (mode: 'followers' | 'following') => {
+    setListMode(mode);
+    setListLoading(true);
+    try {
+      const names =
+        mode === 'followers'
+          ? await fetchFollowerNicknames(targetNickname)
+          : await fetchFollowingNicknames(targetNickname);
+      setListNames(names);
+    } finally {
+      setListLoading(false);
+    }
+  };
 
   const shareProfile = async () => {
     const url = `${buildNexMusicHomeUrl()}?user=${encodeURIComponent(targetNickname)}`;
@@ -148,6 +172,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             <div className="profile-verified-line">{verifiedReasonLabel(profile.verifiedReason)}</div>
           )}
           {profile.bio ? <p className="profile-bio">{profile.bio}</p> : null}
+          <div className="profile-stats">
+            <button type="button" className="profile-stat" onClick={() => void openFollowList('followers')}>
+              <strong>{followers}</strong>
+              <span>seguidores</span>
+            </button>
+            <button type="button" className="profile-stat" onClick={() => void openFollowList('following')}>
+              <strong>{followingCount}</strong>
+              <span>siguiendo</span>
+            </button>
+            <div className="profile-stat profile-stat-static">
+              <strong>{playlists.length}</strong>
+              <span>listas</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -195,6 +233,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                   try {
                     const on = await toggleFollowCreator(myNickname, targetNickname);
                     setFollowing(on);
+                    setFollowers((n) => Math.max(0, n + (on ? 1 : -1)));
                     showToast(on ? `Seguís a ${targetNickname}` : 'Dejaste de seguir', 'success');
                   } catch {
                     showToast('No se pudo seguir', 'info');
@@ -209,6 +248,35 @@ const ProfileView: React.FC<ProfileViewProps> = ({
           )
         )}
       </div>
+
+      {listMode && (
+        <div className="profile-follow-sheet" role="dialog" aria-label={listMode === 'followers' ? 'Seguidores' : 'Siguiendo'}>
+          <div className="profile-follow-sheet-inner">
+            <div className="profile-follow-sheet-head">
+              <strong>{listMode === 'followers' ? 'Seguidores' : 'Siguiendo'}</strong>
+              <button type="button" onClick={() => setListMode(null)} aria-label="Cerrar">
+                ✕
+              </button>
+            </div>
+            {listLoading ? (
+              <p className="profile-follow-empty">Cargando…</p>
+            ) : listNames.length === 0 ? (
+              <p className="profile-follow-empty">
+                {listMode === 'followers' ? 'Todavía no tiene seguidores' : 'Todavía no sigue a nadie'}
+              </p>
+            ) : (
+              <ul className="profile-follow-list">
+                {listNames.map((n) => (
+                  <li key={n}>
+                    <NicknameWithBadge name={n} verified={nickIsVerified(n)} reason={reasonFor(n)} />
+                    <span className="profile-follow-at">@{n}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       {isOwn && editing && (
         <form
@@ -385,6 +453,89 @@ const ProfileView: React.FC<ProfileViewProps> = ({
           font-size: 14px;
           line-height: 1.45;
           color: rgba(255,255,255,0.8);
+        }
+        .profile-stats {
+          display: flex;
+          gap: 8px;
+          margin-top: 14px;
+          flex-wrap: wrap;
+        }
+        .profile-stat {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 2px;
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 12px;
+          padding: 8px 14px;
+          color: #fff;
+          cursor: pointer;
+          font: inherit;
+          min-width: 88px;
+        }
+        .profile-stat-static { cursor: default; }
+        .profile-stat strong { font-size: 16px; font-weight: 800; }
+        .profile-stat span { font-size: 11px; color: rgba(255,255,255,0.5); }
+        .profile-follow-sheet {
+          position: fixed;
+          inset: 0;
+          z-index: 350;
+          background: rgba(0,0,0,0.55);
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          padding: 16px;
+        }
+        .profile-follow-sheet-inner {
+          width: min(420px, 100%);
+          max-height: min(60vh, 480px);
+          overflow: auto;
+          background: #12161c;
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 16px 16px 12px 12px;
+          padding: 14px;
+        }
+        .profile-follow-sheet-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+        .profile-follow-sheet-head button {
+          background: transparent;
+          border: none;
+          color: rgba(255,255,255,0.6);
+          cursor: pointer;
+          font-size: 16px;
+        }
+        .profile-follow-empty {
+          font-size: 13px;
+          color: rgba(255,255,255,0.45);
+          margin: 8px 0;
+        }
+        .profile-follow-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .profile-follow-list li {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          padding: 10px;
+          border-radius: 10px;
+          background: rgba(255,255,255,0.04);
+          font-weight: 700;
+          font-size: 14px;
+        }
+        .profile-follow-at {
+          font-size: 12px;
+          font-weight: 500;
+          color: rgba(255,255,255,0.4);
         }
         .profile-actions {
           display: flex;

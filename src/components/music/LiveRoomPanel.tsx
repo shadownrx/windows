@@ -4,9 +4,11 @@ import {
   People24Regular,
   Copy24Regular,
   Send24Regular,
+  Share24Regular,
 } from '@fluentui/react-icons';
 import type { ChatMessage, DjEqSettings, DjModeState, DjVoteEntry, LiveReaction, RoomUser } from '../../types/music';
 import DjVotePanel from './DjVotePanel';
+import { buildRoomInviteUrl, shareOrCopy, shareResultToast } from '../../utils/share';
 
 interface LiveRoomPanelProps {
   open: boolean;
@@ -65,6 +67,7 @@ export const LiveRoomPanel: React.FC<LiveRoomPanelProps> = ({
   const [joinCode, setJoinCode] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [copied, setCopied] = useState(false);
+  const [inviteBusy, setInviteBusy] = useState(false);
   const [createWithDj, setCreateWithDj] = useState(true);
 
   if (!open) return null;
@@ -83,6 +86,25 @@ export const LiveRoomPanel: React.FC<LiveRoomPanelProps> = ({
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  };
+
+  const inviteFriends = async () => {
+    if (!roomCode || inviteBusy) return;
+    setInviteBusy(true);
+    try {
+      const url = buildRoomInviteUrl(roomCode);
+      const result = await shareOrCopy({
+        title: `Sala ${roomCode} · NEX Music`,
+        text: `Unite a mi sala en NEX Music (${roomCode})`,
+        url,
+      });
+      const msg = shareResultToast(result);
+      if (msg) {
+        (window as any).__nexShowToast?.(msg, 'success');
+      }
+    } finally {
+      setInviteBusy(false);
+    }
   };
 
   const submitChat = () => {
@@ -171,7 +193,17 @@ export const LiveRoomPanel: React.FC<LiveRoomPanelProps> = ({
                 <strong>{roomCode}</strong>
                 <button type="button" className="live-copy" onClick={copyCode} title="Copiar código">
                   <Copy24Regular />
-                  {copied ? 'Copiado' : 'Copiar'}
+                  {copied ? 'Copiado' : 'Código'}
+                </button>
+                <button
+                  type="button"
+                  className="live-copy live-invite"
+                  onClick={() => void inviteFriends()}
+                  disabled={inviteBusy}
+                  title="Invitar amigos con enlace"
+                >
+                  <Share24Regular />
+                  {inviteBusy ? '…' : 'Invitar'}
                 </button>
               </div>
               <span className={`live-role ${isHost ? 'host' : 'guest'}`}>
@@ -460,6 +492,15 @@ export const LiveRoomPanel: React.FC<LiveRoomPanelProps> = ({
             color: rgba(255,255,255,0.7);
             cursor: pointer;
             font-size: 11px;
+          }
+
+          .live-invite {
+            margin-left: 0;
+            background: rgba(29,185,84,0.18);
+            border: 1px solid rgba(29,185,84,0.45);
+            border-radius: 999px;
+            padding: 6px 10px;
+            color: #1ed760;
           }
 
           .live-role {

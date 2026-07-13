@@ -42,6 +42,16 @@ import { shuffleTracks, PREVIEW_SECONDS, type CloudPlayMode } from '../../utils/
 import { fetchSpotifyPlaylist, spotifyTracksToNexTracks, startSpotifyAuth, getSpotifySession } from '../../utils/spotifyPlaylist';
 import { resolveTrackForPlayback, trackNeedsYoutubeResolution } from '../../utils/resolveTrack';
 import { getSupabase } from '../../lib/supabase';
+import {
+  buildPlaylistHashShareUrl,
+  isValidRoomCode,
+} from '../../utils/playlistShare';
+import {
+  buildNexMusicHomeUrl,
+  shareOrCopy,
+  shareResultToast,
+} from '../../utils/share';
+import { fetchCloudPlaylistById } from '../../utils/fetchCloudPlaylist';
 
 import PartyModeLayer from '../music/PartyModeLayer';
 
@@ -759,6 +769,10 @@ const SpotifyMiniStandalone: React.FC = () => {
   volumeRef.current = volume;
   const isFirstVideoLoadRef = useRef(true);
   const crossfadingRef = useRef(false);
+  const pendingRoomRef = useRef<string | null>(null);
+  const pendingCloudRef = useRef<string | null>(null);
+  const roomJoinAttemptedRef = useRef(false);
+  const cloudImportAttemptedRef = useRef(false);
 
   const showToast = (message: string, type: 'success'|'error'|'info'|'premium' = 'success') => {
     const id = Date.now();
@@ -799,6 +813,10 @@ const SpotifyMiniStandalone: React.FC = () => {
     void getSpotifySession().then((s) => setSpotifyConnected(s.connected && !s.expired));
     const params = new URLSearchParams(window.location.search);
     const spotifyStatus = params.get('spotify');
+    const room = params.get('room');
+    const cloud = params.get('cloud');
+    if (room && isValidRoomCode(room)) pendingRoomRef.current = room.toUpperCase();
+    if (cloud) pendingCloudRef.current = cloud;
     if (spotifyStatus === 'connected') {
       setSpotifyConnected(true);
       showToast('Spotify conectado ✓ Ya podés importar tus playlists', 'success');
@@ -809,6 +827,61 @@ const SpotifyMiniStandalone: React.FC = () => {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
+
+  useEffect(() => {
+    const code = pendingRoomRef.current;
+    if (!code || roomJoinAttemptedRef.current) return;
+    if (!nickname) {
+      setShowNicknameModal(true);
+      return;
+    }
+    if (!syncConnected) return;
+    roomJoinAttemptedRef.current = true;
+    setShowLivePanel(true);
+    joinLiveRoom(code, nickname);
+    showToast(`Uniéndote a la sala ${code}…`, 'info');
+    const params = new URLSearchParams(window.location.search);
+    params.delete('room');
+    const qs = params.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
+    pendingRoomRef.current = null;
+  }, [nickname, syncConnected, joinLiveRoom, setShowLivePanel]);
+
+  useEffect(() => {
+    const cloudId = pendingCloudRef.current;
+    if (!cloudId || cloudImportAttemptedRef.current) return;
+    cloudImportAttemptedRef.current = true;
+    let cancelled = false;
+    void fetchCloudPlaylistById(cloudId).then((detail) => {
+      if (cancelled) return;
+      const params = new URLSearchParams(window.location.search);
+      params.delete('cloud');
+      const qs = params.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
+      pendingCloudRef.current = null;
+      if (!detail || detail.tracks.length === 0) {
+        showToast('No se encontró esa lista en la nube', 'error');
+        return;
+      }
+      const imported: Playlist = {
+        id: detail.id,
+        name: detail.name,
+        tracks: detail.tracks,
+        cover: detail.cover,
+        createdAt: detail.createdAt,
+        isPrivate: false,
+        ownerName: detail.ownerName,
+        votes: [],
+      };
+      setPlaylists((prev) => (prev.some((p) => p.id === imported.id) ? prev : [imported, ...prev]));
+      setActivePlaylistId(imported.id);
+      setActiveTab('my-playlists');
+      showToast(`Lista "${detail.name}" lista para escuchar ☁️`, 'success');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [setPlaylists, setActivePlaylistId]);
 
   useEffect(() => {
     const onPrev = () => prevTrack();
@@ -1875,11 +1948,16 @@ const SpotifyMiniStandalone: React.FC = () => {
                                 <button
                                   className="spotify-icon-btn"
                                   onClick={() => {
-                                    const code = btoa(encodeURIComponent(JSON.stringify(activePlaylist)));
-                                    const url = `${window.location.origin}${window.location.pathname}?playlist=${code}`;
-                                    navigator.clipboard.writeText(url).then(() => {
-                                      showToast('Enlace copiado al portapapeles 🚀', 'success');
-                                    });
+                                    void (async () => {
+                                      const url = buildPlaylistHashShareUrl(activePlaylist);
+                                      const result = await shareOrCopy({
+                                        title: `${activePlaylist.name} · NEX Music`,
+                                        text: `Escuchá mi lista "${activePlaylist.name}" en NEX Music`,
+                                        url,
+                                      });
+                                      const msg = shareResultToast(result);
+                                      if (msg) showToast(msg, 'success');
+                                    })();
                                   }}
                                   title="Compartir lista"
                                 >
@@ -2107,19 +2185,17 @@ const SpotifyMiniStandalone: React.FC = () => {
             <button
               className="spotify-player-heart"
               onClick={() => {
-                const url = currentTrack.service === 'youtube'
-                  ? `https://www.youtube.com/watch?v=${currentTrack.id}`
-                  : (currentTrack.url || `https://www.youtube.com/watch?v=${currentTrack.id}`);
-                navigator.clipboard.writeText(url).then(() => {
-                  const btn = document.getElementById('share-btn');
-                  if (btn) {
-                    const oldCol = btn.style.color;
-                    btn.style.color = '#34d399';
-                    setTimeout(() => btn.style.color = oldCol, 1000);
-                  }
-                });
+                void (async () => {
+                  const result = await shareOrCopy({
+                    title: `${currentTrack.title} · NEX Music`,
+                    text: `Ahora suena: ${currentTrack.title} — ${currentTrack.artist}`,
+                    url: buildNexMusicHomeUrl(),
+                  });
+                  const msg = shareResultToast(result);
+                  if (msg) showToast(msg, 'success');
+                })();
               }}
-              title="Copiar enlace"
+              title="Compartir ahora suena"
               id="share-btn"
             >
               <Share24Regular />

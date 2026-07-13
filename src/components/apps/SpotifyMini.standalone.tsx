@@ -45,6 +45,7 @@ import LiveRoomPanel from '../music/LiveRoomPanel';
 import GlobalPlaylistsView, { PublishToCloudButton } from '../music/GlobalPlaylistsView';
 import CloudSyncBadge from '../music/CloudSyncBadge';
 import AudioEnhancePanel from '../music/AudioEnhancePanel';
+import MusicOnboardingBanner from '../music/MusicOnboardingBanner';
 import type { Track, ChatMessage, LiveReaction, RoomUser, DjEqSettings, DjModeState, DjVoteEntry, Playlist } from '../../types/music';
 import { shuffleTracks, PREVIEW_SECONDS, type CloudPlayMode } from '../../utils/cloudPlaylist';
 import { fetchSpotifyPlaylist, spotifyTracksToNexTracks, startSpotifyAuth, getSpotifySession } from '../../utils/spotifyPlaylist';
@@ -52,6 +53,18 @@ import { resolveTrackForPlayback, trackNeedsYoutubeResolution } from '../../util
 import { getSupabase } from '../../lib/supabase';
 import PartyModeLayer from '../music/PartyModeLayer';
 import { useMusicKeyboardShortcuts } from '../../hooks/useMusicKeyboardShortcuts';
+import {
+  buildPlaylistHashShareUrl,
+  decodePlaylistShareCode,
+  extractPlaylistShareCodeFromInput,
+  isValidRoomCode,
+} from '../../utils/playlistShare';
+import {
+  buildNexMusicHomeUrl,
+  shareOrCopy,
+  shareResultToast,
+} from '../../utils/share';
+import { fetchCloudPlaylistById } from '../../utils/fetchCloudPlaylist';
 
 // --- SPOTIFY SDK GLOBAL TYPES ---
 declare global {
@@ -232,55 +245,15 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
       
       if (sharedPlaylistCode) {
         try {
-          const decoded = JSON.parse(decodeURIComponent(atob(sharedPlaylistCode)));
-          let p: Playlist;
-          
-          // Detectar la estructura (array = ultra compacto)
-          if (Array.isArray(decoded)) {
-            // Ultra compact format: [name, tracks] where tracks is [[id, title, artist, cover, videoId], ...]
-            p = {
-              id: Date.now().toString(),
-              name: decoded[0],
-              tracks: (decoded[1] || []).map((tr: any) => ({
-                id: tr[0],
-                title: tr[1],
-                artist: tr[2],
-                cover: tr[3],
-                url: '',
-                service: 'youtube',
-                kind: 'video',
-                videoId: tr[4]
-              })),
-              createdAt: Date.now(),
-              isPrivate: false,
-              ownerName: 'Anonymous',
-              votes: []
-            };
-          } else {
-            // Older formats (object-based)
-            p = {
-              id: Date.now().toString(),
-              name: decoded.name || decoded.n, // Support both full and compact formats
-              tracks: (decoded.tracks || decoded.t || []).map((tr: any) => ({
-                id: tr.id || tr.i,
-                title: tr.title || tr.ti,
-                artist: tr.artist || tr.a,
-                cover: tr.cover || tr.c,
-                url: tr.url || '',
-                service: tr.service || 'youtube',
-                kind: tr.kind || 'video',
-                videoId: tr.videoId || tr.v
-              })),
-              createdAt: Date.now(),
-              isPrivate: decoded.isPrivate || false,
-              ownerName: decoded.ownerName || decoded.o || 'Anonymous',
-              votes: decoded.votes || []
-            };
+          const p = decodePlaylistShareCode(sharedPlaylistCode);
+          if (p) {
+            loadedPlaylists.push(p);
+            try {
+              localStorage.setItem('nexMusicOnboardingSeen', '1');
+            } catch { /* ignore */ }
+            window.history.replaceState({}, document.title, window.location.pathname);
+            setTimeout(() => (window as any).__nexShowToast?.(`Lista compartida "${p.name}" importada con éxito! 🎵`, 'success'), 500);
           }
-          loadedPlaylists.push(p);
-          window.history.replaceState({}, document.title, window.location.pathname);
-          // Wait briefly then show toast for UX
-          setTimeout(() => (window as any).__nexShowToast?.(`Lista compartida "${p.name}" importada con éxito! 🎵`, 'success'), 500);
         } catch (e) {
           console.error("Invalid shared playlist", e);
         }
@@ -693,8 +666,8 @@ const NicknameModal: React.FC<{
       if (nickname) onClose();
     }}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h2>¿Cuál es tu nombre?</h2>
-        <p>Tu nombre se mostrará en tus listas públicas</p>
+        <h2>¿Cómo te llamás?</h2>
+        <p>Tu nombre se usa en salas en vivo, votos y listas públicas</p>
         <form onSubmit={handleSubmit}>
           <input
             type="text"
@@ -826,6 +799,11 @@ const SpotifyMiniStandalone: React.FC = () => {
   volumeRef.current = volume;
   const isFirstVideoLoadRef = useRef(true);
   const crossfadingRef = useRef(false);
+  const pendingRoomRef = useRef<string | null>(null);
+  const pendingCloudRef = useRef<string | null>(null);
+  const roomJoinAttemptedRef = useRef(false);
+  const cloudImportAttemptedRef = useRef(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const showToast = (message: string, type: 'success'|'error'|'info'|'premium' = 'success') => {
     const id = Date.now();
@@ -908,6 +886,27 @@ const SpotifyMiniStandalone: React.FC = () => {
     }
   }, [nickname]);
 
+  // Viral deep links: ?room= / ?cloud= (+ skip onboarding)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    const cloud = params.get('cloud');
+    if (room && isValidRoomCode(room)) {
+      pendingRoomRef.current = room.toUpperCase();
+      try { localStorage.setItem('nexMusicOnboardingSeen', '1'); } catch { /* ignore */ }
+    }
+    if (cloud) {
+      pendingCloudRef.current = cloud;
+      try { localStorage.setItem('nexMusicOnboardingSeen', '1'); } catch { /* ignore */ }
+    }
+    try {
+      const seen = localStorage.getItem('nexMusicOnboardingSeen') === '1';
+      if (!seen && !room && !cloud) setShowOnboarding(true);
+    } catch {
+      setShowOnboarding(true);
+    }
+  }, []);
+
   useEffect(() => {
     void getSpotifySession().then((s) => setSpotifyConnected(s.connected && !s.expired));
     const params = new URLSearchParams(window.location.search);
@@ -916,12 +915,76 @@ const SpotifyMiniStandalone: React.FC = () => {
       setSpotifyConnected(true);
       showToast('Spotify conectado ✓ Ya podés importar tus playlists', 'success');
       setShowSpotifyImportModal(true);
-      window.history.replaceState({}, '', window.location.pathname);
+      const next = new URLSearchParams(window.location.search);
+      next.delete('spotify');
+      const qs = next.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
     } else if (spotifyStatus === 'error' || spotifyStatus === 'token_error') {
       showToast('No se pudo conectar Spotify. Revisá el redirect URI en el Dashboard.', 'error');
-      window.history.replaceState({}, '', window.location.pathname);
+      const next = new URLSearchParams(window.location.search);
+      next.delete('spotify');
+      const qs = next.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
     }
   }, []);
+
+  useEffect(() => {
+    const code = pendingRoomRef.current;
+    if (!code || roomJoinAttemptedRef.current) return;
+    if (!nickname) {
+      setShowNicknameModal(true);
+      return;
+    }
+    if (!syncConnected) return;
+    roomJoinAttemptedRef.current = true;
+    setShowLivePanel(true);
+    joinLiveRoom(code, nickname);
+    showToast(`Uniéndote a la sala ${code}…`, 'info');
+    const params = new URLSearchParams(window.location.search);
+    params.delete('room');
+    const qs = params.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
+    pendingRoomRef.current = null;
+  }, [nickname, syncConnected, joinLiveRoom, setShowLivePanel]);
+
+  useEffect(() => {
+    const cloudId = pendingCloudRef.current;
+    if (!cloudId || cloudImportAttemptedRef.current) return;
+    cloudImportAttemptedRef.current = true;
+    let cancelled = false;
+    void fetchCloudPlaylistById(cloudId).then((detail) => {
+      if (cancelled) return;
+      const params = new URLSearchParams(window.location.search);
+      params.delete('cloud');
+      const qs = params.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
+      pendingCloudRef.current = null;
+      if (!detail || detail.tracks.length === 0) {
+        showToast('No se encontró esa lista en la nube', 'error');
+        return;
+      }
+      const imported: Playlist = {
+        id: detail.id,
+        name: detail.name,
+        tracks: detail.tracks,
+        cover: detail.cover,
+        createdAt: detail.createdAt,
+        isPrivate: false,
+        ownerName: detail.ownerName,
+        votes: [],
+      };
+      setPlaylists((prev) => {
+        if (prev.some((p) => p.id === imported.id)) return prev;
+        return [imported, ...prev];
+      });
+      setActivePlaylistId(imported.id);
+      setActiveTab('my-playlists');
+      showToast(`Lista "${detail.name}" lista para escuchar ☁️`, 'success');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [setPlaylists, setActivePlaylistId]);
 
   useEffect(() => {
     const onPrev = () => prevTrack();
@@ -1434,64 +1497,9 @@ const SpotifyMiniStandalone: React.FC = () => {
               const data = importCode.trim();
               if (!data) return;
               try {
-                let code = data;
-                try {
-                  const url = new URL(data);
-                  // Try query params first (backward compatibility)
-                  code = url.searchParams.get('playlist') || data;
-                  // If not found, try hash
-                  if (code === data && url.hash) {
-                    const hashParts = url.hash.split('/');
-                    if (hashParts.length > 1) {
-                      code = hashParts[hashParts.length - 1];
-                    }
-                  }
-                } catch {}
-                const decoded = JSON.parse(decodeURIComponent(atob(code)));
-                let p: Playlist;
-                
-                // Detectar la estructura (array = ultra compacto)
-                if (Array.isArray(decoded)) {
-                  // Ultra compact format: [name, tracks] where tracks is [[id, title, artist, cover, videoId], ...]
-                  p = {
-                    id: Date.now().toString(),
-                    name: decoded[0],
-                    tracks: (decoded[1] || []).map((tr: any) => ({
-                      id: tr[0],
-                      title: tr[1],
-                      artist: tr[2],
-                      cover: tr[3],
-                      url: '',
-                      service: 'youtube',
-                      kind: 'video',
-                      videoId: tr[4]
-                    })),
-                    createdAt: Date.now(),
-                    isPrivate: false,
-                    ownerName: 'Anonymous',
-                    votes: []
-                  };
-                } else {
-                  // Older formats (object-based)
-                  p = {
-                    id: Date.now().toString(),
-                    name: decoded.name || decoded.n,
-                    tracks: (decoded.tracks || decoded.t || []).map((tr: any) => ({
-                      id: tr.id || tr.i,
-                      title: tr.title || tr.ti,
-                      artist: tr.artist || tr.a,
-                      cover: tr.cover || tr.c,
-                      url: tr.url || '',
-                      service: tr.service || 'youtube',
-                      kind: tr.kind || 'video',
-                      videoId: tr.videoId || tr.v
-                    })),
-                    createdAt: Date.now(),
-                    isPrivate: decoded.isPrivate || false,
-                    ownerName: decoded.ownerName || decoded.o || 'Anonymous',
-                    votes: decoded.votes || []
-                  };
-                }
+                const code = extractPlaylistShareCodeFromInput(data);
+                const p = code ? decodePlaylistShareCode(code) : null;
+                if (!p) throw new Error('invalid');
                 setPlaylists([...playlists, p]);
                 setImportCode('');
                 setShowImportModal(false);
@@ -2123,24 +2131,16 @@ const SpotifyMiniStandalone: React.FC = () => {
                               <button
                                 className="spotify-icon-btn"
                                 onClick={() => {
-                                  // Versión ultra compacta de la playlist (solo lo imprescindible)
-                                  const compactPlaylist = [
-                                    activePlaylist.name, // index 0: name
-                                    activePlaylist.tracks.map(tr => [
-                                      tr.id, // 0
-                                      tr.title, // 1
-                                      tr.artist, // 2
-                                      tr.cover, // 3
-                                      tr.videoId // 4
-                                    ]) // index 1: tracks
-                                  ];
-                                  const code = btoa(encodeURIComponent(JSON.stringify(compactPlaylist)));
-                                  // Usamos hash y slug legible
-                                  const slug = encodeURIComponent(activePlaylist.name.toLowerCase().replace(/\s+/g, '-'));
-                                  const url = `${window.location.origin}${window.location.pathname}#${slug}/${code}`;
-                                  navigator.clipboard.writeText(url).then(() => {
-                                    showToast('Enlace copiado al portapapeles 🚀', 'success');
-                                  });
+                                  void (async () => {
+                                    const url = buildPlaylistHashShareUrl(activePlaylist);
+                                    const result = await shareOrCopy({
+                                      title: `${activePlaylist.name} · NEX Music`,
+                                      text: `Escuchá mi lista "${activePlaylist.name}" en NEX Music`,
+                                      url,
+                                    });
+                                    const msg = shareResultToast(result);
+                                    if (msg) showToast(msg, 'success');
+                                  })();
                                 }}
                                 title="Compartir lista"
                               >
@@ -2356,19 +2356,17 @@ const SpotifyMiniStandalone: React.FC = () => {
             <button
               className="spotify-player-heart"
               onClick={() => {
-                const url = currentTrack.service === 'youtube'
-                  ? `https://www.youtube.com/watch?v=${currentTrack.id}`
-                  : (currentTrack.url || `https://www.youtube.com/watch?v=${currentTrack.id}`);
-                navigator.clipboard.writeText(url).then(() => {
-                  const btn = document.getElementById('share-btn');
-                  if (btn) {
-                    const oldCol = btn.style.color;
-                    btn.style.color = '#34d399';
-                    setTimeout(() => btn.style.color = oldCol, 1000);
-                  }
-                });
+                void (async () => {
+                  const result = await shareOrCopy({
+                    title: `${currentTrack.title} · NEX Music`,
+                    text: `Ahora suena: ${currentTrack.title} — ${currentTrack.artist}`,
+                    url: buildNexMusicHomeUrl(),
+                  });
+                  const msg = shareResultToast(result);
+                  if (msg) showToast(msg, 'success');
+                })();
               }}
-              title="Copiar enlace"
+              title="Compartir ahora suena"
               id="share-btn"
             >
               <Share24Regular />
@@ -2476,6 +2474,31 @@ const SpotifyMiniStandalone: React.FC = () => {
           </div>
         </div>
       )}
+
+      <MusicOnboardingBanner
+        open={showOnboarding && !showNicknameModal}
+        onDismiss={() => {
+          setShowOnboarding(false);
+          try { localStorage.setItem('nexMusicOnboardingSeen', '1'); } catch { /* ignore */ }
+        }}
+        onConnectSpotify={() => {
+          setShowOnboarding(false);
+          try { localStorage.setItem('nexMusicOnboardingSeen', '1'); } catch { /* ignore */ }
+          if (spotifyConnected) setShowSpotifyImportModal(true);
+          else startSpotifyAuth(window.location.pathname || '/nex-music');
+        }}
+        onExploreGlobal={() => {
+          setShowOnboarding(false);
+          try { localStorage.setItem('nexMusicOnboardingSeen', '1'); } catch { /* ignore */ }
+          setActiveTab('global-playlists');
+          closeSidebar();
+        }}
+        onCreateRoom={() => {
+          setShowOnboarding(false);
+          try { localStorage.setItem('nexMusicOnboardingSeen', '1'); } catch { /* ignore */ }
+          setShowLivePanel(true);
+        }}
+      />
 
       <LiveRoomPanel
         open={showLivePanel}

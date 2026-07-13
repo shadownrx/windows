@@ -8,6 +8,7 @@ import {
   CloudArrowUp24Regular,
   ArrowShuffle24Filled,
   Clock24Regular,
+  Share24Regular,
 } from '@fluentui/react-icons';
 import {
   REACTION_EMOJIS,
@@ -17,6 +18,11 @@ import {
 import { isSupabaseConfigured, getSupabaseErrorMessage } from '../../lib/supabase';
 import type { CloudPlayMode } from '../../utils/cloudPlaylist';
 import type { Playlist, Track } from '../../types/music';
+import {
+  buildCloudPlaylistShareUrl,
+  shareOrCopy,
+  shareResultToast,
+} from '../../utils/share';
 
 interface SupabaseAuthProps {
   supabaseUserId: string | null;
@@ -101,6 +107,14 @@ export const PublishToCloudButton: React.FC<{
         wasUpdate ? 'Lista actualizada en la nube ☁️' : 'Lista publicada en la comunidad ☁️',
         'success',
       );
+      const shareUrl = buildCloudPlaylistShareUrl(id);
+      const result = await shareOrCopy({
+        title: `${playlist.name} · NEX Music`,
+        text: `Escuchá "${playlist.name}" en NEX Music`,
+        url: shareUrl,
+      });
+      const msg = shareResultToast(result);
+      if (msg) showToast(msg, 'success');
     } catch (err) {
       console.error('[NEX Music] publish:', err);
       showToast(getSupabaseErrorMessage(err, 'No se pudo publicar. Revisá Supabase.'), 'error');
@@ -111,16 +125,39 @@ export const PublishToCloudButton: React.FC<{
   };
 
   return (
-    <button
-      type="button"
-      className={`spotify-btn-secondary publish-cloud-btn${publishing ? ' publish-cloud-loading' : ''}`}
-      disabled={publishing}
-      onClick={() => void handlePublish()}
-      title="Publicar en listas globales (tiempo real)"
-    >
-      <CloudArrowUp24Regular />
-      {publishing ? 'Publicando…' : cloudId ? 'Actualizar nube' : 'Publicar en nube'}
-    </button>
+    <>
+      <button
+        type="button"
+        className={`spotify-btn-secondary publish-cloud-btn${publishing ? ' publish-cloud-loading' : ''}`}
+        disabled={publishing}
+        onClick={() => void handlePublish()}
+        title="Publicar en listas globales (tiempo real)"
+      >
+        <CloudArrowUp24Regular />
+        {publishing ? 'Publicando…' : cloudId ? 'Actualizar nube' : 'Publicar en nube'}
+      </button>
+      {cloudId && (
+        <button
+          type="button"
+          className="spotify-btn-secondary publish-cloud-btn"
+          onClick={() => {
+            void (async () => {
+              const result = await shareOrCopy({
+                title: `${playlist.name} · NEX Music`,
+                text: `Escuchá "${playlist.name}" en NEX Music`,
+                url: buildCloudPlaylistShareUrl(cloudId),
+              });
+              const msg = shareResultToast(result);
+              if (msg) showToast(msg, 'success');
+            })();
+          }}
+          title="Compartir enlace de la nube"
+        >
+          <Share24Regular />
+          Compartir enlace
+        </button>
+      )}
+    </>
   );
 };
 
@@ -240,6 +277,24 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
               onClick={() => handleCloudPlay(cloudView, 'shuffle')}
             >
               <ArrowShuffle24Filled />
+            </button>
+            <button
+              type="button"
+              className="global-action-btn"
+              title="Compartir lista"
+              onClick={() => {
+                void (async () => {
+                  const result = await shareOrCopy({
+                    title: `${cloudView.name} · NEX Music`,
+                    text: `Escuchá "${cloudView.name}" de ${cloudView.ownerName} en NEX Music`,
+                    url: buildCloudPlaylistShareUrl(cloudView.id),
+                  });
+                  const msg = shareResultToast(result);
+                  if (msg) showToast(msg, 'success');
+                })();
+              }}
+            >
+              <Share24Regular />
             </button>
           </div>
         )}

@@ -44,6 +44,8 @@ import GlobalPlaylistsView, { PublishToCloudButton } from '../music/GlobalPlayli
 import CloudSyncBadge from '../music/CloudSyncBadge';
 import type { Track, ChatMessage, LiveReaction, RoomUser, DjEqSettings, DjModeState, DjVoteEntry, Playlist } from '../../types/music';
 import { shuffleTracks, PREVIEW_SECONDS, type CloudPlayMode } from '../../utils/cloudPlaylist';
+import { fetchSpotifyPlaylist, spotifyTracksToNexTracks } from '../../utils/spotifyPlaylist';
+import { resolveTrackForPlayback, trackNeedsYoutubeResolution } from '../../utils/resolveTrack';
 import { getSupabase } from '../../lib/supabase';
 import PartyModeLayer from '../music/PartyModeLayer';
 
@@ -93,7 +95,7 @@ interface SpotifyMiniContextType {
   favorites: Track[];
   history: Track[];
   showLyrics: boolean;
-  playTrack: (track: Track) => void;
+  playTrack: (track: Track) => void | Promise<void>;
   togglePlay: () => void;
   nextTrack: () => void;
   prevTrack: () => void;
@@ -361,13 +363,25 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
     sync.broadcastQueue(queue);
   }, [queue, sync.isHost, sync.roomCode, sync.broadcastQueue]);
 
-  const playTrack = useCallback((track: Track) => {
-    setCurrentTrack(track);
+  const playTrack = useCallback(async (track: Track) => {
+    let playable = track;
+    if (trackNeedsYoutubeResolution(track)) {
+      const resolved = await resolveTrackForPlayback(track);
+      if (!resolved) {
+        (window as any).__nexShowToast?.(
+          `No se encontró "${track.title}" en YouTube`,
+          'error',
+        );
+        return;
+      }
+      playable = resolved;
+    }
+    setCurrentTrack(playable);
     setIsPlaying(true);
     setProgress(0);
     setHistory(prev => {
       const filtered = prev.filter(t => t.id !== track.id);
-      return [track, ...filtered].slice(0, 50);
+      return [playable, ...filtered].slice(0, 50);
     });
   }, []);
 
@@ -766,6 +780,9 @@ const SpotifyMiniStandalone: React.FC = () => {
   const [toasts, setToasts] = useState<{id: number; message: string; type: 'success'|'error'|'info'|'premium'}[]>([]);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importCode, setImportCode] = useState('');
+  const [showSpotifyImportModal, setShowSpotifyImportModal] = useState(false);
+  const [spotifyImportUrl, setSpotifyImportUrl] = useState('');
+  const [spotifyImporting, setSpotifyImporting] = useState(false);
 
   const showToast = (message: string, type: 'success'|'error'|'info'|'premium' = 'success') => {
     const id = Date.now();
@@ -790,6 +807,10 @@ const SpotifyMiniStandalone: React.FC = () => {
       setShowImportModal(false);
       return;
     }
+    if (showSpotifyImportModal) {
+      setShowSpotifyImportModal(false);
+      return;
+    }
     if (showNicknameModal && nickname) {
       setShowNicknameModal(false);
       return;
@@ -809,6 +830,7 @@ const SpotifyMiniStandalone: React.FC = () => {
     setShowLivePanel,
     showAddPlaylistModal,
     showImportModal,
+    showSpotifyImportModal,
     showNicknameModal,
     nickname,
     isStandalonePwa,
@@ -1094,29 +1116,14 @@ const SpotifyMiniStandalone: React.FC = () => {
 
   const resolveSearchToTrack = async (result: SearchResult | SpotifyResult | YouTubeResult): Promise<Track | null> => {
     if ('service' in result && result.service === 'spotify') {
-      try {
-        const searchQuery = `${result.title} ${result.artist}`;
-        const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(searchQuery)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.results?.length > 0) {
-            const firstResult = data.results[0];
-            return {
-              id: firstResult.id,
-              title: firstResult.title,
-              artist: firstResult.channelTitle,
-              cover: firstResult.thumbnail,
-              url: '',
-              service: 'youtube',
-              kind: firstResult.kind,
-              videoId: firstResult.id,
-            };
-          }
-        }
-      } catch (err) {
-        console.error('Error resolving Spotify track:', err);
-      }
-      return null;
+      return resolveTrackForPlayback({
+        id: `spotify:${result.id}`,
+        title: result.title,
+        artist: result.artist,
+        cover: result.cover,
+        url: '',
+        service: 'spotify',
+      });
     }
     const yt = result as YouTubeResult;
     return {
@@ -1206,6 +1213,46 @@ const SpotifyMiniStandalone: React.FC = () => {
       next ? 'Party Mode · Experiencia 3D activada ✨' : 'Party Mode desactivado',
       next ? 'premium' : 'info',
     );
+  };
+
+  const handleSpotifyImport = async () => {
+    const source = spotifyImportUrl.trim();
+    if (!source || spotifyImporting) return;
+
+    setSpotifyImporting(true);
+    try {
+      const data = await fetchSpotifyPlaylist(source);
+      const imported: Playlist = {
+        id: Date.now().toString(),
+        name: data.name,
+        cover: data.cover,
+        tracks: spotifyTracksToNexTracks(data.tracks),
+        createdAt: Date.now(),
+        isPrivate: false,
+        ownerName: nickname || 'Spotify',
+        votes: [],
+      };
+
+      setPlaylists((prev) => [...prev, imported]);
+      setSpotifyImportUrl('');
+      setShowSpotifyImportModal(false);
+      setActiveTab('my-playlists');
+      setActivePlaylistId(imported.id);
+
+      showToast(
+        data.truncated
+          ? `"${data.name}" importada (${data.importedCount}/${data.trackCount} canciones)`
+          : `"${data.name}" importada · ${data.importedCount} canciones 🎵`,
+        'success',
+      );
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : 'No se pudo importar la playlist de Spotify',
+        'error',
+      );
+    } finally {
+      setSpotifyImporting(false);
+    }
   };
 
   return (
@@ -1345,6 +1392,47 @@ const SpotifyMiniStandalone: React.FC = () => {
               <div className="modal-actions">
                 <button type="button" className="modal-btn-secondary" onClick={() => setShowImportModal(false)}>Cancelar</button>
                 <button type="submit" className="modal-btn-primary">Importar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- SPOTIFY IMPORT MODAL --- */}
+      {showSpotifyImportModal && (
+        <div className="modal-overlay" onClick={() => !spotifyImporting && setShowSpotifyImportModal(false)}>
+          <div className="modal-content spotify-import-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Importar de Spotify</h2>
+            <p>Pegá el enlace de una playlist <strong>pública</strong> de Spotify.</p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleSpotifyImport();
+              }}
+            >
+              <input
+                type="url"
+                value={spotifyImportUrl}
+                onChange={(e) => setSpotifyImportUrl(e.target.value)}
+                placeholder="https://open.spotify.com/playlist/..."
+                autoFocus
+                disabled={spotifyImporting}
+              />
+              <p className="modal-hint">
+                Las canciones se reproducen vía YouTube al dar play (puede tardar unos segundos).
+              </p>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="modal-btn-secondary"
+                  onClick={() => setShowSpotifyImportModal(false)}
+                  disabled={spotifyImporting}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="modal-btn-primary spotify-import-submit" disabled={spotifyImporting || !spotifyImportUrl.trim()}>
+                  {spotifyImporting ? 'Importando…' : 'Importar playlist'}
+                </button>
               </div>
             </form>
           </div>
@@ -1734,6 +1822,13 @@ const SpotifyMiniStandalone: React.FC = () => {
                 <div className="header-actions">
                   <button
                     type="button"
+                    className="spotify-btn-secondary spotify-import-spotify-btn"
+                    onClick={() => setShowSpotifyImportModal(true)}
+                  >
+                    Spotify
+                  </button>
+                  <button
+                    type="button"
                     className="spotify-btn-secondary"
                     onClick={() => setShowImportModal(true)}
                   >
@@ -1899,7 +1994,12 @@ const SpotifyMiniStandalone: React.FC = () => {
                               </div>
                               <div className="spotify-track-main">
                                 <div className="spotify-track-title">{track.title}</div>
-                                <div className="spotify-track-artist">{track.artist}</div>
+                                <div className="spotify-track-artist">
+                                  {track.artist}
+                                  {track.service === 'spotify' && !track.videoId && (
+                                    <span className="spotify-track-spotify-tag">Spotify → YT</span>
+                                  )}
+                                </div>
                               </div>
                               <button
                                 className="spotify-track-btn"
@@ -2266,6 +2366,32 @@ const SpotifyMiniStandalone: React.FC = () => {
         .modal-content p {
           color: rgba(255,255,255,0.6);
           margin-bottom: 24px;
+        }
+
+        .modal-hint {
+          color: rgba(255,255,255,0.5);
+          font-size: 13px;
+          line-height: 1.45;
+          margin: -8px 0 16px;
+        }
+
+        .spotify-import-spotify-btn {
+          border-color: rgba(30, 215, 96, 0.45);
+          color: #1ed760;
+        }
+
+        .spotify-import-spotify-btn:hover {
+          background: rgba(30, 215, 96, 0.12);
+          border-color: rgba(30, 215, 96, 0.65);
+        }
+
+        .spotify-track-spotify-tag {
+          display: inline-block;
+          margin-left: 6px;
+          font-size: 10px;
+          font-weight: 700;
+          color: #1ed760;
+          vertical-align: middle;
         }
 
         .modal-content input {

@@ -1,0 +1,26 @@
+{
+  "name": "@nex-os/sdk",
+  "version": "0.1.0",
+  "description": "SDK para crear apps en NEX OS",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "nex-os",
+    "sdk",
+    "apps",
+    "desktop"
+  ]
+}

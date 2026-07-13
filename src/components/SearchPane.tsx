@@ -9,7 +9,8 @@ import {
   ChevronRight24Regular,
   Grid24Filled,
 } from '@fluentui/react-icons';
-import { APPS, type AppItem } from '../constants/apps';
+import { type AppItem } from '../constants/apps';
+import { useLauncherApps } from '../hooks/useLauncherApps';
 import { useWindowManager } from '../context/WindowManager';
 
 interface SearchPaneProps {
@@ -20,13 +21,14 @@ interface SearchPaneProps {
 const SearchPane: React.FC<SearchPaneProps> = ({ isOpen, onClose }) => {
   const [query, setQuery] = useState('');
   const { openWindow } = useWindowManager();
+  const apps = useLauncherApps();
 
   const filteredApps = useMemo(() => {
     if (!query) return [];
-    return APPS.filter(app => 
+    return apps.filter(app => 
       app.label.toLowerCase().includes(query.toLowerCase())
     ).slice(0, 5);
-  }, [query]);
+  }, [query, apps]);
 
   if (!isOpen) return null;
 
@@ -60,7 +62,7 @@ const SearchPane: React.FC<SearchPaneProps> = ({ isOpen, onClose }) => {
               <div className="search-section">
                 <div className="section-title">Aplicaciones principales</div>
                 <div className="top-apps-grid">
-                  {APPS.slice(0, 5).map((app: AppItem) => (
+                  {apps.slice(0, 5).map((app: AppItem) => (
                     <div key={app.id} className="top-app-item" onClick={() => { openWindow(app.id, app.appId, app.label, app.icon); onClose(); }}>
                       <div className="top-app-icon">{app.icon}</div>
                       <div className="top-app-label">{app.label}</div>

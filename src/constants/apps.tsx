@@ -21,8 +21,8 @@ import {
  * Notes:
  * - We intentionally do NOT eagerly import the heavy app components here.
  *   They are loaded on demand via {@link AppRegistry} using the `appId` field.
- * - Adding a new app: register it in `AppRegistry.tsx` and add an `AppItem`
- *   entry below.
+ * - Built-in apps: register in `AppRegistry.tsx` and add an `AppItem` below.
+ * - Community apps: use `@nex-os/sdk` (`defineApp`) + import in `community-apps/`.
  */
 export interface AppItem {
   /** Unique identifier (also used as the window id by default) */

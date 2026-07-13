@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vite.dev/config/
 // Proxy: durante `npm run dev`, las llamadas a /api/* se reenvían al servidor
@@ -9,6 +13,11 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   // VITE_* es el estándar; NEXT_PUBLIC_* queda por compatibilidad con deploys viejos
   envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
+  resolve: {
+    alias: {
+      '@nex-os/sdk': path.resolve(rootDir, 'packages/nex-os-sdk/src'),
+    },
+  },
   server: {
     port: 5173,
     proxy: {
@@ -32,6 +41,9 @@ export default defineConfig({
     fs: {
       allow: ['..'],
     },
+  },
+  optimizeDeps: {
+    include: ['@monaco-editor/react'],
   },
   build: {
     rollupOptions: {
@@ -89,6 +101,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}'],
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

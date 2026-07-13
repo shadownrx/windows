@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search24Regular, 
@@ -17,6 +17,7 @@ import {
   Code24Regular,
   Book24Regular,
 } from '@fluentui/react-icons';
+import { getCommunityLauncherItems, subscribeRegistry } from '@nex-os/sdk';
 import { useWindowManager } from '../context/WindowManager';
 
 import { useSettings } from '../context/SettingsContext';
@@ -43,26 +44,41 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
   const [showPowerMenu, setShowPowerMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const pinnedApps: App[] = [
-    { id: 'browser', appId: 'browser', icon: <Globe24Regular />, name: 'Edge', color: '#0078d4' },
-    { id: 'files', appId: 'file-explorer', icon: <Folder24Regular />, name: 'Explorador', color: '#f1c40f' },
-    { id: 'notepad', appId: 'notepad', icon: <Document24Regular />, name: 'Bloc de notas', color: '#4CAF50' },
-    { id: 'calculator', appId: 'calculator', icon: <Calculator24Regular />, name: 'Calculadora', color: '#D32F2F' },
-    { id: 'cmd', appId: 'cmd', icon: <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, name: 'Terminal', color: '#64b5f6' },
-    { id: 'paint', appId: 'paint', icon: <Edit24Regular />, name: 'Paint', color: '#FF6E40' },
-    { id: 'wordpad', appId: 'wordpad', icon: <Document24Regular />, name: 'WordPad', color: '#4CAF50' },
-    { id: 'task-manager', appId: 'taskmanager', icon: <Apps24Regular />, name: 'Admin. tareas', color: '#2196F3' },
-    { id: 'control-panel', appId: 'control-panel', icon: <Settings24Regular />, name: 'Configuración', color: '#757575' },
-    { id: 'calendar', appId: 'calendar', icon: <Calendar24Regular />, name: 'Calendario', color: '#E91E63' },
-    { id: 'search', appId: 'search', icon: <Search24Regular />, name: 'Buscar', color: '#FF9800' },
-    { id: 'defender', appId: 'defender', icon: <ShieldCheckmark24Regular />, name: 'Seguridad', color: '#008a17' },
-    { id: 'devcpp-2026', appId: 'devcpp-2026', icon: <Code24Regular primaryFill="#3b82f6" />, name: 'Dev-C++ 2026', color: '#3b82f6' },
-    { id: 'manual', appId: 'manual', icon: <Book24Regular />, name: 'Manual', color: '#3b82f6' },
-    { id: 'clock', appId: 'clock', icon: <span style={{ fontSize: 20 }}>🕐</span>, name: 'Reloj', color: '#60cdff' },
-    { id: 'photos', appId: 'photos', icon: <span style={{ fontSize: 20 }}>📷</span>, name: 'Fotos', color: '#ff6b6b' },
-    { id: 'nexreproductor', appId: 'nexreproductor', icon: <span style={{ fontSize: 20 }}>🎵</span>, name: 'NexReproductor', color: '#1db954' },
-  ];
+  const [registryTick, setRegistryTick] = useState(0);
+  useEffect(() => subscribeRegistry(() => setRegistryTick((n) => n + 1)), []);
 
+  const pinnedApps: App[] = useMemo(() => {
+    const builtins: App[] = [
+      { id: 'browser', appId: 'browser', icon: <Globe24Regular />, name: 'Edge', color: '#0078d4' },
+      { id: 'files', appId: 'file-explorer', icon: <Folder24Regular />, name: 'Explorador', color: '#f1c40f' },
+      { id: 'notepad', appId: 'notepad', icon: <Document24Regular />, name: 'Bloc de notas', color: '#4CAF50' },
+      { id: 'calculator', appId: 'calculator', icon: <Calculator24Regular />, name: 'Calculadora', color: '#D32F2F' },
+      { id: 'cmd', appId: 'cmd', icon: <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, name: 'Terminal', color: '#64b5f6' },
+      { id: 'paint', appId: 'paint', icon: <Edit24Regular />, name: 'Paint', color: '#FF6E40' },
+      { id: 'wordpad', appId: 'wordpad', icon: <Document24Regular />, name: 'WordPad', color: '#4CAF50' },
+      { id: 'task-manager', appId: 'taskmanager', icon: <Apps24Regular />, name: 'Admin. tareas', color: '#2196F3' },
+      { id: 'control-panel', appId: 'control-panel', icon: <Settings24Regular />, name: 'Configuración', color: '#757575' },
+      { id: 'calendar', appId: 'calendar', icon: <Calendar24Regular />, name: 'Calendario', color: '#E91E63' },
+      { id: 'search', appId: 'search', icon: <Search24Regular />, name: 'Buscar', color: '#FF9800' },
+      { id: 'defender', appId: 'defender', icon: <ShieldCheckmark24Regular />, name: 'Seguridad', color: '#008a17' },
+      { id: 'devcpp-2026', appId: 'devcpp-2026', icon: <Code24Regular primaryFill="#3b82f6" />, name: 'Dev-C++ 2026', color: '#3b82f6' },
+      { id: 'manual', appId: 'manual', icon: <Book24Regular />, name: 'Manual', color: '#3b82f6' },
+      { id: 'clock', appId: 'clock', icon: <span style={{ fontSize: 20 }}>🕐</span>, name: 'Reloj', color: '#60cdff' },
+      { id: 'photos', appId: 'photos', icon: <span style={{ fontSize: 20 }}>📷</span>, name: 'Fotos', color: '#ff6b6b' },
+      { id: 'nexreproductor', appId: 'nexreproductor', icon: <span style={{ fontSize: 20 }}>🎵</span>, name: 'NexReproductor', color: '#1db954' },
+    ];
+    const builtinIds = new Set(builtins.map((a) => a.id));
+    const community = getCommunityLauncherItems()
+      .filter((item) => !builtinIds.has(item.id))
+      .map((item) => ({
+        id: item.id,
+        appId: item.appId,
+        icon: item.icon,
+        name: item.label,
+        color: '#1d9bf0',
+      }));
+    return [...builtins, ...community];
+  }, [registryTick]);
 
   const recommended = [
     { name: 'Informe Financiero', date: 'Agregado recientemente' },

@@ -7,6 +7,11 @@
     "module": "ESNext",
     "types": ["vite/client"],
     "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@nex-os/sdk": ["./packages/nex-os-sdk/src/index.ts"],
+      "@nex-os/sdk/*": ["./packages/nex-os-sdk/src/*"]
+    },
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -18,11 +23,11 @@
 
     /* Linting */
     "strict": true,
-    "noUnusedLocals": false,      // <--- Cambiá a false
-    "noUnusedParameters": false,  // <--- Cambiá a false
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src", "packages/nex-os-sdk/src"]
 }

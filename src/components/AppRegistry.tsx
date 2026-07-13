@@ -1,6 +1,7 @@
-import React, { Suspense, type LazyExoticComponent, type ComponentType } from 'react';
+import React, { Suspense, useEffect, useState, type ComponentType, type LazyExoticComponent } from 'react';
+import { getRegisteredApp, subscribeRegistry } from '@nex-os/sdk';
 
-// Lazy-load every app so the initial bundle stays small.
+// Lazy-load every built-in app so the initial bundle stays small.
 const RecycleBin = React.lazy(() => import('./apps/RecycleBin'));
 const Notepad = React.lazy(() => import('./apps/Notepad'));
 const FileExplorer = React.lazy(() => import('./apps/FileExplorer'));
@@ -33,40 +34,41 @@ interface AppRegistryProps {
   appProps?: Record<string, unknown>;
 }
 
-// Centralised lookup: easier to extend than a switch.
 type AnyLazy = LazyExoticComponent<ComponentType<any>>;
-const REGISTRY: Record<string, AnyLazy> = {
+const BUILTIN: Record<string, AnyLazy> = {
   'recycle-bin': RecycleBin,
-  'notepad': Notepad,
+  notepad: Notepad,
   'file-explorer': FileExplorer,
-  'files': FileExplorer,
-  'taskmanager': TaskManager,
+  files: FileExplorer,
+  taskmanager: TaskManager,
   'task-manager': TaskManager,
-  'cmd': Cmd,
-  'terminal': Terminal,
-  'chrome': BrowserApp,
-  'browser': BrowserApp,
-  'ie': IEApp,
+  cmd: Cmd,
+  terminal: Terminal,
+  chrome: BrowserApp,
+  browser: BrowserApp,
+  ie: IEApp,
   'counter-strike': CounterStrikeApp,
-  'defender': WindowsDefender,
+  defender: WindowsDefender,
   'devcpp-2026': DevCpp2026,
   'control-panel': ControlPanel,
-  'settings': Settings,
-  'paint': Paint,
-  'wordpad': WordPad,
-  'calendar': Calendar,
-  'search': SearchApp,
-  'manual': ManualApp,
-  'calculator': Calculator,
-  'clock': Clock,
-  'mediaplayer': MediaPlayer,
+  settings: Settings,
+  paint: Paint,
+  wordpad: WordPad,
+  calendar: Calendar,
+  search: SearchApp,
+  manual: ManualApp,
+  calculator: Calculator,
+  clock: Clock,
+  mediaplayer: MediaPlayer,
   'media-player': MediaPlayer,
   'image-viewer': ImageViewer,
-  'photos': Photos,
-  'nexreproductor': SpotifyMini,
-  'spotify': SpotifyMini,
+  photos: Photos,
+  nexreproductor: SpotifyMini,
+  spotify: SpotifyMini,
   'Nex Code': VsCode,
-  'hermes': HermesAgent,
+  vscode: VsCode,
+  'nex-code': VsCode,
+  hermes: HermesAgent,
   'hermes-agent': HermesAgent,
 };
 
@@ -113,12 +115,24 @@ const NotFound: React.FC<{ appId: string }> = ({ appId }) => (
     <div style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.6 }}>📦</div>
     <h2 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>Aplicación no encontrada</h2>
     <p style={{ margin: 0, color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>
-      No se pudo abrir <code style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '3px' }}>{appId}</code>.
+      No se pudo abrir{' '}
+      <code style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '3px' }}>
+        {appId}
+      </code>
+      .
+    </p>
+    <p style={{ marginTop: 12, color: 'rgba(255,255,255,0.4)', fontSize: 12, maxWidth: 320 }}>
+      ¿Es una community app? Registrate con <code>@nex-os/sdk</code> →{' '}
+      <code>defineApp()</code>.
     </p>
   </div>
 );
 
 const AppRegistry: React.FC<AppRegistryProps> = ({ appId, appProps }) => {
+  // Re-render when community apps register after first paint
+  const [, setTick] = useState(0);
+  useEffect(() => subscribeRegistry(() => setTick((n) => n + 1)), []);
+
   if (appId === 'empty-file') {
     return (
       <div style={{ padding: 16, color: 'white' }}>
@@ -127,8 +141,17 @@ const AppRegistry: React.FC<AppRegistryProps> = ({ appId, appProps }) => {
     );
   }
 
-  const AppComponent = REGISTRY[appId];
+  const community = getRegisteredApp(appId);
+  if (community) {
+    const Comp = community.component;
+    return (
+      <Suspense fallback={<Fallback />}>
+        <Comp {...(appProps || community.defaultProps || {})} />
+      </Suspense>
+    );
+  }
 
+  const AppComponent = BUILTIN[appId];
   if (!AppComponent) {
     return <NotFound appId={appId} />;
   }

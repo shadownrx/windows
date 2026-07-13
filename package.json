@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.2.0",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "vite",
     "music:server": "npm --prefix server run dev",
@@ -15,6 +18,8 @@
   },
   "dependencies": {
     "@fluentui/react-icons": "^2.0.322",
+    "@monaco-editor/react": "^4.7.0",
+    "@nex-os/sdk": "*",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.0",
     "@socket.io/redis-adapter": "^8.3.0",
@@ -24,6 +29,7 @@
     "framer-motion": "^12.38.0",
     "ioredis": "^5.11.1",
     "lucide-react": "^1.7.0",
+    "monaco-editor": "^0.55.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "socket.io": "^4.8.3",

@@ -15,7 +15,8 @@ import {
 import { useWindowManager } from '../context/WindowManager';
 import { useUI } from '../context/UIContext';
 import { useSettings } from '../context/SettingsContext';
-import { APPS, type AppItem } from '../constants/apps';
+import { type AppItem } from '../constants/apps';
+import { useLauncherApps } from '../hooks/useLauncherApps';
 import ContextMenu, { type ContextMenuOption } from './ContextMenu';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 
@@ -44,6 +45,7 @@ const Taskbar: React.FC<TaskbarProps> = ({
   const { isWidgetsOpen, toggleWidgets } = useUI();
   const { isWifiEnabled, volume, isTaskViewOpen, setIsTaskViewOpen, notifications } = useSettings();
   const { currentTrack, isPlaying, togglePlay, nextTrack, prevTrack, isGlobalMiniPlayerVisible, toggleGlobalMiniPlayer } = useMusicPlayer();
+  const launcherApps = useLauncherApps();
   const [startContextMenu, setStartContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
   const [taskbarContextMenu, setTaskbarContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
   const [time, setTime] = React.useState(new Date());
@@ -156,7 +158,7 @@ const Taskbar: React.FC<TaskbarProps> = ({
 
         {/* PINNED & OPEN APPS */}
         <div className="taskbar-apps">
-          {APPS.filter(a => a.id !== 'search').map(app => {
+          {launcherApps.filter(a => a.id !== 'search').map(app => {
             const isOpen = windows.some(w => w.id === app.id);
             const isFocused = focusedWindowId === app.id;
             

@@ -118,7 +118,10 @@ export default async function handler(req, res) {
   const base = appBase(req);
   const room = typeof req.query.room === 'string' ? req.query.room.trim().toUpperCase() : '';
   const cloud = typeof req.query.cloud === 'string' ? req.query.cloud.trim() : '';
-  const shortCode = typeof req.query.p === 'string' ? req.query.p.trim() : '';
+  const shortCode =
+    (typeof req.query.p === 'string' && req.query.p.trim()) ||
+    (typeof req.query.code === 'string' && req.query.code.trim()) ||
+    '';
 
   let title = 'NEX Music';
   let description = 'Escuchá juntos · YouTube + Spotify · salas en vivo y listas globales.';

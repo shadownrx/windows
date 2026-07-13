@@ -13,15 +13,8 @@
       "destination": "/api/og-nex-music"
     },
     {
-      "source": "/p/:code",
-      "destination": "/api/og-nex-music?p=:code"
-    }
-  ],
-  "redirects": [
-    {
-      "source": "/nex-music.html",
-      "destination": "/nex-music",
-      "permanent": true
+      "source": "/p/:p",
+      "destination": "/api/og-nex-music"
     }
   ],
   "functions": {

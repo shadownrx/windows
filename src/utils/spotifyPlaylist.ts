@@ -52,23 +52,39 @@ export function spotifyTracksToNexTracks(tracks: SpotifyPlaylistApiTrack[]): Tra
 export async function fetchSpotifyPlaylist(source: string): Promise<SpotifyPlaylistApiResponse> {
   const id = parseSpotifyPlaylistId(source);
   const query = id ? `id=${encodeURIComponent(id)}` : `url=${encodeURIComponent(source.trim())}`;
-  const res = await fetch(`/api/spotify-playlist?${query}`);
+  const res = await fetch(`/api/spotify-playlist?${query}`, {
+    credentials: 'include',
+  });
 
-  let data: { error?: string } = {};
+  let data: { error?: string; needsSpotifyAuth?: boolean } = {};
   const text = await res.text();
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
     throw new Error(
       res.status === 404
-        ? 'API de Spotify no disponible en el deploy (404). Esperá el redeploy o revisá Vercel.'
+        ? 'API de Spotify no disponible en el deploy (404). Esperá el redeploy.'
         : `Respuesta inválida del servidor (${res.status})`,
     );
   }
 
   if (!res.ok) {
-    throw new Error(data.error || `No se pudo importar la playlist de Spotify (${res.status})`);
+    const err = new Error(
+      data.error || `No se pudo importar la playlist de Spotify (${res.status})`,
+    ) as Error & { needsSpotifyAuth?: boolean };
+    err.needsSpotifyAuth = Boolean(data.needsSpotifyAuth) || res.status === 401;
+    throw err;
   }
 
   return data as SpotifyPlaylistApiResponse;
+}
+
+export function startSpotifyAuth(returnTo = '/nex-music') {
+  window.location.href = `/api/spotify-auth?returnTo=${encodeURIComponent(returnTo)}`;
+}
+
+export async function getSpotifySession(): Promise<{ connected: boolean; expired?: boolean }> {
+  const res = await fetch('/api/spotify-session', { credentials: 'include' });
+  if (!res.ok) return { connected: false };
+  return res.json();
 }

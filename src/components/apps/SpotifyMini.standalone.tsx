@@ -44,7 +44,7 @@ import GlobalPlaylistsView, { PublishToCloudButton } from '../music/GlobalPlayli
 import CloudSyncBadge from '../music/CloudSyncBadge';
 import type { Track, ChatMessage, LiveReaction, RoomUser, DjEqSettings, DjModeState, DjVoteEntry, Playlist } from '../../types/music';
 import { shuffleTracks, PREVIEW_SECONDS, type CloudPlayMode } from '../../utils/cloudPlaylist';
-import { fetchSpotifyPlaylist, spotifyTracksToNexTracks } from '../../utils/spotifyPlaylist';
+import { fetchSpotifyPlaylist, spotifyTracksToNexTracks, startSpotifyAuth, getSpotifySession } from '../../utils/spotifyPlaylist';
 import { resolveTrackForPlayback, trackNeedsYoutubeResolution } from '../../utils/resolveTrack';
 import { getSupabase } from '../../lib/supabase';
 import PartyModeLayer from '../music/PartyModeLayer';
@@ -783,6 +783,7 @@ const SpotifyMiniStandalone: React.FC = () => {
   const [showSpotifyImportModal, setShowSpotifyImportModal] = useState(false);
   const [spotifyImportUrl, setSpotifyImportUrl] = useState('');
   const [spotifyImporting, setSpotifyImporting] = useState(false);
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
 
   const showToast = (message: string, type: 'success'|'error'|'info'|'premium' = 'success') => {
     const id = Date.now();
@@ -864,6 +865,21 @@ const SpotifyMiniStandalone: React.FC = () => {
       setShowNicknameModal(true);
     }
   }, [nickname]);
+
+  useEffect(() => {
+    void getSpotifySession().then((s) => setSpotifyConnected(s.connected && !s.expired));
+    const params = new URLSearchParams(window.location.search);
+    const spotifyStatus = params.get('spotify');
+    if (spotifyStatus === 'connected') {
+      setSpotifyConnected(true);
+      showToast('Spotify conectado ✓ Ya podés importar tus playlists', 'success');
+      setShowSpotifyImportModal(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (spotifyStatus === 'error' || spotifyStatus === 'token_error') {
+      showToast('No se pudo conectar Spotify. Revisá el redirect URI en el Dashboard.', 'error');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     const onPrev = () => prevTrack();
@@ -1246,10 +1262,16 @@ const SpotifyMiniStandalone: React.FC = () => {
         'success',
       );
     } catch (err) {
-      showToast(
-        err instanceof Error ? err.message : 'No se pudo importar la playlist de Spotify',
-        'error',
-      );
+      const needsAuth = Boolean((err as { needsSpotifyAuth?: boolean })?.needsSpotifyAuth);
+      if (needsAuth) {
+        setSpotifyConnected(false);
+        showToast('Primero conectá tu cuenta de Spotify', 'info');
+      } else {
+        showToast(
+          err instanceof Error ? err.message : 'No se pudo importar la playlist de Spotify',
+          'error',
+        );
+      }
     } finally {
       setSpotifyImporting(false);
     }
@@ -1403,38 +1425,66 @@ const SpotifyMiniStandalone: React.FC = () => {
         <div className="modal-overlay" onClick={() => !spotifyImporting && setShowSpotifyImportModal(false)}>
           <div className="modal-content spotify-import-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Importar de Spotify</h2>
-            <p>Pegá el enlace de una playlist <strong>pública</strong> de Spotify.</p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void handleSpotifyImport();
-              }}
-            >
-              <input
-                type="url"
-                value={spotifyImportUrl}
-                onChange={(e) => setSpotifyImportUrl(e.target.value)}
-                placeholder="https://open.spotify.com/playlist/..."
-                autoFocus
-                disabled={spotifyImporting}
-              />
-              <p className="modal-hint">
-                Las canciones se reproducen vía YouTube al dar play (puede tardar unos segundos).
-              </p>
-              <div className="modal-actions">
+            <p>
+              Spotify ahora exige login. Importá playlists <strong>tuyas</strong> o donde colaborás.
+            </p>
+            {!spotifyConnected ? (
+              <div className="spotify-connect-box">
+                <p className="modal-hint">
+                  Conectá tu cuenta una vez. Después pegás el link de tu playlist (ej. Ultra Buenos Aires).
+                </p>
                 <button
                   type="button"
-                  className="modal-btn-secondary"
-                  onClick={() => setShowSpotifyImportModal(false)}
-                  disabled={spotifyImporting}
+                  className="modal-btn-primary spotify-connect-btn"
+                  onClick={() => startSpotifyAuth(window.location.pathname || '/nex-music')}
                 >
-                  Cancelar
-                </button>
-                <button type="submit" className="modal-btn-primary spotify-import-submit" disabled={spotifyImporting || !spotifyImportUrl.trim()}>
-                  {spotifyImporting ? 'Importando…' : 'Importar playlist'}
+                  Conectar Spotify
                 </button>
               </div>
-            </form>
+            ) : (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleSpotifyImport();
+                }}
+              >
+                <p className="spotify-connected-badge">✓ Spotify conectado</p>
+                <input
+                  type="url"
+                  value={spotifyImportUrl}
+                  onChange={(e) => setSpotifyImportUrl(e.target.value)}
+                  placeholder="https://open.spotify.com/playlist/..."
+                  autoFocus
+                  disabled={spotifyImporting}
+                />
+                <p className="modal-hint">
+                  Las canciones se reproducen vía YouTube al dar play.
+                </p>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="modal-btn-secondary"
+                    onClick={() => setShowSpotifyImportModal(false)}
+                    disabled={spotifyImporting}
+                  >
+                    Cancelar
+                  </button>
+                  <button type="submit" className="modal-btn-primary spotify-import-submit" disabled={spotifyImporting || !spotifyImportUrl.trim()}>
+                    {spotifyImporting ? 'Importando…' : 'Importar playlist'}
+                  </button>
+                </div>
+              </form>
+            )}
+            {spotifyConnected && (
+              <button
+                type="button"
+                className="modal-btn-secondary"
+                style={{ marginTop: 12, width: '100%' }}
+                onClick={() => setShowSpotifyImportModal(false)}
+              >
+                Cerrar
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -2374,6 +2424,25 @@ const SpotifyMiniStandalone: React.FC = () => {
           font-size: 13px;
           line-height: 1.45;
           margin: -8px 0 16px;
+        }
+
+        .spotify-connect-box {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .spotify-connect-btn {
+          width: 100%;
+          background: #1db954 !important;
+          color: #000 !important;
+        }
+
+        .spotify-connected-badge {
+          color: #1ed760;
+          font-size: 13px;
+          font-weight: 600;
+          margin: 0 0 12px;
         }
 
         .spotify-import-spotify-btn {

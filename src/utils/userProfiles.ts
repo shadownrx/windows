@@ -21,6 +21,7 @@ export interface UserProfile {
 export interface ProfilePublic {
   nickname: string;
   displayName: string | null;
+  bio: string | null;
   verified: boolean;
   verifiedReason: VerifiedReason | null;
 }
@@ -57,24 +58,48 @@ export async function upsertMyProfile(nickname: string, userId?: string | null):
   if (!nick) return null;
 
   const uid = userId || (await ensureSupabaseSession());
+  // Don't clobber display_name/bio on every visit — only ensure row exists
+  const existing = await supabase
+    .from('user_profiles')
+    .select(
+      'user_id, nickname, display_name, bio, avatar_url, verified, verified_at, verified_reason',
+    )
+    .eq('user_id', uid)
+    .maybeSingle();
+
+  if (existing.data) {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .update({
+        nickname: nick,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', uid)
+      .select(
+        'user_id, nickname, display_name, bio, avatar_url, verified, verified_at, verified_reason',
+      )
+      .single();
+    if (error) {
+      console.warn('[profiles]', getSupabaseErrorMessage(error));
+      return mapProfile(existing.data as DbProfile);
+    }
+    return data ? mapProfile(data as DbProfile) : null;
+  }
+
   const { data, error } = await supabase
     .from('user_profiles')
-    .upsert(
-      {
-        user_id: uid,
-        nickname: nick,
-        display_name: nick,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' },
-    )
+    .insert({
+      user_id: uid,
+      nickname: nick,
+      display_name: nick,
+      updated_at: new Date().toISOString(),
+    })
     .select(
       'user_id, nickname, display_name, bio, avatar_url, verified, verified_at, verified_reason',
     )
     .single();
 
   if (error) {
-    // Table missing → soft fail with hint
     console.warn('[profiles]', getSupabaseErrorMessage(error));
     return null;
   }
@@ -109,7 +134,7 @@ export async function fetchProfilesByNicknames(nicknames: string[]): Promise<Map
   const normalized = unique.map((n) => n.toLowerCase());
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('nickname, display_name, verified, verified_reason, nickname_normalized')
+    .select('nickname, display_name, bio, verified, verified_reason, nickname_normalized')
     .in('nickname_normalized', normalized);
 
   if (error || !data) return map;
@@ -117,6 +142,7 @@ export async function fetchProfilesByNicknames(nicknames: string[]): Promise<Map
   for (const row of data as {
     nickname: string;
     display_name: string | null;
+    bio: string | null;
     verified: boolean;
     verified_reason: string | null;
     nickname_normalized: string;
@@ -124,6 +150,7 @@ export async function fetchProfilesByNicknames(nicknames: string[]): Promise<Map
     const pub: ProfilePublic = {
       nickname: row.nickname,
       displayName: row.display_name,
+      bio: row.bio,
       verified: Boolean(row.verified),
       verifiedReason: (row.verified_reason as VerifiedReason | null) ?? null,
     };
@@ -141,7 +168,7 @@ export async function searchUserProfiles(query: string, limit = 40): Promise<Pro
   const q = query.trim();
   let req = supabase
     .from('user_profiles')
-    .select('nickname, display_name, verified, verified_reason, updated_at')
+    .select('nickname, display_name, bio, verified, verified_reason, updated_at')
     .order('verified', { ascending: false })
     .order('updated_at', { ascending: false })
     .limit(limit);
@@ -159,8 +186,76 @@ export async function searchUserProfiles(query: string, limit = 40): Promise<Pro
   return (data ?? []).map((row) => ({
     nickname: row.nickname as string,
     displayName: (row.display_name as string | null) ?? null,
+    bio: (row.bio as string | null) ?? null,
     verified: Boolean(row.verified),
     verifiedReason: (row.verified_reason as VerifiedReason | null) ?? null,
+  }));
+}
+
+export async function fetchProfileByNickname(nickname: string): Promise<UserProfile | null> {
+  const supabase = getSupabase();
+  if (!supabase || !isSupabaseConfigured || !nickname.trim()) return null;
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select(
+      'user_id, nickname, display_name, bio, avatar_url, verified, verified_at, verified_reason',
+    )
+    .eq('nickname_normalized', nickname.trim().toLowerCase())
+    .maybeSingle();
+  if (error || !data) return null;
+  return mapProfile(data as DbProfile);
+}
+
+export async function updateMyProfileFields(fields: {
+  displayName?: string;
+  bio?: string;
+}): Promise<UserProfile | null> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error('Supabase no configurado');
+  const uid = await ensureSupabaseSession();
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (fields.displayName !== undefined) {
+    patch.display_name = fields.displayName.trim().slice(0, 48) || null;
+  }
+  if (fields.bio !== undefined) {
+    patch.bio = fields.bio.trim().slice(0, 160) || null;
+  }
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .update(patch)
+    .eq('user_id', uid)
+    .select(
+      'user_id, nickname, display_name, bio, avatar_url, verified, verified_at, verified_reason',
+    )
+    .single();
+  if (error) throw new Error(getSupabaseErrorMessage(error));
+  return data ? mapProfile(data as DbProfile) : null;
+}
+
+export type OwnerPlaylistSummary = {
+  id: string;
+  name: string;
+  cover: string | null;
+  trackCount: number;
+  playCount: number;
+};
+
+export async function fetchPlaylistsByOwnerNickname(nickname: string): Promise<OwnerPlaylistSummary[]> {
+  const supabase = getSupabase();
+  if (!supabase || !nickname.trim()) return [];
+  const { data, error } = await supabase
+    .from('global_playlists')
+    .select('id, name, cover, tracks, play_count, owner_nickname')
+    .ilike('owner_nickname', nickname.trim())
+    .order('play_count', { ascending: false })
+    .limit(30);
+  if (error || !data) return [];
+  return data.map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    cover: (row.cover as string | null) ?? null,
+    trackCount: Array.isArray(row.tracks) ? row.tracks.length : 0,
+    playCount: Number(row.play_count ?? 0),
   }));
 }
 

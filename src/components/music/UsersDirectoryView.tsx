@@ -17,12 +17,24 @@ import {
 import { toggleFollowCreator } from '../../utils/socialCloud';
 import { NicknameWithBadge } from './VerifiedBadge';
 import StaffVerifyPanel from './StaffVerifyPanel';
+import ProfileView from './ProfileView';
+import type { CloudPlayMode } from '../../utils/cloudPlaylist';
+import type { Track } from '../../types/music';
 
 interface UsersDirectoryViewProps {
   nickname: string;
   supabaseUserId: string | null;
   supabaseAuthReady: boolean;
   showToast: (message: string, type?: 'success' | 'error' | 'info' | 'premium') => void;
+  /** Open directly on this nickname (deep link / Mi perfil) */
+  initialProfileNick?: string | null;
+  /** Force own profile mode */
+  forceOwnProfile?: boolean;
+  playCloudPlaylist?: (
+    tracks: Track[],
+    mode: CloudPlayMode,
+    meta?: { playlistId?: string; playlistName?: string },
+  ) => void;
 }
 
 const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
@@ -30,15 +42,29 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
   supabaseUserId,
   supabaseAuthReady,
   showToast,
+  initialProfileNick = null,
+  forceOwnProfile = false,
+  playCloudPlaylist,
 }) => {
-  const { myProfile, requestVerify, isVerified } = useUserProfiles(nickname, supabaseUserId);
+  const { myProfile, isVerified } = useUserProfiles(nickname, supabaseUserId);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ProfilePublic[]>([]);
   const [loading, setLoading] = useState(false);
   const [staffReady, setStaffReady] = useState(false);
   const [showStaffPanel, setShowStaffPanel] = useState(false);
   const [busyNick, setBusyNick] = useState<string | null>(null);
-  const [requestingVerify, setRequestingVerify] = useState(false);
+  const [selectedNick, setSelectedNick] = useState<string | null>(() => {
+    if (forceOwnProfile && nickname) return nickname;
+    return initialProfileNick;
+  });
+
+  useEffect(() => {
+    if (forceOwnProfile && nickname) setSelectedNick(nickname);
+  }, [forceOwnProfile, nickname]);
+
+  useEffect(() => {
+    if (initialProfileNick) setSelectedNick(initialProfileNick);
+  }, [initialProfileNick]);
 
   const runSearch = useCallback(async (q: string) => {
     setLoading(true);
@@ -52,11 +78,12 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabaseAuthReady) return;
+    if (selectedNick) return;
     const t = window.setTimeout(() => {
       void runSearch(query);
     }, query ? 280 : 0);
     return () => clearTimeout(t);
-  }, [query, runSearch, supabaseAuthReady]);
+  }, [query, runSearch, supabaseAuthReady, selectedNick]);
 
   useEffect(() => {
     const key = loadStaffKey();
@@ -67,6 +94,23 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
   }, [showStaffPanel]);
 
   const staffKey = loadStaffKey();
+  const viewingOwn =
+    Boolean(selectedNick && nickname) &&
+    selectedNick!.toLowerCase() === nickname.toLowerCase();
+
+  if (selectedNick) {
+    return (
+      <ProfileView
+        targetNickname={selectedNick}
+        myNickname={nickname}
+        myUserId={supabaseUserId}
+        isOwn={viewingOwn}
+        onBack={forceOwnProfile ? undefined : () => setSelectedNick(null)}
+        showToast={showToast}
+        playCloudPlaylist={playCloudPlaylist}
+      />
+    );
+  }
 
   return (
     <div className="spotify-list-view users-directory">
@@ -74,7 +118,7 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
         <div className="users-directory-header">
           <div>
             <h2>Usuarios</h2>
-            <p>Buscá creators por nickname · mirá quién está verificado</p>
+            <p>Buscá creators · abrí su perfil · seguilos</p>
           </div>
           <button type="button" className="users-staff-link" onClick={() => setShowStaffPanel(true)}>
             Staff
@@ -82,7 +126,11 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
         </div>
 
         {nickname && supabaseUserId && (
-          <div className="users-me-card">
+          <button
+            type="button"
+            className="users-me-card users-me-card-btn"
+            onClick={() => setSelectedNick(nickname)}
+          >
             <div>
               <NicknameWithBadge
                 name={nickname}
@@ -93,32 +141,11 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
               <div className="users-me-sub">
                 {isVerified || myProfile?.verified
                   ? verifiedReasonLabel(myProfile?.verifiedReason)
-                  : 'Tu perfil en NEX Music'}
+                  : 'Tocá para ver / editar tu perfil'}
               </div>
             </div>
-            {!(isVerified || myProfile?.verified) && (
-              <button
-                type="button"
-                className="users-verify-req"
-                disabled={requestingVerify}
-                onClick={() => {
-                  void (async () => {
-                    setRequestingVerify(true);
-                    try {
-                      await requestVerify('Quiero el check de creador en NEX Music');
-                      showToast('Solicitud enviada', 'premium');
-                    } catch (err) {
-                      showToast(err instanceof Error ? err.message : 'Error', 'info');
-                    } finally {
-                      setRequestingVerify(false);
-                    }
-                  })();
-                }}
-              >
-                {requestingVerify ? '…' : 'Solicitar ✓'}
-              </button>
-            )}
-          </div>
+            <span className="users-open-profile">Mi perfil →</span>
+          </button>
         )}
 
         <div className="users-search-box">
@@ -155,9 +182,6 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
               ? 'No hay usuarios con ese nombre'
               : 'Todavía no hay perfiles · abrí la app con un nickname para aparecer'}
           </p>
-          <p className="users-empty-hint">
-            Si no ves a nadie, ejecutá <code>schema-profiles-v4.sql</code> en Supabase
-          </p>
         </div>
       )}
 
@@ -166,7 +190,11 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
           const isMe = nickname && u.nickname.toLowerCase() === nickname.toLowerCase();
           return (
             <div key={u.nickname} className="users-row">
-              <div className="users-row-main">
+              <button
+                type="button"
+                className="users-row-main users-row-open"
+                onClick={() => setSelectedNick(u.nickname)}
+              >
                 <div className="users-avatar" aria-hidden>
                   {(u.displayName || u.nickname).slice(0, 1).toUpperCase()}
                 </div>
@@ -181,16 +209,17 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
                   </div>
                   <div className="users-row-meta">
                     @{u.nickname}
-                    {u.verified ? ` · ${verifiedReasonLabel(u.verifiedReason)}` : ''}
+                    {u.bio ? ` · ${u.bio.slice(0, 48)}${u.bio.length > 48 ? '…' : ''}` : u.verified ? ` · ${verifiedReasonLabel(u.verifiedReason)}` : ''}
                   </div>
                 </div>
-              </div>
+              </button>
               <div className="users-row-actions">
                 {!isMe && nickname && (
                   <button
                     type="button"
                     disabled={busyNick === u.nickname}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       void (async () => {
                         setBusyNick(u.nickname);
                         try {
@@ -213,7 +242,8 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
                       type="button"
                       className="danger"
                       disabled={busyNick === u.nickname}
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         void (async () => {
                           setBusyNick(u.nickname);
                           try {
@@ -235,7 +265,8 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
                       type="button"
                       className="verify"
                       disabled={busyNick === u.nickname}
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         void (async () => {
                           setBusyNick(u.nickname);
                           try {
@@ -297,22 +328,22 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
           border: 1px solid rgba(29,155,240,0.22);
           border-radius: 12px;
           padding: 12px 14px;
+          width: 100%;
+          text-align: left;
+          color: inherit;
+          cursor: pointer;
+        }
+        .users-me-card-btn { font: inherit; }
+        .users-open-profile {
+          font-size: 12px;
+          font-weight: 700;
+          color: #1d9bf0;
+          white-space: nowrap;
         }
         .users-me-sub {
           font-size: 12px;
           color: rgba(255,255,255,0.45);
           margin-top: 4px;
-        }
-        .users-verify-req {
-          background: #1d9bf0;
-          border: none;
-          color: #fff;
-          border-radius: 999px;
-          padding: 8px 12px;
-          font-size: 12px;
-          font-weight: 700;
-          cursor: pointer;
-          white-space: nowrap;
         }
         .users-search-box {
           margin-top: 14px;
@@ -337,11 +368,6 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
           color: rgba(255,255,255,0.45);
           font-size: 13px;
         }
-        .users-empty-hint {
-          font-size: 12px !important;
-          color: rgba(255,255,255,0.35) !important;
-        }
-        .users-empty-hint code { color: #8ecdf8; }
         .users-list {
           display: flex;
           flex-direction: column;
@@ -353,7 +379,7 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
           justify-content: space-between;
           align-items: center;
           gap: 12px;
-          padding: 12px;
+          padding: 8px 8px 8px 4px;
           border-radius: 12px;
           background: rgba(255,255,255,0.04);
           border: 1px solid rgba(255,255,255,0.06);
@@ -364,6 +390,18 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
           gap: 12px;
           min-width: 0;
         }
+        .users-row-open {
+          flex: 1;
+          background: transparent;
+          border: none;
+          color: inherit;
+          text-align: left;
+          cursor: pointer;
+          padding: 4px 8px;
+          border-radius: 10px;
+          font: inherit;
+        }
+        .users-row-open:hover { background: rgba(255,255,255,0.04); }
         .users-avatar {
           width: 40px;
           height: 40px;
@@ -396,6 +434,10 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
           font-size: 12px;
           color: rgba(255,255,255,0.45);
           margin-top: 2px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 220px;
         }
         .users-row-actions {
           display: flex;

@@ -18,6 +18,7 @@ import {
   Add24Filled,
   ArrowRight24Filled,
   People24Regular,
+  Person24Regular,
   Share24Regular,
   Edit24Regular,
   LockClosedRegular,
@@ -869,7 +870,8 @@ const SpotifyMiniStandalone: React.FC = () => {
   } = useSpotifyMini();
 
   const [activeService, setActiveService] = useState<ServiceType>('youtube');
-  const [activeTab, setActiveTab] = useState<'search' | 'my-playlists' | 'global-playlists' | 'users' | 'queue' | 'favorites' | 'history'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'my-playlists' | 'global-playlists' | 'users' | 'profile' | 'queue' | 'favorites' | 'history'>('search');
+  const [profileDeepLink, setProfileDeepLink] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1131,14 +1133,20 @@ const SpotifyMiniStandalone: React.FC = () => {
     }
   }, [nickname]);
 
-  // Viral deep links: ?room= / ?cloud= / ?p= (+ skip onboarding)
+  // Viral deep links: ?room= / ?cloud= / ?p= / ?user= (+ skip onboarding)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const room = params.get('room');
     const cloud = params.get('cloud');
     const shortP = params.get('p');
+    const user = params.get('user');
     if (room && isValidRoomCode(room)) {
       pendingRoomRef.current = room.toUpperCase();
+      try { localStorage.setItem('nexMusicOnboardingSeen', '1'); } catch { /* ignore */ }
+    }
+    if (user?.trim()) {
+      setProfileDeepLink(user.trim());
+      setActiveTab('users');
       try { localStorage.setItem('nexMusicOnboardingSeen', '1'); } catch { /* ignore */ }
     }
     if (cloud) {
@@ -2202,9 +2210,13 @@ const SpotifyMiniStandalone: React.FC = () => {
             <Globe24Regular />
             <span>Listas Globales</span>
           </div>
-          <div className={`spotify-nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); closeSidebar(); }}>
+          <div className={`spotify-nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setProfileDeepLink(null); closeSidebar(); }}>
             <People24Regular />
             <span>Usuarios</span>
+          </div>
+          <div className={`spotify-nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); closeSidebar(); }}>
+            <Person24Regular />
+            <span>Mi perfil</span>
           </div>
         </div>
 
@@ -2745,7 +2757,31 @@ const SpotifyMiniStandalone: React.FC = () => {
               supabaseUserId={supabaseUserId}
               supabaseAuthReady={supabaseAuthReady}
               showToast={showToast}
+              initialProfileNick={profileDeepLink}
+              playCloudPlaylist={playCloudPlaylist}
             />
+          )}
+
+          {activeTab === 'profile' && (
+            nickname ? (
+              <UsersDirectoryView
+                nickname={nickname}
+                supabaseUserId={supabaseUserId}
+                supabaseAuthReady={supabaseAuthReady}
+                showToast={showToast}
+                forceOwnProfile
+                playCloudPlaylist={playCloudPlaylist}
+              />
+            ) : (
+              <div className="spotify-list-view">
+                <div className="spotify-empty">
+                  <p>Configurá tu nickname para tener perfil</p>
+                  <button type="button" className="modal-btn-primary" onClick={() => setShowNicknameModal(true)}>
+                    Elegir nickname
+                  </button>
+                </div>
+              </div>
+            )
           )}
 
           {/* --- QUEUE TAB --- */}

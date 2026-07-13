@@ -5,11 +5,14 @@ import {
   Info24Regular,
   Flash24Regular,
   Lightbulb24Regular,
+  Code24Regular,
   Wrench24Regular
 } from '@fluentui/react-icons';
+import { useWindowManager } from '../../context/WindowManager';
 
 const ManualApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState('welcome');
+  const { openWindow } = useWindowManager();
 
   const shortcuts = [
     { keys: 'Win + S', action: 'Abrir Menú de Inicio / Buscar' },
@@ -51,6 +54,9 @@ const ManualApp: React.FC = () => {
           </button>
           <button className={`nav-item ${activeTab === 'tech' ? 'active' : ''}`} onClick={() => setActiveTab('tech')}>
             <Flash24Regular /> Tecnología NEX
+          </button>
+          <button className={`nav-item ${activeTab === 'sdk' ? 'active' : ''}`} onClick={() => setActiveTab('sdk')}>
+            <Code24Regular /> SDK Creators
           </button>
           <button className={`nav-item ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>
             <Info24Regular /> Acerca de
@@ -179,6 +185,55 @@ const ManualApp: React.FC = () => {
                 <p>Framework de JavaScript para la construcción de interfaces de usuario.</p>
               </div>
             </div>
+          </section>
+        )}
+
+        {activeTab === 'sdk' && (
+          <section className="manual-content animate-in">
+            <h1>NEX OS SDK</h1>
+            <p className="lead">
+              Creá tus propias apps con <code>@nex-os/sdk</code> — registro en runtime, sin tocar el núcleo del shell.
+            </p>
+
+            <div className="feature-grid">
+              <div className="feature-card">
+                <div className="feature-icon"><Code24Regular /></div>
+                <h3>defineApp()</h3>
+                <p>Manifest + componente React. Aparece en Start, Taskbar y Buscar.</p>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon"><Flash24Regular /></div>
+                <h3>Host hooks</h3>
+                <p>Ventanas, settings, FS y escritorios vía <code>src/sdk/host</code>.</p>
+              </div>
+            </div>
+
+            <div className="tip-box" style={{ marginBottom: 16 }}>
+              <Code24Regular className="tip-icon" />
+              <div>
+                <h4>Empezá acá</h4>
+                <p>
+                  Guía completa en <code>docs/SDK.md</code>. Demo interactiva: app <strong>SDK Docs</strong> en el escritorio.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => openWindow('sdk-docs', 'sdk-docs', 'SDK Docs', <span>⬡</span>)}
+              style={{
+                border: 'none',
+                background: 'rgba(59, 130, 246, 0.2)',
+                color: '#93c5fd',
+                padding: '12px 18px',
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: 14,
+              }}
+            >
+              Abrir SDK Docs
+            </button>
           </section>
         )}
 

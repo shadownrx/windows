@@ -421,6 +421,7 @@ Adjunta capturas de pantalla de los cambios visuales.
 ## 📚 Documentación Útil
 
 - [README.md](./README.md) - Descripción del proyecto
+- [SDK.md](./docs/SDK.md) - Crear community apps con `@nex-os/sdk`
 - [DEVELOPMENT.md](./docs/DEVELOPMENT.md) - Guía de desarrollo
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md) - Arquitectura del sistema
 - [PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md) - Estructura de carpetas

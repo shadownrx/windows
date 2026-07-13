@@ -23,6 +23,7 @@
 - **Motor 3D Dinámico:** Fondos tridimensionales en tiempo real impulsados por **Three.js / @react-three/fiber** que reaccionan al tema seleccionado.
 - **Arquitectura de Micro-Frontends:** Cada aplicación opera en su propio contexto aislado bajo un orquestador central (`WindowManager`).
 - **PWA Ready:** Instalable como app nativa gracias a `vite-plugin-pwa`, con soporte offline y caché de recursos.
+- **`@nex-os/sdk`:** API oficial para que cualquiera cree community apps (`defineApp`) — ventanas, taskbar, Start y Buscar.
 
 ### 🍱 Experiencia de Usuario (UX)
 - **NEX OS 2.0 — Neon Experience:** Sistema de temas dinámicos: **Cyberpunk**, **Matrix** y **Synthwave** con bordes luminosos y efectos visuales adaptativos.
@@ -158,6 +159,8 @@ npm run preview    # Vista previa local del build
 
 ## 📖 Documentación
 
+- **[SDK.md](./docs/SDK.md)** — **Creá tus apps** con `@nex-os/sdk` (guía creators)
+- **[Package README](./packages/nex-os-sdk/README.md)** — Quick start del SDK
 - **[INSTALLATION.md](./docs/INSTALLATION.md)** — Guía detallada de instalación y configuración
 - **[DEVELOPMENT.md](./docs/DEVELOPMENT.md)** — Flujo de trabajo y convenciones de desarrollo
 - **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** — Arquitectura del sistema en profundidad

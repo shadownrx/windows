@@ -200,6 +200,32 @@ export const TaskManager = () => {
 
 ## 🎨 Crear una Nueva Aplicación
 
+> **Recomendado:** usá el SDK de community apps — guía completa en **[SDK.md](./SDK.md)**.
+
+### Opción A — Community app (`@nex-os/sdk`)
+
+```tsx
+// src/community-apps/MiApp.tsx
+import { defineApp, type NexAppProps } from '@nex-os/sdk';
+
+function MiApp(_props: NexAppProps) {
+  return <div style={{ height: '100%', padding: 24, color: '#fff' }}>Hola</div>;
+}
+
+export default defineApp({
+  id: 'mi-app',
+  appId: 'mi-app',
+  title: 'Mi App',
+  icon: <span>⚡</span>,
+  component: MiApp,
+  pinToTaskbar: true,
+});
+```
+
+Importá el módulo en `src/community-apps/index.ts`. Demo in-OS: app **SDK Docs**.
+
+### Opción B — App built-in (sistema)
+
 ### Paso 1: Crear el Componente
 
 ```bash
@@ -225,25 +251,10 @@ export const MyNewApp: React.FC<MyNewAppProps> = ({ id }) => {
 };
 ```
 
-### Paso 2: Registrar en WindowManager
+### Paso 2: Registrar en AppRegistry + constants/apps
 
-```typescript
-// src/context/WindowManager.tsx
-import { MyNewApp } from '../components/apps/MyNewApp';
-
-// En el estado inicial:
-const initialState = {
-  desktopIcons: [
-    // ... otros iconos
-    {
-      id: 'mynewapp',
-      label: 'Mi App',
-      icon: <MyIcon />,
-      component: MyNewApp,
-    },
-  ],
-};
-```
+Agregá un `React.lazy` en `src/components/AppRegistry.tsx` y un `AppItem` en `src/constants/apps.tsx`.
+Para Start Menu, sumá la entrada en `StartMenu.tsx` si hace falta.
 
 ### Paso 3: Agregar Ícono
 

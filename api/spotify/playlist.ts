@@ -4,7 +4,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getSpotifyAccessToken } from './_token';
+import { getSpotifyAccessToken } from '../../lib/spotifyToken';
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 const MAX_TRACKS = 500;
@@ -78,7 +78,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const token = await getSpotifyAccessToken();
 
-    const metaRes = await fetch(`${SPOTIFY_API_BASE}/playlists/${playlistId}?market=from_token`, {
+    // Client Credentials no tiene país de usuario: market=from_token falla.
+    const metaRes = await fetch(`${SPOTIFY_API_BASE}/playlists/${playlistId}?market=AR`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -88,7 +89,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!metaRes.ok) {
       const body = await metaRes.text();
       console.error('Spotify playlist meta:', metaRes.status, body);
-      return res.status(502).json({ error: 'No se pudo leer la playlist en Spotify' });
+      return res.status(502).json({
+        error: 'No se pudo leer la playlist en Spotify',
+        details: body.slice(0, 200),
+      });
     }
 
     const meta = (await metaRes.json()) as {
@@ -109,7 +113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let offset = 0;
     while (tracks.length < MAX_TRACKS) {
       const itemsRes = await fetch(
-        `${SPOTIFY_API_BASE}/playlists/${playlistId}/tracks?limit=${PAGE_SIZE}&offset=${offset}&market=from_token`,
+        `${SPOTIFY_API_BASE}/playlists/${playlistId}/tracks?limit=${PAGE_SIZE}&offset=${offset}&market=AR`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
@@ -156,6 +160,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (err) {
     console.error('Error importando playlist Spotify:', err);
-    return res.status(500).json({ error: 'Error interno al importar playlist' });
+    const message = err instanceof Error ? err.message : 'Error interno al importar playlist';
+    const status = message.includes('credentials') ? 503 : 500;
+    return res.status(status).json({
+      error: message.includes('credentials')
+        ? 'Faltan SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET en Vercel'
+        : message,
+    });
   }
 }

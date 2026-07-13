@@ -15,7 +15,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getSpotifyAccessToken } from './_token';
+import { getSpotifyAccessToken } from '../../lib/spotifyToken';
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 

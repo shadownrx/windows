@@ -994,6 +994,59 @@ const SpotifyMiniStandalone: React.FC = () => {
     sessionStorage.setItem('nexMusicPartyMode', String(isPartyMode));
   }, [isPartyMode]);
 
+  // Keep YT iframes pinned tiny — iOS sometimes expands them over the whole page
+  useEffect(() => {
+    const pinIframes = () => {
+      const host = document.querySelector('.spotify-yt-audio');
+      if (!host) return;
+      host.querySelectorAll('iframe').forEach((el) => {
+        const iframe = el as HTMLIFrameElement;
+        iframe.setAttribute('playsinline', '1');
+        iframe.setAttribute('webkit-playsinline', '1');
+        iframe.removeAttribute('allowfullscreen');
+        iframe.setAttribute(
+          'allow',
+          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture',
+        );
+        Object.assign(iframe.style, {
+          width: '2px',
+          height: '2px',
+          maxWidth: '2px',
+          maxHeight: '2px',
+          position: 'absolute',
+          left: '0px',
+          top: '0px',
+          border: '0',
+          pointerEvents: 'none',
+        });
+      });
+      try {
+        if (document.fullscreenElement) void document.exitFullscreen?.();
+        const doc = document as Document & {
+          webkitFullscreenElement?: Element;
+          webkitExitFullscreen?: () => void;
+        };
+        if (doc.webkitFullscreenElement) doc.webkitExitFullscreen?.();
+      } catch { /* ignore */ }
+    };
+
+    pinIframes();
+    const host = document.querySelector('.spotify-yt-audio');
+    const mo = host
+      ? new MutationObserver(() => pinIframes())
+      : null;
+    mo?.observe(host as Node, { childList: true, subtree: true, attributes: true });
+    const iv = window.setInterval(pinIframes, 800);
+    document.addEventListener('fullscreenchange', pinIframes);
+    document.addEventListener('webkitfullscreenchange', pinIframes as EventListener);
+    return () => {
+      mo?.disconnect();
+      clearInterval(iv);
+      document.removeEventListener('fullscreenchange', pinIframes);
+      document.removeEventListener('webkitfullscreenchange', pinIframes as EventListener);
+    };
+  }, []);
+
   useEffect(() => {
     setWeekStats(loadWeeklyStats());
   }, [currentTrack?.id, favorites.length]);
@@ -1294,6 +1347,9 @@ const SpotifyMiniStandalone: React.FC = () => {
         rel: 0,
         fs: 0,
         disablekb: 1,
+        iv_load_policy: 3,
+        // Force HTML5 inline on mobile Safari
+        ...(isMobile ? { playsinline: 1, fs: 0 } : {}),
       },
       events: {
         onReady: (event: any) => {
@@ -1357,7 +1413,8 @@ const SpotifyMiniStandalone: React.FC = () => {
 
     if (!playerARef.current) {
       createYtPlayer('youtube-player-a', videoId, 'a');
-      createYtPlayer('youtube-player-b', undefined, 'b');
+      // Dual player often triggers iOS native fullscreen / black cover — desktop only
+      if (!isMobile) createYtPlayer('youtube-player-b', undefined, 'b');
       return;
     }
 
@@ -1368,7 +1425,7 @@ const SpotifyMiniStandalone: React.FC = () => {
 
     syncPlayerRef();
     const { settings, crossfadeToNext, startTrackEnvelope } = audioEnhanceRef.current;
-    const shouldCrossfade = !isFirstVideoLoadRef.current && settings.crossfadeSec > 0;
+    const shouldCrossfade = !isFirstVideoLoadRef.current && settings.crossfadeSec > 0 && !isMobile;
     const active = getActiveYt();
     const idle = getIdleYt();
 
@@ -1413,6 +1470,7 @@ const SpotifyMiniStandalone: React.FC = () => {
     loadInto(active, videoId);
     startTrackEnvelope(active, volumeRef.current);
     setIsPlaying(true);
+    try { active?.playVideo?.(); } catch { /* ignore */ }
   };
 
   const startProgressTracking = () => {
@@ -1722,14 +1780,15 @@ const SpotifyMiniStandalone: React.FC = () => {
 
   return (
     <div className={`spotify-root ${isMobile ? 'is-mobile' : 'is-desktop'} ${isStandalonePwa ? 'is-standalone' : ''} ${pcnMode ? 'pcn-theme' : ''} ${isPartyMode ? 'party-mode party-active' : ''}`}>
-      <PartyModeLayer enabled={isPartyMode} isPlaying={isPlaying} />
-
-      {/* --- PERMANENT YOUTUBE IFRAMES (dual for overlap crossfade) --- */}
-      <div className="spotify-iframe-permanent">
+      {/* Audio-only YT host: kept tiny + behind opaque UI shell (fixes mobile black cover) */}
+      <div className="spotify-yt-audio" aria-hidden="true">
         <div id="youtube-player-a" />
-        <div id="youtube-player-b" />
+        {!isMobile && <div id="youtube-player-b" />}
       </div>
 
+      <PartyModeLayer enabled={isPartyMode} isPlaying={isPlaying} />
+
+      <div className="spotify-ui-shell">
       {/* --- NICKNAME MODAL --- */}
       <NicknameModal
         isOpen={showNicknameModal} onClose={() => setShowNicknameModal(false)} />
@@ -2925,6 +2984,7 @@ const SpotifyMiniStandalone: React.FC = () => {
         onPlayTopDj={playTopDjTrack}
         onClearDj={clearDjPool}
       />
+      </div>{/* .spotify-ui-shell */}
 
       {/* --- GLOBAL STYLES --- */}
       <style>{`
@@ -2938,12 +2998,13 @@ const SpotifyMiniStandalone: React.FC = () => {
           height: 100%;
           min-height: 0;
           width: 100%;
-          background: #000;
+          background: #0a0a0a;
           font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
           color: #fff;
           overflow: hidden;
           position: relative;
           -webkit-tap-highlight-color: transparent;
+          isolation: isolate;
         }
 
         .is-mobile.spotify-root {
@@ -2951,33 +3012,54 @@ const SpotifyMiniStandalone: React.FC = () => {
           max-height: 100dvh;
         }
 
-        .spotify-iframe-permanent {
-          /* Keep a real 1×1 paint box off-screen — full clip can break audio on some WebViews */
+        /* YouTube stays behind the opaque UI — never covers the app on mobile */
+        .spotify-yt-audio {
           position: fixed !important;
-          left: -2px !important;
-          top: -2px !important;
-          width: 1px !important;
-          height: 1px !important;
-          max-width: 1px !important;
-          max-height: 1px !important;
-          opacity: 0.01;
-          pointer-events: none !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 2px !important;
+          height: 2px !important;
+          max-width: 2px !important;
+          max-height: 2px !important;
           overflow: hidden !important;
-          z-index: -1 !important;
-          border: 0 !important;
+          z-index: 0 !important;
+          pointer-events: none !important;
+          opacity: 1;
         }
-        .spotify-iframe-permanent iframe,
-        .spotify-iframe-permanent > div {
-          width: 1px !important;
-          height: 1px !important;
-          max-width: 1px !important;
-          max-height: 1px !important;
+        .spotify-yt-audio iframe,
+        .spotify-yt-audio > div {
+          width: 2px !important;
+          height: 2px !important;
+          max-width: 2px !important;
+          max-height: 2px !important;
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
-          opacity: 0.01 !important;
+          border: 0 !important;
           pointer-events: none !important;
-          border: none !important;
+        }
+
+        .spotify-ui-shell {
+          position: relative;
+          z-index: 20;
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-height: 0;
+          width: 100%;
+          height: 100%;
+          background: #121212;
+          overflow: hidden;
+          isolation: isolate;
+        }
+
+        .is-mobile .spotify-ui-shell {
+          background: #0a0a0a;
+        }
+
+        /* legacy class kept for safety if old markup remains */
+        .spotify-iframe-permanent {
+          display: none !important;
         }
 
         /* --- MODALS --- */

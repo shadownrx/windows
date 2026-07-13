@@ -10,11 +10,8 @@
     }
   ],
   "functions": {
-    "api/spotify/playlist.js": {
+    "api/spotify-playlist.js": {
       "maxDuration": 30
-    },
-    "api/spotify/search.js": {
-      "maxDuration": 15
     }
   }
 }

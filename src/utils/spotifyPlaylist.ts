@@ -52,7 +52,7 @@ export function spotifyTracksToNexTracks(tracks: SpotifyPlaylistApiTrack[]): Tra
 export async function fetchSpotifyPlaylist(source: string): Promise<SpotifyPlaylistApiResponse> {
   const id = parseSpotifyPlaylistId(source);
   const query = id ? `id=${encodeURIComponent(id)}` : `url=${encodeURIComponent(source.trim())}`;
-  const res = await fetch(`/api/spotify/playlist?${query}`);
+  const res = await fetch(`/api/spotify-playlist?${query}`);
 
   let data: { error?: string } = {};
   const text = await res.text();

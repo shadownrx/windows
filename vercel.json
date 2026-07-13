@@ -15,6 +15,10 @@
     {
       "source": "/p/:p",
       "destination": "/api/og-nex-music"
+    },
+    {
+      "source": "/api/og-image",
+      "destination": "/api/og-nex-music?img=1"
     }
   ],
   "functions": {

@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { AudioPreset, NexAudioSettings } from './useNexAudioEnhance';
-import { mapUiVolumeToPlayer } from './useNexAudioEnhance';
 
-/** EQ gains (dB) per preset — FxSound-inspired colour. */
-const PRESET_EQ: Record<AudioPreset, { bass: number; mid: number; treble: number }> = {
-  flat: { bass: 0, mid: 0, treble: 0 },
-  clear: { bass: -1, mid: 2.5, treble: 4 },
-  bass: { bass: 7, mid: 0, treble: -1 },
-  loud: { bass: 3.5, mid: 2, treble: 2.5 },
-  club: { bass: 8, mid: 1.5, treble: 3.5 },
-  night: { bass: -2, mid: 0, treble: -3.5 },
+/** EQ gains (dB) per preset — FxSound-inspired colour (aggressive). */
+const PRESET_EQ: Record<AudioPreset, { bass: number; mid: number; treble: number; presence: number }> = {
+  flat: { bass: 0, mid: 0, treble: 0, presence: 0 },
+  clear: { bass: -1, mid: 2, treble: 5, presence: 3 },
+  bass: { bass: 10, mid: -0.5, treble: -1, presence: 1 },
+  loud: { bass: 5, mid: 2.5, treble: 3.5, presence: 2.5 },
+  club: { bass: 11, mid: 2, treble: 4.5, presence: 3.5 },
+  night: { bass: -2, mid: 0, treble: -4, presence: -1 },
 };
 
 export type DspEngine = {
@@ -29,6 +28,7 @@ export function createNexDspEngine(): DspEngine {
   let source: MediaElementAudioSourceNode | null = null;
   let bass: BiquadFilterNode | null = null;
   let mid: BiquadFilterNode | null = null;
+  let presence: BiquadFilterNode | null = null;
   let treble: BiquadFilterNode | null = null;
   let compressor: DynamicsCompressorNode | null = null;
   let makeup: GainNode | null = null;
@@ -47,25 +47,30 @@ export function createNexDspEngine(): DspEngine {
     if (!bass) {
       bass = ctx.createBiquadFilter();
       bass.type = 'lowshelf';
-      bass.frequency.value = 90;
+      bass.frequency.value = 75;
       mid = ctx.createBiquadFilter();
       mid.type = 'peaking';
-      mid.frequency.value = 1000;
-      mid.Q.value = 0.9;
+      mid.frequency.value = 900;
+      mid.Q.value = 0.85;
+      presence = ctx.createBiquadFilter();
+      presence.type = 'peaking';
+      presence.frequency.value = 3200;
+      presence.Q.value = 1.1;
       treble = ctx.createBiquadFilter();
       treble.type = 'highshelf';
-      treble.frequency.value = 7500;
+      treble.frequency.value = 7000;
       compressor = ctx.createDynamicsCompressor();
-      compressor.threshold.value = -22;
-      compressor.knee.value = 18;
-      compressor.ratio.value = 10;
-      compressor.attack.value = 0.003;
-      compressor.release.value = 0.22;
+      compressor.threshold.value = -24;
+      compressor.knee.value = 22;
+      compressor.ratio.value = 12;
+      compressor.attack.value = 0.002;
+      compressor.release.value = 0.18;
       makeup = ctx.createGain();
       master = ctx.createGain();
       panner = ctx.createStereoPanner();
       bass.connect(mid!);
-      mid!.connect(treble!);
+      mid!.connect(presence!);
+      presence!.connect(treble!);
       treble!.connect(compressor!);
       compressor!.connect(makeup!);
       makeup!.connect(master!);
@@ -95,24 +100,38 @@ export function createNexDspEngine(): DspEngine {
 
   const applySettings = (settings: NexAudioSettings, uiVolume: number) => {
     ensureGraph();
-    if (!bass || !mid || !treble || !compressor || !makeup || !master || !panner) return;
+    if (!bass || !mid || !presence || !treble || !compressor || !makeup || !master || !panner) return;
 
     const power = Math.max(0, Math.min(100, settings.power)) / 100;
     const eq = PRESET_EQ[settings.preset] ?? PRESET_EQ.flat;
-    const bassExtra = settings.boost ? power * 2.5 : 0;
-    const trebleExtra = settings.boost ? power * 1.2 : 0;
+    const boostOn = settings.boost !== false;
+    // FxSound-like: power drives colour + loudness hard
+    const bassExtra = boostOn ? power * 5.5 : power * 2;
+    const midExtra = boostOn ? power * 1.8 : 0;
+    const presenceExtra = boostOn ? power * 3.2 : power * 1;
+    const trebleExtra = boostOn ? power * 3.5 : power * 1.2;
 
     bass.gain.value = eq.bass + bassExtra + (settings.eqBass ?? 0);
-    mid.gain.value = eq.mid + (settings.eqMid ?? 0);
+    mid.gain.value = eq.mid + midExtra + (settings.eqMid ?? 0);
+    presence.gain.value = eq.presence + presenceExtra;
     treble.gain.value = eq.treble + trebleExtra + (settings.eqTreble ?? 0);
 
-    compressor.threshold.value = -18 - power * 10;
-    compressor.ratio.value = 6 + power * 8;
-    makeup.gain.value = 1 + power * 0.55 + (settings.boost ? 0.15 : 0);
+    // Squash dynamics then make up — the “always loud” feel
+    compressor.threshold.value = -16 - power * 16;
+    compressor.knee.value = 12 + power * 16;
+    compressor.ratio.value = 8 + power * 12;
+    compressor.attack.value = 0.002;
+    compressor.release.value = 0.14 + (1 - power) * 0.12;
 
-    const ytVol = mapUiVolumeToPlayer(uiVolume, settings) / 100;
-    // Extra DSP headroom — soft ceiling ~1.15 into compressor
-    master.gain.value = Math.min(1.2, ytVol * (1 + power * 0.35));
+    // Makeup: up to ~+9 dB linear at full power (~2.8x)
+    const makeupLin = 1 + power * (boostOn ? 1.85 : 1.1) + (boostOn ? 0.35 : 0);
+    makeup.gain.value = makeupLin;
+
+    // DSP volume: don't soft-cap as hard as the YT iframe path
+    const ui = Math.max(0, Math.min(100, uiVolume)) / 100;
+    const curved = Math.pow(ui, boostOn ? 0.48 : 0.7);
+    const powerLift = 1 + power * 0.85;
+    master.gain.value = Math.min(2.4, curved * powerLift * (settings.preset === 'club' ? 1.12 : 1));
 
     spatialEnabled = Boolean(settings.spatial8d);
     spatialSpeed = 0.12 + (settings.spatialSpeed ?? 40) / 100 * 0.35;

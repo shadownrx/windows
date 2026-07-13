@@ -36,11 +36,11 @@ export const DEFAULT_AUDIO_SETTINGS: NexAudioSettings = {
   crossfadeSec: 4,
   normalize: true,
   boost: true,
-  power: 72,
+  power: 85,
   autoGain: true,
   punch: true,
   dualCrossfade: true,
-  preset: 'loud',
+  preset: 'club',
   preferDsp: true,
   spatial8d: false,
   spatialSpeed: 40,
@@ -329,11 +329,11 @@ export function useNexAudioEnhance() {
       dualCrossfade: true,
       preferDsp: true,
       spatial8d: true,
-      power: Math.max(prev.power, 88),
+      power: 100,
       preset: 'club',
       crossfadeSec: Math.max(prev.crossfadeSec, 3),
-      eqBass: Math.max(prev.eqBass, 2),
-      eqTreble: Math.max(prev.eqTreble, 1),
+      eqBass: Math.max(prev.eqBass, 3),
+      eqTreble: Math.max(prev.eqTreble, 2),
     }));
   }, []);
 

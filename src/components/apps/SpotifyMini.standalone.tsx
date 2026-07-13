@@ -922,6 +922,7 @@ const SpotifyMiniStandalone: React.FC = () => {
   streamPlayerRef.current = streamPlayer;
   const isFirstVideoLoadRef = useRef(true);
   const crossfadingRef = useRef(false);
+  const initGenRef = useRef(0);
   const pendingRoomRef = useRef<string | null>(null);
   const pendingCloudRef = useRef<string | null>(null);
   const pendingShortRef = useRef<string | null>(null);
@@ -1289,10 +1290,14 @@ const SpotifyMiniStandalone: React.FC = () => {
       firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
     }
 
-    // Callback global que YouTube llama cuando termina de cargar
+  // Callback global que YouTube llama cuando termina de cargar
+    // Only boot YT if DSP is off / already failed — avoids abort race that drops DSP→YouTube
     window.onYouTubeIframeAPIReady = () => {
-      if (currentTrack?.videoId) {
-        initPlayer();
+      if (currentTrack?.videoId && streamPlayerRef.current.mode !== 'dsp') {
+        // If preferDsp, let the currentTrack effect own init; only help when already on YT path
+        if (audioEnhanceRef.current.settings.preferDsp === false) {
+          initPlayer();
+        }
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1455,19 +1460,33 @@ const SpotifyMiniStandalone: React.FC = () => {
     if (!currentTrack?.videoId) return;
     if (crossfadingRef.current) return;
     const videoId = currentTrack.videoId;
+    const gen = ++initGenRef.current;
 
     // Prefer real DSP pipeline (our output). Fall back to YouTube iframe.
     void (async () => {
-      const ok = await streamPlayerRef.current.playVideoId(videoId);
-      if (ok) {
+      // Pause any leftover YT while we try DSP (avoids dual audio / false “no FX”)
+      muteYtPlayers();
+
+      const result = await streamPlayerRef.current.playVideoId(videoId);
+      if (gen !== initGenRef.current) return; // superseded by a newer track/init
+
+      if (result === 'ok') {
         muteYtPlayers();
         stopProgressTracking();
         isFirstVideoLoadRef.current = false;
         return;
       }
-      // YouTube fallback
+
+      // Aborted by a newer play attempt — do NOT start YouTube
+      if (result === 'abort') return;
+
+      showToast('Sin DSP · YouTube (EQ/8D off). Reintentá el tema.', 'info');
+
+      // YouTube fallback (real DSP failure)
       if (!window.YT) {
-        setTimeout(initPlayer, 100);
+        setTimeout(() => {
+          if (gen === initGenRef.current) initPlayer();
+        }, 100);
         return;
       }
 
@@ -1478,11 +1497,19 @@ const SpotifyMiniStandalone: React.FC = () => {
       }
 
       if (!playerARef.current?.loadVideoById) {
-        setTimeout(initPlayer, 100);
+        setTimeout(() => {
+          if (gen === initGenRef.current) initPlayer();
+        }, 100);
         return;
       }
 
       syncPlayerRef();
+      try {
+        playerARef.current?.unMute?.();
+        playerBRef.current?.unMute?.();
+      } catch {
+        /* ignore */
+      }
       const { settings, crossfadeToNext, startTrackEnvelope } = audioEnhanceRef.current;
       const shouldCrossfade = !isFirstVideoLoadRef.current && settings.crossfadeSec > 0 && !isMobile;
       const active = getActiveYt();
@@ -1491,7 +1518,9 @@ const SpotifyMiniStandalone: React.FC = () => {
       if (shouldCrossfade && settings.dualCrossfade && !idle?.loadVideoById) {
         if (dualReadyWaitRef.current < 25) {
           dualReadyWaitRef.current += 1;
-          setTimeout(initPlayer, 120);
+          setTimeout(() => {
+            if (gen === initGenRef.current) initPlayer();
+          }, 120);
           return;
         }
       }

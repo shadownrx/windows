@@ -13,6 +13,7 @@ export type StreamResolveResult = {
 };
 
 export type PlaybackMode = 'idle' | 'dsp' | 'youtube';
+export type PlayVideoResult = 'ok' | 'abort' | 'fail';
 
 async function resolveStream(videoId: string, signal?: AbortSignal): Promise<StreamResolveResult> {
   const res = await fetch(`/api/youtube/search?stream=${encodeURIComponent(videoId)}`, { signal });
@@ -21,6 +22,49 @@ async function resolveStream(videoId: string, signal?: AbortSignal): Promise<Str
     throw new Error((body as { error?: string }).error || `Stream HTTP ${res.status}`);
   }
   return res.json() as Promise<StreamResolveResult>;
+}
+
+function waitForMedia(el: HTMLMediaElement, signal: AbortSignal, timeoutMs = 14000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'));
+      return;
+    }
+    if (el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      resolve();
+      return;
+    }
+
+    const onReady = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error(el.error?.message || 'media error'));
+    };
+    const onAbort = () => {
+      cleanup();
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    const timer = window.setTimeout(() => {
+      cleanup();
+      reject(new Error('media timeout'));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      el.removeEventListener('canplay', onReady);
+      el.removeEventListener('loadeddata', onReady);
+      el.removeEventListener('error', onError);
+      signal.removeEventListener('abort', onAbort);
+    };
+
+    el.addEventListener('canplay', onReady);
+    el.addEventListener('loadeddata', onReady);
+    el.addEventListener('error', onError);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 /**
@@ -37,21 +81,28 @@ export function useNexStreamPlayer(opts: {
   const mediaRef = useRef<HTMLVideoElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const activeVideoIdRef = useRef<string | null>(null);
-  const [mode, setMode] = useState<PlaybackMode>('idle');
+  const modeRef = useRef<PlaybackMode>('idle');
+  const [mode, setModeState] = useState<PlaybackMode>('idle');
   const [dspReady, setDspReady] = useState(false);
   const progressTimerRef = useRef<number | null>(null);
   const optsRef = useRef(opts);
   optsRef.current = opts;
 
+  const setMode = useCallback((next: PlaybackMode) => {
+    modeRef.current = next;
+    setModeState(next);
+  }, []);
+
   const ensureMedia = useCallback(() => {
-    if (mediaRef.current) return mediaRef.current;
+    if (mediaRef.current && document.body.contains(mediaRef.current)) return mediaRef.current;
     const el = document.createElement('video');
     el.setAttribute('playsinline', '1');
     el.setAttribute('webkit-playsinline', '1');
     el.preload = 'auto';
     el.crossOrigin = 'anonymous';
+    el.muted = false;
     el.style.cssText =
-      'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9px;top:-9px;';
+      'position:fixed;width:2px;height:2px;opacity:0.01;pointer-events:none;left:0;top:0;z-index:-1;';
     el.addEventListener('ended', () => optsRef.current.onEnded());
     el.addEventListener('play', () => optsRef.current.onPlayingChange(true));
     el.addEventListener('pause', () => {
@@ -73,17 +124,13 @@ export function useNexStreamPlayer(opts: {
     stopProgress();
     progressTimerRef.current = window.setInterval(() => {
       const el = mediaRef.current;
-      if (!el) return;
+      if (!el || modeRef.current !== 'dsp') return;
       const dur = el.duration;
       if (Number.isFinite(dur) && dur > 0) {
         optsRef.current.onTime(el.currentTime, dur);
       }
     }, 500);
   }, [stopProgress]);
-
-  const pauseYtSafe = () => {
-    /* caller mutes YT when DSP wins */
-  };
 
   const stopDsp = useCallback(() => {
     abortRef.current?.abort();
@@ -104,12 +151,12 @@ export function useNexStreamPlayer(opts: {
   }, [stopProgress]);
 
   const playVideoId = useCallback(
-    async (videoId: string): Promise<boolean> => {
+    async (videoId: string): Promise<PlayVideoResult> => {
       const settings = optsRef.current.getSettings();
       if (settings.preferDsp === false) {
         stopDsp();
         setMode('youtube');
-        return false;
+        return 'fail';
       }
 
       abortRef.current?.abort();
@@ -118,65 +165,63 @@ export function useNexStreamPlayer(opts: {
 
       try {
         const resolved = await resolveStream(videoId, ac.signal);
-        if (ac.signal.aborted) return false;
+        if (ac.signal.aborted) return 'abort';
 
         const el = ensureMedia();
         const engine = optsRef.current.getEngine();
         engine.ensureContext();
         engine.attachElement(el);
+
+        el.crossOrigin = 'anonymous';
+        el.src = resolved.url;
+        el.load();
+
+        await waitForMedia(el, ac.signal);
+        if (ac.signal.aborted) return 'abort';
+
+        engine.ensureContext();
         engine.applySettings(optsRef.current.getSettings(), optsRef.current.getUiVolume());
 
-        await new Promise<void>((resolve, reject) => {
-          const onCanPlay = () => {
-            cleanup();
-            resolve();
-          };
-          const onError = () => {
-            cleanup();
-            reject(new Error('media error'));
-          };
-          const cleanup = () => {
-            el.removeEventListener('canplay', onCanPlay);
-            el.removeEventListener('error', onError);
-          };
-          el.addEventListener('canplay', onCanPlay, { once: true });
-          el.addEventListener('error', onError, { once: true });
-          el.src = resolved.url;
-          el.load();
-        });
-
-        if (ac.signal.aborted) return false;
-
         await el.play();
+        if (ac.signal.aborted) {
+          try {
+            el.pause();
+          } catch {
+            /* ignore */
+          }
+          return 'abort';
+        }
+
         activeVideoIdRef.current = videoId;
         setDspReady(true);
         setMode('dsp');
         startProgress();
-        pauseYtSafe();
         optsRef.current.onPlayingChange(true);
         if (Number.isFinite(el.duration) && el.duration > 0) {
           optsRef.current.onTime(el.currentTime, el.duration);
         }
-        return true;
+        // Re-apply after play (AudioContext may have resumed late)
+        engine.applySettings(optsRef.current.getSettings(), optsRef.current.getUiVolume());
+        return 'ok';
       } catch (err) {
-        if ((err as Error)?.name === 'AbortError') return false;
+        if ((err as Error)?.name === 'AbortError') return 'abort';
         console.warn('[NEX DSP] stream fallback → YouTube', err);
         stopDsp();
         setMode('youtube');
-        return false;
+        return 'fail';
       }
     },
-    [ensureMedia, startProgress, stopDsp],
+    [ensureMedia, setMode, startProgress, stopDsp],
   );
 
   const play = useCallback(async () => {
     const el = mediaRef.current;
-    if (!el || mode !== 'dsp') return false;
+    if (!el || modeRef.current !== 'dsp') return false;
     optsRef.current.getEngine().ensureContext();
     await el.play();
     startProgress();
     return true;
-  }, [mode, startProgress]);
+  }, [startProgress]);
 
   const pause = useCallback(() => {
     mediaRef.current?.pause();
@@ -185,17 +230,18 @@ export function useNexStreamPlayer(opts: {
 
   const seekTo = useCallback((seconds: number) => {
     const el = mediaRef.current;
-    if (!el || mode !== 'dsp') return;
+    if (!el || modeRef.current !== 'dsp') return;
     el.currentTime = Math.max(0, seconds);
-  }, [mode]);
+  }, []);
 
   const getCurrentTime = useCallback(() => mediaRef.current?.currentTime ?? 0, []);
   const getDuration = useCallback(() => mediaRef.current?.duration ?? 0, []);
 
+  /** Always safe — uses modeRef so EQ/8D apply even if React closure is stale. */
   const syncSettings = useCallback(() => {
-    if (mode !== 'dsp') return;
+    if (modeRef.current !== 'dsp') return;
     optsRef.current.getEngine().applySettings(optsRef.current.getSettings(), optsRef.current.getUiVolume());
-  }, [mode]);
+  }, []);
 
   useEffect(() => {
     return () => {

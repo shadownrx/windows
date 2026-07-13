@@ -102,6 +102,7 @@ interface SpotifyMiniContextType {
   history: Track[];
   showLyrics: boolean;
   playTrack: (track: Track) => void | Promise<void>;
+  playPlaylistFrom: (tracks: Track[], startIndex?: number) => void;
   togglePlay: () => void;
   nextTrack: () => void;
   prevTrack: () => void;
@@ -350,6 +351,13 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
     });
   }, []);
 
+  const playPlaylistFrom = useCallback((tracks: Track[], startIndex = 0) => {
+    if (!tracks.length) return;
+    const idx = Math.max(0, Math.min(startIndex, tracks.length - 1));
+    setQueue(tracks.slice(idx + 1));
+    void playTrack(tracks[idx]);
+  }, [playTrack]);
+
   // Precargar siguiente de la cola
   useEffect(() => {
     const upcoming = queue[0];
@@ -385,15 +393,46 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
     setIsPlaying(prev => !prev);
   }, []);
 
+  const findTrackIndexInPlaylist = useCallback((tracks: Track[], track: Track | null) => {
+    if (!track) return -1;
+    return tracks.findIndex(
+      (t) =>
+        t.id === track.id ||
+        (!!t.videoId && !!track.videoId && t.videoId === track.videoId) ||
+        (t.title === track.title && t.artist === track.artist),
+    );
+  }, []);
+
   const nextTrack = useCallback(() => {
     if (queue.length > 0) {
       const next = queue[0];
       setQueue(prev => prev.slice(1));
-      playTrack(next);
+      void playTrack(next);
       return;
     }
+
+    if (activePlaylistId) {
+      const pl = playlists.find((p) => p.id === activePlaylistId);
+      if (pl && pl.tracks.length > 0) {
+        const idx = findTrackIndexInPlaylist(pl.tracks, currentTrack);
+        if (idx >= 0 && idx < pl.tracks.length - 1) {
+          playPlaylistFrom(pl.tracks, idx + 1);
+          return;
+        }
+      }
+    }
+
     tryDjAutoNext();
-  }, [queue, playTrack, tryDjAutoNext]);
+  }, [
+    queue,
+    playTrack,
+    tryDjAutoNext,
+    activePlaylistId,
+    playlists,
+    currentTrack,
+    findTrackIndexInPlaylist,
+    playPlaylistFrom,
+  ]);
 
   const prevTrack = useCallback(() => {
     if (history.length > 1) {
@@ -508,6 +547,7 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
         history,
         showLyrics,
         playTrack,
+        playPlaylistFrom,
         togglePlay,
         nextTrack,
         prevTrack,
@@ -676,6 +716,7 @@ const SpotifyMiniStandalone: React.FC = () => {
     history,
     showLyrics,
     playTrack,
+    playPlaylistFrom,
     togglePlay,
     nextTrack,
     prevTrack,
@@ -1921,7 +1962,7 @@ const SpotifyMiniStandalone: React.FC = () => {
                                 className="spotify-play-hero-btn"
                                 onClick={() => {
                                   if (activePlaylist.tracks.length > 0) {
-                                    playTrack(activePlaylist.tracks[0]);
+                                    playPlaylistFrom(activePlaylist.tracks, 0);
                                   }
                                 }}
                               >
@@ -1993,7 +2034,11 @@ const SpotifyMiniStandalone: React.FC = () => {
                             </div>
                           ) : (
                             activePlaylist.tracks.map((track, index) => (
-                            <div key={track.id} className="spotify-track-row" onClick={() => playTrack(track)}>
+                            <div
+                              key={track.id}
+                              className="spotify-track-row"
+                              onClick={() => playPlaylistFrom(activePlaylist.tracks, index)}
+                            >
                               <div className="spotify-track-cover">
                                 <img src={track.cover} alt={track.title} />
                               </div>

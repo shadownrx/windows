@@ -1,6 +1,5 @@
 ﻿/**
  * GET /api/spotify-playlist?id=... | ?url=...
- * Ruta plana para evitar problemas de nesting en Vercel.
  */
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
@@ -10,16 +9,6 @@ const PAGE_SIZE = 100;
 
 let accessToken = null;
 let tokenExpiresAt = 0;
-
-const requestLog = new Map();
-
-function isRateLimited(ip) {
-  const now = Date.now();
-  const timestamps = (requestLog.get(ip) || []).filter((t) => now - t < 60_000);
-  timestamps.push(now);
-  requestLog.set(ip, timestamps);
-  return timestamps.length > 10;
-}
 
 function parsePlaylistId(raw) {
   const input = String(raw || '').trim();
@@ -39,7 +28,8 @@ async function getSpotifyAccessToken() {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    throw new Error('Faltan SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET en Vercel');
+    const err = new Error('MISSING_CREDENTIALS');
+    throw err;
   }
   if (accessToken && Date.now() < tokenExpiresAt) return accessToken;
 
@@ -52,7 +42,10 @@ async function getSpotifyAccessToken() {
     },
     body: 'grant_type=client_credentials',
   });
-  if (!response.ok) throw new Error('No se pudo obtener token de Spotify');
+  if (!response.ok) {
+    const t = await response.text();
+    throw new Error(`TOKEN_FAILED:${response.status}:${t.slice(0, 120)}`);
+  }
 
   const data = await response.json();
   accessToken = data.access_token;
@@ -62,18 +55,18 @@ async function getSpotifyAccessToken() {
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'GET') {
-    res.setHeader('Allow', 'GET');
-    return res.status(405).json({ error: 'MÃ©todo no permitido' });
-  }
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Método no permitido' });
 
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0] || 'unknown';
-  if (isRateLimited(ip)) {
-    return res.status(429).json({ error: 'Demasiadas solicitudes, esperÃ¡ un momento.' });
+  // health / debug
+  if (req.query.debug === '1') {
+    return res.status(200).json({
+      ok: true,
+      hasClientId: Boolean(process.env.SPOTIFY_CLIENT_ID),
+      hasClientSecret: Boolean(process.env.SPOTIFY_CLIENT_SECRET),
+    });
   }
 
   const idParam = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
@@ -82,23 +75,30 @@ export default async function handler(req, res) {
 
   if (!playlistId) {
     return res.status(400).json({
-      error: 'URL o ID de playlist invÃ¡lido. Ej: https://open.spotify.com/playlist/...',
+      error: 'URL o ID de playlist inválido. Ej: https://open.spotify.com/playlist/...',
     });
   }
 
   try {
     const token = await getSpotifyAccessToken();
-    const metaRes = await fetch(`${SPOTIFY_API_BASE}/playlists/${playlistId}?market=AR`, {
+
+    const metaRes = await fetch(`${SPOTIFY_API_BASE}/playlists/${encodeURIComponent(playlistId)}?market=AR`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    if (metaRes.status === 404) {
-      return res.status(404).json({ error: 'Playlist no encontrada o no es pÃºblica' });
-    }
     if (!metaRes.ok) {
       const body = await metaRes.text();
       console.error('Spotify playlist meta:', metaRes.status, body);
-      return res.status(502).json({ error: 'No se pudo leer la playlist en Spotify' });
+      // Usar 502 (no 404) para que no se confunda con "ruta no encontrada"
+      return res.status(502).json({
+        error:
+          metaRes.status === 404
+            ? 'Playlist no encontrada o no es pública en Spotify'
+            : `Spotify respondió ${metaRes.status}`,
+        spotifyStatus: metaRes.status,
+        details: body.slice(0, 300),
+        playlistId,
+      });
     }
 
     const meta = await metaRes.json();
@@ -107,20 +107,25 @@ export default async function handler(req, res) {
 
     while (tracks.length < MAX_TRACKS) {
       const itemsRes = await fetch(
-        `${SPOTIFY_API_BASE}/playlists/${playlistId}/tracks?limit=${PAGE_SIZE}&offset=${offset}&market=AR`,
+        `${SPOTIFY_API_BASE}/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${PAGE_SIZE}&offset=${offset}&market=AR`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      if (!itemsRes.ok) break;
+      if (!itemsRes.ok) {
+        console.error('tracks page fail', itemsRes.status);
+        break;
+      }
 
       const page = await itemsRes.json();
       for (const item of page.items || []) {
         const track = item.track;
-        if (!track?.id) continue;
+        if (!track || !track.id) continue;
         tracks.push({
           id: track.id,
           title: track.name,
           artist: (track.artists || []).map((a) => a.name).join(', '),
-          cover: track.album?.images?.[0]?.url || meta.images?.[0]?.url || '',
+          cover: (track.album && track.album.images && track.album.images[0] && track.album.images[0].url) ||
+            (meta.images && meta.images[0] && meta.images[0].url) ||
+            '',
           duration: track.duration_ms,
           uri: track.uri,
         });
@@ -131,24 +136,31 @@ export default async function handler(req, res) {
     }
 
     if (tracks.length === 0) {
-      return res.status(404).json({ error: 'La playlist no tiene canciones disponibles' });
+      return res.status(502).json({
+        error: 'La playlist no tiene canciones disponibles',
+        playlistId,
+        name: meta.name || null,
+      });
     }
 
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
     return res.status(200).json({
       id: playlistId,
       name: meta.name,
-      cover: meta.images?.[0]?.url || tracks[0]?.cover || '',
-      trackCount: meta.tracks?.total ?? tracks.length,
+      cover: (meta.images && meta.images[0] && meta.images[0].url) || tracks[0].cover || '',
+      trackCount: (meta.tracks && meta.tracks.total) || tracks.length,
       importedCount: tracks.length,
-      truncated: (meta.tracks?.total ?? tracks.length) > tracks.length,
+      truncated: ((meta.tracks && meta.tracks.total) || tracks.length) > tracks.length,
       tracks,
     });
   } catch (err) {
     console.error('Error importando playlist Spotify:', err);
-    return res.status(500).json({
-      error: err instanceof Error ? err.message : 'Error interno al importar playlist',
-    });
+    const message = err instanceof Error ? err.message : String(err);
+    if (message === 'MISSING_CREDENTIALS') {
+      return res.status(503).json({
+        error: 'Faltan SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET en Vercel → Environment Variables',
+      });
+    }
+    return res.status(500).json({ error: message });
   }
-};
-
+}

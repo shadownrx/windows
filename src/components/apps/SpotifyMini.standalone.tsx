@@ -1317,14 +1317,29 @@ const SpotifyMiniStandalone: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTrack]);
 
-  // Update volume: DSP gain when live, else YouTube iframe volume
+  // Update volume / FX: DSP gain when live, else YouTube loudness + optional 8D LFO
   useEffect(() => {
     if (streamPlayer.isDspActive) {
+      audioEnhance.stopYtSpatial();
       streamPlayer.syncSettings();
       return;
     }
+    if (streamPlayer.mode === 'youtube' && audioEnhance.settings.spatial8d) {
+      audioEnhance.startYtSpatial(playerRef.current, volume);
+      return;
+    }
+    audioEnhance.stopYtSpatial();
     audioEnhance.applyVolume(playerRef.current, volume);
-  }, [volume, audioEnhance.settings, audioEnhance.applyVolume, streamPlayer.isDspActive, streamPlayer.syncSettings]);
+  }, [
+    volume,
+    audioEnhance.settings,
+    audioEnhance.applyVolume,
+    audioEnhance.startYtSpatial,
+    audioEnhance.stopYtSpatial,
+    streamPlayer.isDspActive,
+    streamPlayer.mode,
+    streamPlayer.syncSettings,
+  ]);
 
   const getActiveYt = () =>
     activeYtSlotRef.current === 'a' ? playerARef.current : playerBRef.current;
@@ -1419,6 +1434,9 @@ const SpotifyMiniStandalone: React.FC = () => {
             } else {
               startTrackEnvelope(event.target, volumeRef.current);
             }
+            if (audioEnhanceRef.current.settings.spatial8d) {
+              audioEnhanceRef.current.startYtSpatial(event.target, volumeRef.current);
+            }
             isFirstVideoLoadRef.current = false;
             setIsPlaying(true);
             event.target.playVideo();
@@ -1480,7 +1498,7 @@ const SpotifyMiniStandalone: React.FC = () => {
       // Aborted by a newer play attempt — do NOT start YouTube
       if (result === 'abort') return;
 
-      showToast('Sin DSP · YouTube (EQ/8D off). Reintentá el tema.', 'info');
+      showToast('YouTube bloquea el stream · potencia/8D por volumen', 'info');
 
       // YouTube fallback (real DSP failure)
       if (!window.YT) {

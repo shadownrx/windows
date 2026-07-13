@@ -169,8 +169,52 @@ export function useNexAudioEnhance() {
 
   const applyVolume = useCallback((player: YtPlayerLike | null | undefined, uiVolume: number) => {
     if (!player?.setVolume) return;
-    player.setVolume(mapUiVolumeToPlayer(uiVolume, settingsRef.current));
+    const s = settingsRef.current;
+    let vol = mapUiVolumeToPlayer(uiVolume, s);
+    // Extra punch on YT path when boost/club — iframe can't EQ, so we push loudness harder
+    if (s.boost && s.preset === 'club') vol = Math.min(100, Math.round(vol * 1.08));
+    player.setVolume(vol);
   }, []);
+
+  const spatialRafRef = useRef<number | null>(null);
+
+  const stopYtSpatial = useCallback(() => {
+    if (spatialRafRef.current != null) {
+      cancelAnimationFrame(spatialRafRef.current);
+      spatialRafRef.current = null;
+    }
+  }, []);
+
+  /** 8D / potencia audible on YouTube iframe (volume LFO — not real stereo). */
+  const startYtSpatial = useCallback(
+    (player: YtPlayerLike | null | undefined, uiVolume: number) => {
+      stopYtSpatial();
+      if (!player?.setVolume) return;
+      const s0 = settingsRef.current;
+      if (!s0.spatial8d) {
+        applyVolume(player, uiVolume);
+        return;
+      }
+      const t0 = performance.now();
+      const tick = () => {
+        const s = settingsRef.current;
+        if (!s.spatial8d || !player.setVolume) {
+          stopYtSpatial();
+          applyVolume(player, uiVolume);
+          return;
+        }
+        const base = mapUiVolumeToPlayer(uiVolume, s);
+        const speed = 0.14 + ((s.spatialSpeed ?? 40) / 100) * 0.4;
+        const depth = 0.4 + (s.power / 100) * 0.5;
+        const wave = 0.5 + 0.5 * Math.sin(((performance.now() - t0) / 1000) * Math.PI * 2 * speed);
+        const mod = 1 - depth + depth * wave;
+        player.setVolume(Math.max(8, Math.min(100, Math.round(base * mod))));
+        spatialRafRef.current = requestAnimationFrame(tick);
+      };
+      spatialRafRef.current = requestAnimationFrame(tick);
+    },
+    [applyVolume, stopYtSpatial],
+  );
 
   const fadeVolume = useCallback(
     (player: YtPlayerLike | null | undefined, from: number, to: number, ms: number) =>
@@ -344,6 +388,8 @@ export function useNexAudioEnhance() {
     applyHdQuality,
     crossfadeToNext,
     startTrackEnvelope,
+    startYtSpatial,
+    stopYtSpatial,
     stopFade,
     stopEnvelopes,
     enablePowerPreset,

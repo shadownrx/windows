@@ -15,13 +15,141 @@ export type StreamResolveResult = {
 export type PlaybackMode = 'idle' | 'dsp' | 'youtube';
 export type PlayVideoResult = 'ok' | 'abort' | 'fail';
 
-async function resolveStream(videoId: string, signal?: AbortSignal): Promise<StreamResolveResult> {
+const PIPED_INSTANCES = [
+  'https://api.piped.private.coffee',
+  'https://pipedapi.adminforge.de',
+  'https://pipedapi.ducks.party',
+  'https://pipedapi.owo.si',
+  'https://pipedapi.leptons.xyz',
+];
+
+type PipedStream = {
+  url?: string;
+  bitrate?: number;
+  mimeType?: string;
+  quality?: string;
+  videoOnly?: boolean;
+};
+
+function pickFromPiped(data: {
+  title?: string;
+  duration?: number;
+  audioStreams?: PipedStream[];
+  videoStreams?: PipedStream[];
+}, source: string): StreamResolveResult | null {
+  const audios = (data.audioStreams || [])
+    .filter((s) => s.url && s.videoOnly !== true)
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+  if (audios[0]?.url) {
+    return {
+      url: audios[0].url,
+      mimeType: audios[0].mimeType || 'audio/mp4',
+      quality: audios[0].quality || 'audio',
+      kind: 'audio',
+      title: data.title,
+      duration: data.duration,
+      source,
+    };
+  }
+  const muxed = (data.videoStreams || [])
+    .filter(
+      (s) =>
+        s.url &&
+        s.videoOnly === false &&
+        typeof s.mimeType === 'string' &&
+        s.mimeType.includes('mp4') &&
+        !String(s.quality || '').toUpperCase().includes('LBRY'),
+    )
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+  if (muxed[0]?.url) {
+    return {
+      url: muxed[0].url,
+      mimeType: muxed[0].mimeType || 'video/mp4',
+      quality: muxed[0].quality || '360p',
+      kind: 'muxed',
+      title: data.title,
+      duration: data.duration,
+      source,
+    };
+  }
+  // Last resort: any muxed with url (incl. LBRY mirrors — rare but playable)
+  const any = (data.videoStreams || []).find(
+    (s) => s.url && s.videoOnly === false && String(s.mimeType || '').includes('mp4'),
+  );
+  if (any?.url) {
+    return {
+      url: any.url,
+      mimeType: any.mimeType || 'video/mp4',
+      quality: any.quality || 'mirror',
+      kind: 'muxed',
+      title: data.title,
+      duration: data.duration,
+      source,
+    };
+  }
+  return null;
+}
+
+async function resolveFromPipedClient(videoId: string, signal: AbortSignal): Promise<StreamResolveResult> {
+  const errors: string[] = [];
+  const tasks = PIPED_INSTANCES.map(async (base) => {
+    const res = await fetch(`${base}/streams/${encodeURIComponent(videoId)}`, {
+      signal,
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      errors.push(`${base}:${res.status}`);
+      throw new Error(`piped ${res.status}`);
+    }
+    const data = await res.json();
+    const picked = pickFromPiped(data, base);
+    if (!picked) {
+      errors.push(`${base}:empty`);
+      throw new Error('empty');
+    }
+    return picked;
+  });
+  try {
+    return await Promise.any(tasks);
+  } catch {
+    throw new Error(errors.slice(0, 3).join(',') || 'piped fail');
+  }
+}
+
+async function resolveFromApi(videoId: string, signal: AbortSignal): Promise<StreamResolveResult> {
   const res = await fetch(`/api/youtube/search?stream=${encodeURIComponent(videoId)}`, { signal });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as { error?: string }).error || `Stream HTTP ${res.status}`);
   }
   return res.json() as Promise<StreamResolveResult>;
+}
+
+async function resolveFromMusicServer(videoId: string, signal: AbortSignal): Promise<StreamResolveResult | null> {
+  const base = (import.meta.env.VITE_MUSIC_SERVER_URL as string | undefined)?.replace(/\/$/, '');
+  if (!base) return null;
+  const res = await fetch(`${base}/stream/${encodeURIComponent(videoId)}`, { signal });
+  if (!res.ok) return null;
+  return res.json() as Promise<StreamResolveResult>;
+}
+
+async function resolveStream(videoId: string, signal?: AbortSignal): Promise<StreamResolveResult> {
+  const ac = signal ?? new AbortController().signal;
+  // 1) Optional self-hosted resolver (yt-dlp etc.)
+  try {
+    const custom = await resolveFromMusicServer(videoId, ac);
+    if (custom?.url) return custom;
+  } catch {
+    /* ignore */
+  }
+  // 2) Browser → Piped (same network as playback; best chance when instance works)
+  try {
+    return await resolveFromPipedClient(videoId, ac);
+  } catch {
+    /* fall through */
+  }
+  // 3) Our Vercel API (same Piped backends, cached)
+  return resolveFromApi(videoId, ac);
 }
 
 function waitForMedia(el: HTMLMediaElement, signal: AbortSignal, timeoutMs = 14000): Promise<void> {
@@ -80,10 +208,10 @@ export function useNexStreamPlayer(opts: {
 }) {
   const mediaRef = useRef<HTMLVideoElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const activeVideoIdRef = useRef<string | null>(null);
   const modeRef = useRef<PlaybackMode>('idle');
   const [mode, setModeState] = useState<PlaybackMode>('idle');
   const [dspReady, setDspReady] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
   const progressTimerRef = useRef<number | null>(null);
   const optsRef = useRef(opts);
   optsRef.current = opts;
@@ -146,7 +274,6 @@ export function useNexStreamPlayer(opts: {
         /* ignore */
       }
     }
-    activeVideoIdRef.current = null;
     setDspReady(false);
   }, [stopProgress]);
 
@@ -156,6 +283,7 @@ export function useNexStreamPlayer(opts: {
       if (settings.preferDsp === false) {
         stopDsp();
         setMode('youtube');
+        setLastError('preferDsp off');
         return 'fail';
       }
 
@@ -192,22 +320,23 @@ export function useNexStreamPlayer(opts: {
           return 'abort';
         }
 
-        activeVideoIdRef.current = videoId;
         setDspReady(true);
         setMode('dsp');
+        setLastError(null);
         startProgress();
         optsRef.current.onPlayingChange(true);
         if (Number.isFinite(el.duration) && el.duration > 0) {
           optsRef.current.onTime(el.currentTime, el.duration);
         }
-        // Re-apply after play (AudioContext may have resumed late)
         engine.applySettings(optsRef.current.getSettings(), optsRef.current.getUiVolume());
         return 'ok';
       } catch (err) {
         if ((err as Error)?.name === 'AbortError') return 'abort';
-        console.warn('[NEX DSP] stream fallback → YouTube', err);
+        const msg = (err as Error)?.message || 'stream fail';
+        console.warn('[NEX DSP] stream fallback → YouTube', msg);
         stopDsp();
         setMode('youtube');
+        setLastError(msg);
         return 'fail';
       }
     },
@@ -237,7 +366,6 @@ export function useNexStreamPlayer(opts: {
   const getCurrentTime = useCallback(() => mediaRef.current?.currentTime ?? 0, []);
   const getDuration = useCallback(() => mediaRef.current?.duration ?? 0, []);
 
-  /** Always safe — uses modeRef so EQ/8D apply even if React closure is stale. */
   const syncSettings = useCallback(() => {
     if (modeRef.current !== 'dsp') return;
     optsRef.current.getEngine().applySettings(optsRef.current.getSettings(), optsRef.current.getUiVolume());
@@ -263,6 +391,7 @@ export function useNexStreamPlayer(opts: {
   return {
     mode,
     dspReady,
+    lastError,
     playVideoId,
     play,
     pause,

@@ -41,11 +41,11 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
         </button>
       </div>
 
-      <div className={`audio-mode-pill ${dspLive ? 'live' : ''}`}>
+      <div className={`audio-mode-pill ${dspLive ? 'live' : playbackMode === 'youtube' ? 'yt' : ''}`}>
         {dspLive
-          ? 'DSP en vivo · EQ + compresor + salida nuestra'
+          ? 'DSP en vivo · EQ + compresor + 8D stereo'
           : playbackMode === 'youtube'
-            ? 'Fallback YouTube · loudness solamente'
+            ? 'YouTube · potencia/8D por volumen (EQ real bloqueado por YT)'
             : 'Esperando reproducción'}
       </div>
 
@@ -216,8 +216,9 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
       </div>
 
       <p className="audio-enhance-note">
-        Con DSP activo nosotros controlamos la salida (EQ, compresor, 8D). Si el stream no
-        resuelve, cae a YouTube iframe (solo loudness). Tip: Club + potencia 85+ + 8D.
+        YouTube bloquea casi todos los streams de audio públicos (2026), así que EQ real suele
+        no estar disponible. En modo YouTube igual podés sentir Potencia + 8D (volumen). Si el
+        stream abre, pasa a DSP en vivo con EQ de verdad.
       </p>
 
       <style>{`
@@ -260,6 +261,10 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
         .audio-mode-pill.live {
           background: rgba(29,185,84,0.18);
           color: #6dff9a;
+        }
+        .audio-mode-pill.yt {
+          background: rgba(240,193,75,0.14);
+          color: #f0c14b;
         }
         .audio-power-cta {
           width: 100%;

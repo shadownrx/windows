@@ -1,28 +1,50 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export type AudioPreset = 'flat' | 'bass' | 'loud' | 'night';
+export type AudioPreset = 'flat' | 'clear' | 'bass' | 'loud' | 'club' | 'night';
 
 export interface NexAudioSettings {
   hd: boolean;
+  /** Crossfade en segundos (0 = off). Con dual player es overlap real. */
   crossfadeSec: number;
   normalize: boolean;
   boost: boolean;
+  /** Intensidad 0–100 del motor de potencia */
+  power: number;
+  /** Subida automática al inicio del tema */
+  autoGain: boolean;
+  /** Golpe corto al arrancar (punch) */
+  punch: boolean;
+  /** Crossfade con 2 players (overlap). Si false, solo fade out/in. */
+  dualCrossfade: boolean;
   preset: AudioPreset;
 }
 
-const STORAGE_KEY = 'nexMusicAudioEnhance';
+const STORAGE_KEY = 'nexMusicAudioEnhance_v2';
 
 export const DEFAULT_AUDIO_SETTINGS: NexAudioSettings = {
   hd: true,
-  crossfadeSec: 3,
+  crossfadeSec: 4,
   normalize: true,
   boost: true,
+  power: 72,
+  autoGain: true,
+  punch: true,
+  dualCrossfade: true,
   preset: 'loud',
+};
+
+const PRESET_MULT: Record<AudioPreset, number> = {
+  flat: 1,
+  clear: 1.02,
+  bass: 1.1,
+  loud: 1.14,
+  club: 1.2,
+  night: 0.7,
 };
 
 export function loadAudioSettings(): NexAudioSettings {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('nexMusicAudioEnhance');
     if (!raw) return { ...DEFAULT_AUDIO_SETTINGS };
     return { ...DEFAULT_AUDIO_SETTINGS, ...JSON.parse(raw) };
   } catch {
@@ -38,25 +60,30 @@ export function saveAudioSettings(settings: NexAudioSettings) {
   }
 }
 
-/** Curva de volumen más agradable + boost opcional (YouTube suele sonar bajo). */
+/**
+ * Curva de loudness + potencia.
+ * Soft-ceiling ~96 para evitar clipping percibido al 100.
+ */
 export function mapUiVolumeToPlayer(uiVolume: number, settings: NexAudioSettings): number {
   const v = Math.max(0, Math.min(100, uiVolume)) / 100;
-  let curved = Math.pow(v, settings.boost ? 0.65 : 0.85);
+  const power = Math.max(0, Math.min(100, settings.power)) / 100;
+  const exponent = settings.boost ? 0.55 - power * 0.12 : 0.82;
+  let curved = Math.pow(v, Math.max(0.4, exponent));
 
-  if (settings.preset === 'bass' || settings.preset === 'loud') {
-    curved = Math.min(1, curved * 1.08);
-  } else if (settings.preset === 'night') {
-    curved = curved * 0.72;
-  }
+  curved *= PRESET_MULT[settings.preset] ?? 1;
+  // Extra headroom from power (up to +18%)
+  curved *= 1 + power * 0.18;
 
   if (settings.normalize) {
-    curved = Math.min(1, Math.max(0.12, curved));
+    curved = Math.min(0.96, Math.max(0.14, curved));
+  } else {
+    curved = Math.min(0.96, curved);
   }
 
   return Math.round(curved * 100);
 }
 
-type YtPlayerLike = {
+export type YtPlayerLike = {
   setVolume?: (n: number) => void;
   getVolume?: () => number;
   setPlaybackQuality?: (q: string) => void;
@@ -64,6 +91,11 @@ type YtPlayerLike = {
   loadVideoById?: (opts: string | { videoId: string; suggestedQuality?: string }) => void;
   playVideo?: () => void;
   pauseVideo?: () => void;
+  stopVideo?: () => void;
+  mute?: () => void;
+  unMute?: () => void;
+  seekTo?: (s: number, allow: boolean) => void;
+  getPlayerState?: () => number;
 };
 
 export function applyHdQuality(player: YtPlayerLike | null | undefined) {
@@ -87,8 +119,10 @@ export function useNexAudioEnhance() {
   const [settings, setSettingsState] = useState<NexAudioSettings>(() => loadAudioSettings());
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
-  const fadeTimerRef = useRef<number | null>(null);
-  const fadingRef = useRef(false);
+  /** Multiple timers so dual overlap fades can run in parallel. */
+  const fadeTimersRef = useRef<number[]>([]);
+  const autoGainTimerRef = useRef<number | null>(null);
+  const punchTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     saveAudioSettings(settings);
@@ -98,18 +132,25 @@ export function useNexAudioEnhance() {
     setSettingsState((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const applyVolume = useCallback((player: YtPlayerLike | null | undefined, uiVolume: number) => {
-    if (!player?.setVolume) return;
-    const mapped = mapUiVolumeToPlayer(uiVolume, settingsRef.current);
-    player.setVolume(mapped);
+  const stopFade = useCallback(() => {
+    fadeTimersRef.current.forEach((id) => clearInterval(id));
+    fadeTimersRef.current = [];
   }, []);
 
-  const stopFade = useCallback(() => {
-    if (fadeTimerRef.current) {
-      clearInterval(fadeTimerRef.current);
-      fadeTimerRef.current = null;
+  const stopEnvelopes = useCallback(() => {
+    if (autoGainTimerRef.current) {
+      clearInterval(autoGainTimerRef.current);
+      autoGainTimerRef.current = null;
     }
-    fadingRef.current = false;
+    if (punchTimerRef.current) {
+      clearTimeout(punchTimerRef.current);
+      punchTimerRef.current = null;
+    }
+  }, []);
+
+  const applyVolume = useCallback((player: YtPlayerLike | null | undefined, uiVolume: number) => {
+    if (!player?.setVolume) return;
+    player.setVolume(mapUiVolumeToPlayer(uiVolume, settingsRef.current));
   }, []);
 
   const fadeVolume = useCallback(
@@ -120,23 +161,85 @@ export function useNexAudioEnhance() {
           resolve();
           return;
         }
-        stopFade();
-        fadingRef.current = true;
-        const steps = Math.max(8, Math.floor(ms / 40));
+        const steps = Math.max(10, Math.floor(ms / 32));
         let i = 0;
-        fadeTimerRef.current = window.setInterval(() => {
+        const id = window.setInterval(() => {
           i += 1;
           const t = i / steps;
-          const vol = Math.round(from + (to - from) * t);
+          const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+          const vol = Math.round(from + (to - from) * eased);
           player.setVolume?.(vol);
           if (i >= steps) {
-            stopFade();
+            clearInterval(id);
+            fadeTimersRef.current = fadeTimersRef.current.filter((x) => x !== id);
             player.setVolume?.(to);
             resolve();
           }
         }, ms / steps);
+        fadeTimersRef.current.push(id);
       }),
-    [stopFade],
+    [],
+  );
+
+  /** Punch + auto-gain al empezar un tema (sin pelearse entre sí). */
+  const startTrackEnvelope = useCallback(
+    (player: YtPlayerLike | null | undefined, uiVolume: number) => {
+      if (!player?.setVolume) return;
+      stopEnvelopes();
+      const s = settingsRef.current;
+      const target = mapUiVolumeToPlayer(uiVolume, s);
+      const wantPunch = s.punch && s.power > 20;
+      const wantGain = s.autoGain && s.power > 10;
+
+      if (wantPunch && !wantGain) {
+        const peak = Math.min(96, Math.round(target * 1.12));
+        player.setVolume(peak);
+        punchTimerRef.current = window.setTimeout(() => {
+          player.setVolume?.(target);
+        }, 180);
+        return;
+      }
+
+      if (wantGain) {
+        const start = Math.max(8, Math.round(target * (wantPunch ? 0.78 : 0.86)));
+        if (wantPunch) {
+          player.setVolume(Math.min(96, Math.round(target * 1.1)));
+          punchTimerRef.current = window.setTimeout(() => {
+            player.setVolume?.(start);
+            const steps = 24;
+            let i = 0;
+            autoGainTimerRef.current = window.setInterval(() => {
+              i += 1;
+              const vol = Math.round(start + (target - start) * (i / steps));
+              player.setVolume?.(vol);
+              if (i >= steps) {
+                if (autoGainTimerRef.current) clearInterval(autoGainTimerRef.current);
+                autoGainTimerRef.current = null;
+                player.setVolume?.(target);
+              }
+            }, 250);
+          }, 160);
+        } else {
+          player.setVolume(start);
+          const steps = 24;
+          let i = 0;
+          autoGainTimerRef.current = window.setInterval(() => {
+            i += 1;
+            const vol = Math.round(start + (target - start) * (i / steps));
+            player.setVolume?.(vol);
+            if (i >= steps) {
+              if (autoGainTimerRef.current) clearInterval(autoGainTimerRef.current);
+              autoGainTimerRef.current = null;
+              player.setVolume?.(target);
+            }
+          }, 250);
+        }
+        return;
+      }
+
+      player.setVolume(target);
+    },
+    [stopEnvelopes],
   );
 
   const crossfadeToNext = useCallback(
@@ -144,25 +247,72 @@ export function useNexAudioEnhance() {
       player: YtPlayerLike | null | undefined,
       uiVolume: number,
       loadNext: () => void | Promise<void>,
+      opts?: {
+        nextPlayer?: YtPlayerLike | null;
+        onSwapped?: (active: YtPlayerLike) => void;
+      },
     ) => {
-      const sec = settingsRef.current.crossfadeSec;
-      const target = mapUiVolumeToPlayer(uiVolume, settingsRef.current);
+      const s = settingsRef.current;
+      const sec = s.crossfadeSec;
+      const target = mapUiVolumeToPlayer(uiVolume, s);
+      const nextPlayer = opts?.nextPlayer;
+
+      // Dual overlap crossfade
+      if (s.dualCrossfade && nextPlayer?.setVolume && player?.setVolume && sec > 0) {
+        stopEnvelopes();
+        stopFade();
+        const current = player.getVolume?.() ?? target;
+        nextPlayer.setVolume(0);
+        await loadNext();
+        if (s.hd) applyHdQuality(nextPlayer);
+        nextPlayer.playVideo?.();
+        const ms = sec * 1000;
+        await Promise.all([
+          fadeVolume(player, current, 0, ms),
+          fadeVolume(nextPlayer, 0, target, ms),
+        ]);
+        player.pauseVideo?.();
+        player.setVolume?.(0);
+        opts?.onSwapped?.(nextPlayer);
+        startTrackEnvelope(nextPlayer, uiVolume);
+        return;
+      }
+
+      // Single-player fade
       if (!player?.setVolume || sec <= 0) {
         await loadNext();
         applyVolume(player, uiVolume);
         applyHdQuality(player);
+        startTrackEnvelope(player, uiVolume);
         return;
       }
 
+      stopFade();
       const current = player.getVolume?.() ?? target;
       await fadeVolume(player, current, 0, (sec * 1000) / 2);
       await loadNext();
       applyHdQuality(player);
       player.playVideo?.();
       await fadeVolume(player, 0, target, (sec * 1000) / 2);
+      startTrackEnvelope(player, uiVolume);
     },
-    [applyVolume, fadeVolume],
+    [applyVolume, fadeVolume, startTrackEnvelope, stopEnvelopes, stopFade],
   );
+
+  const enablePowerPreset = useCallback(() => {
+    setSettingsState((prev) => ({
+      ...prev,
+      boost: true,
+      normalize: true,
+      autoGain: true,
+      punch: true,
+      hd: true,
+      dualCrossfade: true,
+      power: Math.max(prev.power, 80),
+      preset: 'club',
+      crossfadeSec: Math.max(prev.crossfadeSec, 3),
+    }));
+  }, []);
 
   return {
     settings,
@@ -170,7 +320,10 @@ export function useNexAudioEnhance() {
     applyVolume,
     applyHdQuality,
     crossfadeToNext,
+    startTrackEnvelope,
     stopFade,
+    stopEnvelopes,
+    enablePowerPreset,
     mapVolume: (ui: number) => mapUiVolumeToPlayer(ui, settings),
   };
 }

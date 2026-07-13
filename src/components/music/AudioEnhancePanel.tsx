@@ -6,13 +6,16 @@ interface AudioEnhancePanelProps {
   onClose: () => void;
   settings: NexAudioSettings;
   onChange: (patch: Partial<NexAudioSettings>) => void;
+  onEnablePower?: () => void;
 }
 
 const PRESETS: { id: AudioPreset; label: string; hint: string }[] = [
   { id: 'flat', label: 'Natural', hint: 'Sin color' },
-  { id: 'bass', label: 'Bass', hint: 'Más presencia' },
+  { id: 'clear', label: 'Clear', hint: 'Más definición' },
+  { id: 'bass', label: 'Bass', hint: 'Más cuerpo' },
   { id: 'loud', label: 'Loud', hint: 'Más volumen' },
-  { id: 'night', label: 'Noche', hint: 'Más suave' },
+  { id: 'club', label: 'Club', hint: 'Máxima potencia' },
+  { id: 'night', label: 'Noche', hint: 'Suave' },
 ];
 
 const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
@@ -20,20 +23,41 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
   onClose,
   settings,
   onChange,
+  onEnablePower,
 }) => {
   if (!open) return null;
 
   return (
-    <div className="audio-enhance-panel" role="dialog" aria-label="Audio Pro">
+    <div className="audio-enhance-panel" role="dialog" aria-label="Sonido Potencia">
       <div className="audio-enhance-header">
-        <strong>Audio Pro</strong>
+        <strong>Sonido Potencia</strong>
         <button type="button" className="audio-enhance-close" onClick={onClose} aria-label="Cerrar">
           ✕
         </button>
       </div>
 
+      {onEnablePower && (
+        <button type="button" className="audio-power-cta" onClick={onEnablePower}>
+          Activar Modo Potencia
+        </button>
+      )}
+
+      <div className="audio-enhance-block">
+        <div className="audio-enhance-label">Potencia · {settings.power}</div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={settings.power}
+          onChange={(e) => onChange({ power: Number(e.target.value) })}
+        />
+        <div className="audio-power-meter" aria-hidden>
+          <div className="audio-power-fill" style={{ width: `${settings.power}%` }} />
+        </div>
+      </div>
+
       <label className="audio-enhance-row">
-        <span>Calidad HD (YouTube)</span>
+        <span>Calidad HD (mejor bitrate YT)</span>
         <input
           type="checkbox"
           checked={settings.hd}
@@ -42,11 +66,29 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
       </label>
 
       <label className="audio-enhance-row">
-        <span>Boost de volumen</span>
+        <span>Boost + soft ceiling</span>
         <input
           type="checkbox"
           checked={settings.boost}
           onChange={(e) => onChange({ boost: e.target.checked })}
+        />
+      </label>
+
+      <label className="audio-enhance-row">
+        <span>Auto-gain al inicio</span>
+        <input
+          type="checkbox"
+          checked={settings.autoGain}
+          onChange={(e) => onChange({ autoGain: e.target.checked })}
+        />
+      </label>
+
+      <label className="audio-enhance-row">
+        <span>Punch de ataque</span>
+        <input
+          type="checkbox"
+          checked={settings.punch}
+          onChange={(e) => onChange({ punch: e.target.checked })}
         />
       </label>
 
@@ -56,6 +98,15 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
           type="checkbox"
           checked={settings.normalize}
           onChange={(e) => onChange({ normalize: e.target.checked })}
+        />
+      </label>
+
+      <label className="audio-enhance-row">
+        <span>Crossfade dual (overlap)</span>
+        <input
+          type="checkbox"
+          checked={settings.dualCrossfade}
+          onChange={(e) => onChange({ dualCrossfade: e.target.checked })}
         />
       </label>
 
@@ -91,8 +142,8 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
       </div>
 
       <p className="audio-enhance-note">
-        El audio viene de YouTube. HD + crossfade + boost mejoran la escucha.
-        Atajos: Espacio play/pausa · N/P siguiente/anterior · J/L ±10s.
+        YouTube no deja EQ real (CORS). Potencia = loudness + HD + punch + crossfade overlap.
+        Tip: perfil Club + potencia 80+.
       </p>
 
       <style>{`
@@ -100,9 +151,9 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
           position: absolute;
           right: 12px;
           bottom: calc(100% + 10px);
-          width: min(300px, calc(100vw - 24px));
-          background: #141414;
-          border: 1px solid rgba(255,255,255,0.14);
+          width: min(320px, calc(100vw - 24px));
+          background: linear-gradient(160deg, #141414 0%, #0c1a12 100%);
+          border: 1px solid rgba(29,185,84,0.28);
           border-radius: 14px;
           padding: 14px;
           z-index: 120;
@@ -122,6 +173,18 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
           cursor: pointer;
           font-size: 14px;
         }
+        .audio-power-cta {
+          width: 100%;
+          margin-bottom: 12px;
+          border: none;
+          border-radius: 999px;
+          padding: 10px 12px;
+          font-size: 13px;
+          font-weight: 800;
+          cursor: pointer;
+          background: linear-gradient(90deg, #1db954, #12d6c5);
+          color: #04120a;
+        }
         .audio-enhance-row {
           display: flex;
           justify-content: space-between;
@@ -138,9 +201,22 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
           margin-bottom: 8px;
         }
         .audio-enhance-block input[type="range"] { width: 100%; accent-color: #1db954; }
+        .audio-power-meter {
+          margin-top: 8px;
+          height: 6px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.08);
+          overflow: hidden;
+        }
+        .audio-power-fill {
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(90deg, #1db954, #f0c14b 70%, #ff5a5a);
+          transition: width 0.15s ease;
+        }
         .audio-enhance-presets {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 6px;
         }
         .audio-preset-btn {

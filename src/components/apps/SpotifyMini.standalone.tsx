@@ -969,6 +969,10 @@ const SpotifyMiniStandalone: React.FC = () => {
 
   const abortRef = useRef<AbortController | null>(null);
   const playerRef = useRef<any>(null);
+  const playerARef = useRef<any>(null);
+  const playerBRef = useRef<any>(null);
+  const activeYtSlotRef = useRef<'a' | 'b'>('a');
+  const dualReadyWaitRef = useRef(0);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const progressIntervalRef = useRef<number | null>(null);
   const previewTimerRef = useRef<number | null>(null);
@@ -1219,17 +1223,78 @@ const SpotifyMiniStandalone: React.FC = () => {
     audioEnhance.applyVolume(playerRef.current, volume);
   }, [volume, audioEnhance.settings, audioEnhance.applyVolume]);
 
-  const loadVideoIntoPlayer = (videoId: string) => {
-    if (!playerRef.current?.loadVideoById) return;
-    const { settings, applyHdQuality, applyVolume } = audioEnhanceRef.current;
+  const getActiveYt = () =>
+    activeYtSlotRef.current === 'a' ? playerARef.current : playerBRef.current;
+  const getIdleYt = () =>
+    activeYtSlotRef.current === 'a' ? playerBRef.current : playerARef.current;
+
+  const syncPlayerRef = () => {
+    playerRef.current = getActiveYt();
+  };
+
+  const loadInto = (player: any, videoId: string) => {
+    if (!player?.loadVideoById) return;
+    const { settings, applyHdQuality } = audioEnhanceRef.current;
     if (settings.hd) {
-      playerRef.current.loadVideoById({ videoId, suggestedQuality: 'hd1080' });
-      applyHdQuality(playerRef.current);
+      player.loadVideoById({ videoId, suggestedQuality: 'hd1080' });
+      applyHdQuality(player);
     } else {
-      playerRef.current.loadVideoById(videoId);
+      player.loadVideoById(videoId);
     }
-    applyVolume(playerRef.current, volumeRef.current);
-    setIsPlaying(true);
+  };
+
+  const createYtPlayer = (elementId: string, videoId: string | undefined, slot: 'a' | 'b') => {
+    if (!window.YT) return;
+    const player = new window.YT.Player(elementId, {
+      videoId: videoId || undefined,
+      playerVars: {
+        origin: window.location.origin,
+        enablejsapi: 1,
+        autoplay: slot === 'a' && videoId ? 1 : 0,
+      },
+      events: {
+        onReady: (event: any) => {
+          const { settings, applyHdQuality, startTrackEnvelope } = audioEnhanceRef.current;
+          if (slot === 'a') {
+            playerARef.current = event.target;
+            activeYtSlotRef.current = 'a';
+            syncPlayerRef();
+            if (event.target.getDuration) setDuration(event.target.getDuration());
+            if (settings.hd) applyHdQuality(event.target);
+            startTrackEnvelope(event.target, volumeRef.current);
+            isFirstVideoLoadRef.current = false;
+            setIsPlaying(true);
+            event.target.playVideo();
+          } else {
+            playerBRef.current = event.target;
+            event.target.setVolume?.(0);
+            try { event.target.pauseVideo?.(); } catch { /* ignore */ }
+          }
+        },
+        onStateChange: (event: any) => {
+          const isActive =
+            (slot === 'a' && activeYtSlotRef.current === 'a') ||
+            (slot === 'b' && activeYtSlotRef.current === 'b');
+          if (!isActive) return;
+
+          if (window.YT && event.data === window.YT.PlayerState.PLAYING) {
+            if (audioEnhanceRef.current.settings.hd) {
+              audioEnhanceRef.current.applyHdQuality(event.target);
+            }
+            setIsPlaying(true);
+            startProgressTracking();
+            if (event.target.getDuration) setDuration(event.target.getDuration());
+          } else if (window.YT && event.data === window.YT.PlayerState.PAUSED) {
+            setIsPlaying(false);
+            stopProgressTracking();
+          } else if (window.YT && event.data === window.YT.PlayerState.ENDED) {
+            nextTrackRef.current();
+          }
+        },
+      },
+    });
+    if (slot === 'a') playerARef.current = player;
+    else playerBRef.current = player;
   };
 
   const initPlayer = () => {
@@ -1237,75 +1302,69 @@ const SpotifyMiniStandalone: React.FC = () => {
     if (crossfadingRef.current) return;
     const videoId = currentTrack.videoId;
 
-    // Case 1: Player exists and is ready - load new video (with optional crossfade)
-    if (playerRef.current && playerRef.current.loadVideoById) {
-      const { settings, crossfadeToNext } = audioEnhanceRef.current;
-      const shouldCrossfade =
-        !isFirstVideoLoadRef.current && settings.crossfadeSec > 0;
-
-      if (shouldCrossfade) {
-        crossfadingRef.current = true;
-        void crossfadeToNext(playerRef.current, volumeRef.current, () => {
-          if (settings.hd) {
-            playerRef.current.loadVideoById({ videoId, suggestedQuality: 'hd1080' });
-          } else {
-            playerRef.current.loadVideoById(videoId);
-          }
-          setIsPlaying(true);
-        }).finally(() => {
-          crossfadingRef.current = false;
-          isFirstVideoLoadRef.current = false;
-        });
-        return;
-      }
-
-      isFirstVideoLoadRef.current = false;
-      loadVideoIntoPlayer(videoId);
+    if (!window.YT) {
+      setTimeout(initPlayer, 100);
       return;
     }
 
-    // Case 2: Player doesn't exist but YT API is ready - create new player!
-    if (window.YT && !playerRef.current) {
-      playerRef.current = new window.YT.Player('youtube-player', {
-        videoId,
-        playerVars: {
-          origin: window.location.origin,
-          enablejsapi: 1,
-          autoplay: 1,
-        },
-        events: {
-          onReady: (event: any) => {
-            const { settings, applyHdQuality, applyVolume } = audioEnhanceRef.current;
-            playerRef.current = event.target;
-            if (playerRef.current.getDuration) {
-              setDuration(playerRef.current.getDuration());
-            }
-            applyVolume(playerRef.current, volumeRef.current);
-            if (settings.hd) applyHdQuality(playerRef.current);
-            isFirstVideoLoadRef.current = false;
-            setIsPlaying(true);
-            playerRef.current.playVideo();
-          },
-          onStateChange: (event: any) => {
-            if (window.YT && event.data === window.YT.PlayerState.PLAYING) {
-              if (audioEnhanceRef.current.settings.hd) {
-                audioEnhanceRef.current.applyHdQuality(event.target);
-              }
-              setIsPlaying(true);
-              startProgressTracking();
-            } else if (window.YT && event.data === window.YT.PlayerState.PAUSED) {
-              setIsPlaying(false);
-              stopProgressTracking();
-            } else if (window.YT && event.data === window.YT.PlayerState.ENDED) {
-              nextTrackRef.current();
-            }
-          },
-        },
-      });
-    } else {
-      // Case 3: YT API not ready yet - wait and retry!
-      setTimeout(initPlayer, 100);
+    if (!playerARef.current) {
+      createYtPlayer('youtube-player-a', videoId, 'a');
+      createYtPlayer('youtube-player-b', undefined, 'b');
+      return;
     }
+
+    if (!playerARef.current?.loadVideoById) {
+      setTimeout(initPlayer, 100);
+      return;
+    }
+
+    syncPlayerRef();
+    const { settings, crossfadeToNext, startTrackEnvelope } = audioEnhanceRef.current;
+    const shouldCrossfade = !isFirstVideoLoadRef.current && settings.crossfadeSec > 0;
+    const active = getActiveYt();
+    const idle = getIdleYt();
+
+    // Wait briefly for B so first crossfade can be real overlap
+    if (shouldCrossfade && settings.dualCrossfade && !idle?.loadVideoById) {
+      if (dualReadyWaitRef.current < 25) {
+        dualReadyWaitRef.current += 1;
+        setTimeout(initPlayer, 120);
+        return;
+      }
+    }
+    dualReadyWaitRef.current = 0;
+
+    if (shouldCrossfade) {
+      crossfadingRef.current = true;
+      const useDual = Boolean(settings.dualCrossfade && idle?.loadVideoById);
+
+      void crossfadeToNext(
+        active,
+        volumeRef.current,
+        () => {
+          loadInto(useDual ? idle : active, videoId);
+          setIsPlaying(true);
+        },
+        useDual
+          ? {
+              nextPlayer: idle,
+              onSwapped: () => {
+                activeYtSlotRef.current = activeYtSlotRef.current === 'a' ? 'b' : 'a';
+                syncPlayerRef();
+              },
+            }
+          : undefined,
+      ).finally(() => {
+        crossfadingRef.current = false;
+        isFirstVideoLoadRef.current = false;
+      });
+      return;
+    }
+
+    isFirstVideoLoadRef.current = false;
+    loadInto(active, videoId);
+    startTrackEnvelope(active, volumeRef.current);
+    setIsPlaying(true);
   };
 
   const startProgressTracking = () => {
@@ -1617,9 +1676,10 @@ const SpotifyMiniStandalone: React.FC = () => {
     <div className={`spotify-root ${isMobile ? 'is-mobile' : 'is-desktop'} ${isStandalonePwa ? 'is-standalone' : ''} ${pcnMode ? 'pcn-theme' : ''} ${isPartyMode ? 'party-mode party-active' : ''}`}>
       <PartyModeLayer enabled={isPartyMode} isPlaying={isPlaying} />
 
-      {/* --- PERMANENT YOUTUBE IFRAME (always in DOM) --- */}
+      {/* --- PERMANENT YOUTUBE IFRAMES (dual for overlap crossfade) --- */}
       <div className="spotify-iframe-permanent">
-        <div id="youtube-player" />
+        <div id="youtube-player-a" />
+        <div id="youtube-player-b" />
       </div>
 
       {/* --- NICKNAME MODAL --- */}
@@ -2696,7 +2756,7 @@ const SpotifyMiniStandalone: React.FC = () => {
                 type="button"
                 className={`spotify-player-btn ${showAudioPanel ? 'active' : ''}`}
                 onClick={() => setShowAudioPanel((v) => !v)}
-                title="Audio Pro · HD, crossfade, boost"
+                title="Sonido Potencia"
                 aria-pressed={showAudioPanel}
               >
                 <Options24Regular />
@@ -2706,6 +2766,10 @@ const SpotifyMiniStandalone: React.FC = () => {
                 onClose={() => setShowAudioPanel(false)}
                 settings={audioEnhance.settings}
                 onChange={audioEnhance.setSettings}
+                onEnablePower={() => {
+                  audioEnhance.enablePowerPreset();
+                  showToast('Modo Potencia ON · Club + overlap', 'premium');
+                }}
               />
             </div>
             <button
@@ -2847,6 +2911,11 @@ const SpotifyMiniStandalone: React.FC = () => {
           height: 1px;
           opacity: 0;
           pointer-events: none;
+          overflow: hidden;
+        }
+        .spotify-iframe-permanent iframe {
+          width: 1px !important;
+          height: 1px !important;
         }
 
         /* --- MODALS --- */

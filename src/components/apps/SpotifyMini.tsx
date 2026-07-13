@@ -992,14 +992,14 @@ const SpotifyMiniStandalone: React.FC = () => {
 
   const loadVideoIntoPlayer = (videoId: string) => {
     if (!playerRef.current?.loadVideoById) return;
-    const { settings, applyHdQuality, applyVolume } = audioEnhanceRef.current;
+    const { settings, applyHdQuality, startTrackEnvelope } = audioEnhanceRef.current;
     if (settings.hd) {
       playerRef.current.loadVideoById({ videoId, suggestedQuality: 'hd1080' });
       applyHdQuality(playerRef.current);
     } else {
       playerRef.current.loadVideoById(videoId);
     }
-    applyVolume(playerRef.current, volumeRef.current);
+    startTrackEnvelope(playerRef.current, volumeRef.current);
     setIsPlaying(true);
   };
 
@@ -1044,12 +1044,12 @@ const SpotifyMiniStandalone: React.FC = () => {
         },
         events: {
           onReady: (event: any) => {
-            const { settings, applyHdQuality, applyVolume } = audioEnhanceRef.current;
+            const { settings, applyHdQuality, startTrackEnvelope } = audioEnhanceRef.current;
             playerRef.current = event.target;
             if (playerRef.current.getDuration) {
               setDuration(playerRef.current.getDuration());
             }
-            applyVolume(playerRef.current, volumeRef.current);
+            startTrackEnvelope(playerRef.current, volumeRef.current);
             if (settings.hd) applyHdQuality(playerRef.current);
             isFirstVideoLoadRef.current = false;
             setIsPlaying(true);
@@ -2361,6 +2361,10 @@ const SpotifyMiniStandalone: React.FC = () => {
                 onClose={() => setShowAudioPanel(false)}
                 settings={audioEnhance.settings}
                 onChange={audioEnhance.setSettings}
+                onEnablePower={() => {
+                  audioEnhance.enablePowerPreset();
+                  showToast('Modo Potencia ON · Club + overlap', 'premium');
+                }}
               />
             </div>
             <button

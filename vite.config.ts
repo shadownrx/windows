@@ -59,13 +59,15 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons.svg', 'robots.txt'],
       manifest: {
-        name: 'NEX OS Ecosystem',
-        short_name: 'NEX OS',
-        description: 'Ecosistema y entorno de desarrollo web de alto rendimiento.',
-        theme_color: '#0078d4',
-        background_color: '#1c1c1c',
+        name: 'NEX Music',
+        short_name: 'NEX Music',
+        description: 'Reproductor social · YouTube + Spotify · salas en vivo',
+        theme_color: '#020208',
+        background_color: '#020208',
         display: 'standalone',
         orientation: 'any',
+        start_url: '/nex-music',
+        scope: '/',
         icons: [
           {
             src: 'favicon.svg',

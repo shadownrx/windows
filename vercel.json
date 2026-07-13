@@ -17,6 +17,13 @@
       "destination": "/api/og-nex-music?p=:code"
     }
   ],
+  "redirects": [
+    {
+      "source": "/nex-music.html",
+      "destination": "/nex-music",
+      "permanent": true
+    }
+  ],
   "functions": {
     "api/spotify-playlist.js": {
       "maxDuration": 30

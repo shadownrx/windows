@@ -9,6 +9,8 @@ export interface Track {
   service: MusicService;
   kind?: 'video' | 'playlist';
   videoId?: string;
+  /** Calidad del match Spotify→YouTube */
+  matchQuality?: 'official' | 'topic' | 'good' | 'approx';
 }
 
 export interface Playlist {

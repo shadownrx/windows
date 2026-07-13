@@ -24,7 +24,9 @@ const MusicOnboardingBanner: React.FC<MusicOnboardingBannerProps> = ({
       </button>
       <div className="nex-onboarding-copy">
         <strong>Bienvenido a NEX Music</strong>
-        <p>Importá Spotify, explorá listas de la comunidad o invitá amigos a una sala en vivo.</p>
+        <p>
+          Importá Spotify, explorá lo que suena en la comunidad o creá una sala e invitá amigos con un link corto.
+        </p>
       </div>
       <div className="nex-onboarding-actions">
         <button type="button" className="nex-onboarding-btn primary" onClick={onConnectSpotify}>

@@ -1,4 +1,5 @@
 import type { Track } from '../types/music';
+import { scoreMatchQuality } from './matchQuality';
 
 const CACHE_KEY = 'nexYtResolveCache_v1';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
@@ -15,20 +16,9 @@ function cacheKey(title: string, artist: string) {
   return `${title.trim()}|${artist.trim()}`.toLowerCase();
 }
 
-function loadCache(): Record<string, CacheEntry> {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as Record<string, CacheEntry>;
-  } catch {
-    return {};
-  }
-}
-
 function saveCache(cache: Record<string, CacheEntry>) {
   try {
     const entries = Object.entries(cache);
-    // Cap size to avoid quota issues
     const trimmed =
       entries.length > 400
         ? Object.fromEntries(
@@ -44,17 +34,28 @@ function saveCache(cache: Record<string, CacheEntry>) {
 }
 
 function readCached(title: string, artist: string): CacheEntry | null {
-  const cache = loadCache();
-  const entry = cache[cacheKey(title, artist)];
-  if (!entry?.videoId) return null;
-  if (Date.now() - entry.savedAt > CACHE_TTL_MS) return null;
-  return entry;
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const cache = JSON.parse(raw) as Record<string, CacheEntry>;
+    const entry = cache[cacheKey(title, artist)];
+    if (!entry?.videoId) return null;
+    if (Date.now() - entry.savedAt > CACHE_TTL_MS) return null;
+    return entry;
+  } catch {
+    return null;
+  }
 }
 
 function writeCached(title: string, artist: string, entry: Omit<CacheEntry, 'savedAt'>) {
-  const cache = loadCache();
-  cache[cacheKey(title, artist)] = { ...entry, savedAt: Date.now() };
-  saveCache(cache);
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    const cache: Record<string, CacheEntry> = raw ? JSON.parse(raw) : {};
+    cache[cacheKey(title, artist)] = { ...entry, savedAt: Date.now() };
+    saveCache(cache);
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Solo falta resolver si no hay videoId de YouTube. */
@@ -62,14 +63,18 @@ export function trackNeedsYoutubeResolution(track: Track): boolean {
   return !track.videoId;
 }
 
-function toPlayable(track: Track, videoId: string, meta?: Partial<CacheEntry>): Track {
+function toPlayable(
+  track: Track,
+  videoId: string,
+  meta?: Partial<CacheEntry> & { matchQuality?: Track['matchQuality'] },
+): Track {
   return {
     ...track,
     videoId,
     cover: track.cover || meta?.thumbnail || track.cover,
-    // Keep Spotify identity; playback only needs videoId
     service: track.service || 'youtube',
     kind: track.kind ?? 'video',
+    matchQuality: meta?.matchQuality || track.matchQuality,
   };
 }
 
@@ -83,7 +88,11 @@ export async function resolveTrackForPlayback(track: Track): Promise<Track | nul
 
   const cached = readCached(baseTitle, baseArtist);
   if (cached?.videoId) {
-    return toPlayable(track, cached.videoId, cached);
+    const quality = scoreMatchQuality(track, {
+      title: cached.title,
+      channelTitle: cached.channelTitle,
+    });
+    return toPlayable(track, cached.videoId, { ...cached, matchQuality: quality });
   }
 
   const queries = [
@@ -112,6 +121,7 @@ export async function resolveTrackForPlayback(track: Track): Promise<Track | nul
         }) || results[0];
 
       if (preferred?.id) {
+        const matchQuality = scoreMatchQuality(track, preferred);
         writeCached(baseTitle, baseArtist, {
           videoId: preferred.id,
           title: preferred.title,
@@ -121,6 +131,7 @@ export async function resolveTrackForPlayback(track: Track): Promise<Track | nul
         return toPlayable(track, preferred.id, {
           videoId: preferred.id,
           thumbnail: preferred.thumbnail,
+          matchQuality,
         });
       }
     }
@@ -134,4 +145,20 @@ export async function resolveTrackForPlayback(track: Track): Promise<Track | nul
 export function prefetchTrackResolution(track: Track | null | undefined) {
   if (!track || !trackNeedsYoutubeResolution(track)) return;
   void resolveTrackForPlayback(track);
+}
+
+/** Fuerza re-búsqueda ignorando caché (reportar mal match). */
+export async function reResolveTrack(track: Track): Promise<Track | null> {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const cache = JSON.parse(raw) as Record<string, CacheEntry>;
+      delete cache[cacheKey(track.title || '', track.artist || '')];
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    }
+  } catch {
+    /* ignore */
+  }
+  const withoutId = { ...track, videoId: undefined };
+  return resolveTrackForPlayback(withoutId);
 }

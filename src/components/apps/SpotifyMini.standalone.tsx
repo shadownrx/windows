@@ -27,6 +27,9 @@ import {
   Sparkle24Regular,
   Dismiss24Regular,
   Options24Regular,
+  ArrowShuffle24Filled,
+  ArrowRepeatAll24Regular,
+  ArrowRepeat124Regular,
 } from '@fluentui/react-icons';
 import { useMusicSync } from '../../hooks/useMusicSync';
 import { useMobilePlaybackPersistence, loadPlaybackSession } from '../../hooks/useMobilePlaybackPersistence';
@@ -49,10 +52,12 @@ import MusicOnboardingBanner from '../music/MusicOnboardingBanner';
 import type { Track, ChatMessage, LiveReaction, RoomUser, DjEqSettings, DjModeState, DjVoteEntry, Playlist } from '../../types/music';
 import { shuffleTracks, PREVIEW_SECONDS, type CloudPlayMode } from '../../utils/cloudPlaylist';
 import { fetchSpotifyPlaylist, spotifyTracksToNexTracks, startSpotifyAuth, getSpotifySession } from '../../utils/spotifyPlaylist';
-import { resolveTrackForPlayback, trackNeedsYoutubeResolution } from '../../utils/resolveTrack';
+import { resolveTrackForPlayback, trackNeedsYoutubeResolution, reResolveTrack, prefetchTrackResolution } from '../../utils/resolveTrack';
 import { getSupabase } from '../../lib/supabase';
 import PartyModeLayer from '../music/PartyModeLayer';
 import { useMusicKeyboardShortcuts } from '../../hooks/useMusicKeyboardShortcuts';
+import { usePlaybackModes } from '../../hooks/usePlaybackModes';
+import { usePwaInstall } from '../../hooks/usePwaInstall';
 import {
   createShortPlaylistShareUrl,
   decodePlaylistShareCode,
@@ -63,10 +68,17 @@ import {
 } from '../../utils/playlistShare';
 import {
   buildNexMusicHomeUrl,
+  buildRoomInviteUrl,
   shareOrCopy,
   shareResultToast,
 } from '../../utils/share';
 import { fetchCloudPlaylistById } from '../../utils/fetchCloudPlaylist';
+import { recordFavorite, recordPlay, loadWeeklyStats } from '../../utils/weeklyStats';
+import { buildRadioFromTrack } from '../../utils/radioFromTrack';
+import { MATCH_LABEL } from '../../utils/matchQuality';
+import PwaInstallBanner from '../music/PwaInstallBanner';
+import RoomInviteSticky from '../music/RoomInviteSticky';
+import WeeklyStatsCard from '../music/WeeklyStatsCard';
 
 // --- SPOTIFY SDK GLOBAL TYPES ---
 declare global {
@@ -120,6 +132,10 @@ interface SpotifyMiniContextType {
   togglePlay: () => void;
   nextTrack: () => void;
   prevTrack: () => void;
+  repeatMode: 'off' | 'all' | 'one';
+  shuffleOn: boolean;
+  cycleRepeat: () => void;
+  toggleShuffle: () => void;
   setVolume: (vol: number) => void;
   seekTo: (percent: number) => void;
   addToQueue: (track: Track) => void;
@@ -202,6 +218,11 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
 
   const sync = useMusicSync();
   const { userId, isReady: authReady, error: authError, retry: supabaseRetry } = useSupabaseAuthContext();
+  const { repeatMode, shuffleOn, cycleRepeat, toggleShuffle } = usePlaybackModes();
+  const repeatModeRef = useRef(repeatMode);
+  const shuffleOnRef = useRef(shuffleOn);
+  repeatModeRef.current = repeatMode;
+  shuffleOnRef.current = shuffleOn;
 
   const [nickname, setNickname] = useState<string>(() => {
     try {
@@ -373,6 +394,7 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
     setCurrentTrack(playable);
     setIsPlaying(true);
     setProgress(0);
+    recordPlay(playable.id, playable.title, 180);
     setHistory(prev => {
       const filtered = prev.filter(t => t.id !== track.id && t.id !== playable.id);
       return [playable, ...filtered].slice(0, 50);
@@ -381,14 +403,24 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
 
   const playPlaylistFrom = useCallback((tracks: Track[], startIndex = 0) => {
     if (!tracks.length) return;
-    const idx = Math.max(0, Math.min(startIndex, tracks.length - 1));
-    setQueue(tracks.slice(idx + 1));
-    void playTrack(tracks[idx]);
+    let list = [...tracks];
+    let idx = Math.max(0, Math.min(startIndex, list.length - 1));
+    if (shuffleOnRef.current) {
+      const current = list[idx];
+      const rest = shuffleTracks(list.filter((_, i) => i !== idx));
+      list = [current, ...rest];
+      idx = 0;
+    }
+    setQueue(list.slice(idx + 1));
+    void playTrack(list[idx]);
   }, [playTrack]);
 
-  // Precargar el siguiente de la cola (Spotify → YouTube) mientras suena el actual
+  // Precargar el siguiente (y el de después) de la cola
   useEffect(() => {
     const upcoming = queue[0];
+    const upcoming2 = queue[1];
+    if (upcoming) prefetchTrackResolution(upcoming);
+    if (upcoming2) prefetchTrackResolution(upcoming2);
     if (!upcoming || !trackNeedsYoutubeResolution(upcoming)) return;
     let cancelled = false;
     void resolveTrackForPlayback(upcoming).then((resolved) => {
@@ -401,7 +433,7 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
     return () => {
       cancelled = true;
     };
-  }, [queue[0]?.id, currentTrack?.id]);
+  }, [queue[0]?.id, queue[1]?.id, currentTrack?.id]);
 
   const tryDjAutoNext = useCallback(() => {
     if (
@@ -432,6 +464,11 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
   }, []);
 
   const nextTrack = useCallback(() => {
+    if (repeatModeRef.current === 'one' && currentTrack) {
+      void playTrack(currentTrack);
+      return;
+    }
+
     if (queue.length > 0) {
       const next = queue[0];
       setQueue(prev => prev.slice(1));
@@ -448,10 +485,24 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
           playPlaylistFrom(pl.tracks, idx + 1);
           return;
         }
+        if (repeatModeRef.current === 'all') {
+          playPlaylistFrom(pl.tracks, 0);
+          return;
+        }
+        (window as any).__nexShowToast?.(
+          'Lista terminada · activá ↻ Repeat o explorá Globales',
+          'info',
+        );
+        return;
       }
     }
 
-    tryDjAutoNext();
+    if (!tryDjAutoNext()) {
+      (window as any).__nexShowToast?.(
+        'No hay más temas · agregá a la cola o abrí una playlist',
+        'info',
+      );
+    }
   }, [
     queue,
     playTrack,
@@ -487,6 +538,7 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
       setFavorites(prev => prev.filter(t => t.id !== track.id));
     } else {
       setFavorites(prev => [track, ...prev]);
+      recordFavorite();
     }
   }, [isFavorite]);
 
@@ -580,6 +632,10 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
         togglePlay,
         nextTrack,
         prevTrack,
+        repeatMode,
+        shuffleOn,
+        cycleRepeat,
+        toggleShuffle,
         setVolume,
         seekTo,
         addToQueue,
@@ -748,6 +804,10 @@ const SpotifyMiniStandalone: React.FC = () => {
     togglePlay,
     nextTrack,
     prevTrack,
+    repeatMode,
+    shuffleOn,
+    cycleRepeat,
+    toggleShuffle,
     setVolume,
     seekTo,
     addToQueue,
@@ -851,6 +911,9 @@ const SpotifyMiniStandalone: React.FC = () => {
   const cloudImportAttemptedRef = useRef(false);
   const shortImportAttemptedRef = useRef(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [weekStats, setWeekStats] = useState(() => loadWeeklyStats());
+  const pwa = usePwaInstall();
+  const prevRoomUsersRef = useRef(0);
 
   const showToast = (message: string, type: 'success'|'error'|'info'|'premium' = 'success') => {
     const id = Date.now();
@@ -926,6 +989,39 @@ const SpotifyMiniStandalone: React.FC = () => {
   useEffect(() => {
     sessionStorage.setItem('nexMusicPartyMode', String(isPartyMode));
   }, [isPartyMode]);
+
+  useEffect(() => {
+    setWeekStats(loadWeeklyStats());
+  }, [currentTrack?.id, favorites.length]);
+
+  // DJ tour + notification when someone joins
+  useEffect(() => {
+    try {
+      if (roomCode && djMode.enabled && localStorage.getItem('nexDjTourSeen') !== '1') {
+        localStorage.setItem('nexDjTourSeen', '1');
+        showToast('Modo DJ: la gente vota temas y el top suena solo', 'premium');
+      }
+    } catch { /* ignore */ }
+  }, [roomCode, djMode.enabled]);
+
+  useEffect(() => {
+    if (!roomCode || !isRoomHost) {
+      prevRoomUsersRef.current = roomUsers.length;
+      return;
+    }
+    if (roomUsers.length > prevRoomUsersRef.current && prevRoomUsersRef.current > 0) {
+      const joined = roomUsers[roomUsers.length - 1];
+      showToast(`${joined?.name || 'Alguien'} se unió a tu sala`, 'success');
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          new Notification('NEX Music', { body: `${joined?.name || 'Alguien'} entró a la sala ${roomCode}` });
+        } catch { /* ignore */ }
+      } else if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        void Notification.requestPermission();
+      }
+    }
+    prevRoomUsersRef.current = roomUsers.length;
+  }, [roomUsers.length, roomCode, isRoomHost]);
 
   useEffect(() => {
     if (!nickname) {
@@ -1928,6 +2024,7 @@ const SpotifyMiniStandalone: React.FC = () => {
           {/* --- SEARCH TAB --- */}
           {activeTab === 'search' && (
             <div className="spotify-search-results">
+              <WeeklyStatsCard stats={weekStats} />
               <h2>Resultados de búsqueda</h2>
 
               {!query.trim() && !searchResults.length && (
@@ -2448,7 +2545,17 @@ const SpotifyMiniStandalone: React.FC = () => {
             <img src={currentTrack.cover} alt="" className="spotify-player-cover" />
             <div className="spotify-player-info">
               <div className="spotify-player-title">{currentTrack.title}</div>
-              <div className="spotify-player-artist">{currentTrack.artist}</div>
+              <div className="spotify-player-artist">
+                {currentTrack.artist}
+                {currentTrack.matchQuality && (
+                  <span className={`match-pill match-${currentTrack.matchQuality}`}>
+                    {MATCH_LABEL[currentTrack.matchQuality]}
+                  </span>
+                )}
+              </div>
+              {queue[0] && (
+                <div className="spotify-next-up">Siguiente: {queue[0].title}</div>
+              )}
             </div>
             <button
               className={`spotify-player-heart ${bumpHeartId === currentTrack.id ? 'heart-bump' : ''}`}
@@ -2457,6 +2564,44 @@ const SpotifyMiniStandalone: React.FC = () => {
             >
               {isFavorite(currentTrack.id) ? <Heart24Filled /> : <Heart24Regular />}
             </button>
+            <button
+              className="spotify-player-heart"
+              title="Radio a partir de este tema"
+              onClick={() => {
+                void (async () => {
+                  showToast('Armando radio…', 'info');
+                  const radio = await buildRadioFromTrack(currentTrack, 10);
+                  if (!radio.length) {
+                    showToast('No se pudo armar la radio', 'error');
+                    return;
+                  }
+                  radio.forEach((t) => addToQueue(t));
+                  showToast(`+${radio.length} temas a la cola (radio)`, 'success');
+                })();
+              }}
+            >
+              <Sparkle24Regular />
+            </button>
+            {currentTrack.service === 'spotify' && (
+              <button
+                className="spotify-player-heart"
+                title="Mal match · buscar de nuevo"
+                onClick={() => {
+                  void (async () => {
+                    showToast('Buscando mejor match…', 'info');
+                    const again = await reResolveTrack(currentTrack);
+                    if (!again) {
+                      showToast('No se encontró otro match', 'error');
+                      return;
+                    }
+                    void playTrack(again);
+                    showToast(`Nuevo match: ${MATCH_LABEL[again.matchQuality || 'approx']}`, 'success');
+                  })();
+                }}
+              >
+                ≈
+              </button>
+            )}
             <button
               className="spotify-player-heart"
               onClick={() => {
@@ -2501,6 +2646,13 @@ const SpotifyMiniStandalone: React.FC = () => {
           {/* --- CENTER CONTROLS --- */}
           <div className="spotify-player-center">
             <div className="spotify-player-controls">
+              <button
+                className={`spotify-player-btn ${shuffleOn ? 'active' : ''}`}
+                onClick={toggleShuffle}
+                title="Shuffle"
+              >
+                <ArrowShuffle24Filled />
+              </button>
               <button className="spotify-player-btn" onClick={prevTrack}>
                 <Previous24Filled />
               </button>
@@ -2512,6 +2664,13 @@ const SpotifyMiniStandalone: React.FC = () => {
               </button>
               <button className="spotify-player-btn" onClick={nextTrack}>
                 <Next24Filled />
+              </button>
+              <button
+                className={`spotify-player-btn ${repeatMode !== 'off' ? 'active' : ''}`}
+                onClick={cycleRepeat}
+                title={`Repeat: ${repeatMode}`}
+              >
+                {repeatMode === 'one' ? <ArrowRepeat124Regular /> : <ArrowRepeatAll24Regular />}
               </button>
             </div>
             <div className="spotify-player-progress">
@@ -2577,6 +2736,31 @@ const SpotifyMiniStandalone: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      <PwaInstallBanner
+        open={pwa.visible}
+        onInstall={() => { void pwa.install(); }}
+        onDismiss={pwa.dismiss}
+      />
+
+      {roomCode && (
+        <RoomInviteSticky
+          roomCode={roomCode}
+          inviteUrl={buildRoomInviteUrl(roomCode)}
+          onOpenPanel={() => setShowLivePanel(true)}
+          onInvite={() => {
+            void (async () => {
+              const result = await shareOrCopy({
+                title: `Sala ${roomCode} · NEX Music`,
+                text: `Unite a mi sala en NEX Music (${roomCode})`,
+                url: buildRoomInviteUrl(roomCode),
+              });
+              const msg = shareResultToast(result);
+              if (msg) showToast(msg, 'success');
+            })();
+          }}
+        />
       )}
 
       <MusicOnboardingBanner
@@ -4467,9 +4651,37 @@ const SpotifyMiniStandalone: React.FC = () => {
         .spotify-player-artist {
           font-size: 13px;
           color: rgba(255,255,255,0.6);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+          white-space: normal;
+        }
+
+        .spotify-next-up {
+          margin-top: 2px;
+          font-size: 11px;
+          color: rgba(30, 215, 96, 0.9);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          max-width: 240px;
+        }
+
+        .match-pill {
+          font-size: 10px;
+          font-weight: 700;
+          padding: 1px 6px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.08);
+        }
+        .match-official { color: #1ed760; }
+        .match-topic { color: #60cdff; }
+        .match-good { color: #f0c14b; }
+        .match-approx { color: #f87171; }
+
+        .spotify-player {
+          padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
         }
 
         .spotify-player-heart {

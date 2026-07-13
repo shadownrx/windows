@@ -66,7 +66,7 @@ async function insertShare(url, key, row) {
 
 async function fetchShare(url, key, code) {
   const res = await fetch(
-    `${url}/rest/v1/playlist_shares?code=eq.${encodeURIComponent(code)}&select=code,name,cover,tracks,owner_nickname,created_at&limit=1`,
+    `${url}/rest/v1/playlist_shares?code=eq.${encodeURIComponent(code)}&select=code,name,cover,tracks,owner_nickname,created_at,open_count&limit=1`,
     {
       headers: {
         apikey: key,
@@ -103,6 +103,37 @@ export default async function handler(req, res) {
     }
     const row = await fetchShare(url, key, code);
     if (!row) return res.status(404).json({ error: 'Link no encontrado o expirado' });
+
+    // Best-effort open counter
+    try {
+      await fetch(
+        `${url}/rest/v1/rpc/increment_share_opens`,
+        {
+          method: 'POST',
+          headers: {
+            apikey: key,
+            Authorization: `Bearer ${key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ share_code: code }),
+        },
+      ).catch(() => null);
+      // Fallback patch if RPC missing
+      await fetch(
+        `${url}/rest/v1/playlist_shares?code=eq.${encodeURIComponent(code)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            apikey: key,
+            Authorization: `Bearer ${key}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({ open_count: (row.open_count || 0) + 1 }),
+        },
+      ).catch(() => null);
+    } catch { /* ignore */ }
+
     return res.status(200).json({
       code: row.code,
       name: row.name,
@@ -110,6 +141,7 @@ export default async function handler(req, res) {
       tracks: row.tracks,
       ownerName: row.owner_nickname,
       createdAt: row.created_at,
+      openCount: (row.open_count || 0) + 1,
     });
   }
 

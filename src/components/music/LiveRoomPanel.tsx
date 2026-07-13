@@ -9,6 +9,7 @@ import {
 import type { ChatMessage, DjEqSettings, DjModeState, DjVoteEntry, LiveReaction, RoomUser } from '../../types/music';
 import DjVotePanel from './DjVotePanel';
 import { buildRoomInviteUrl, shareOrCopy, shareResultToast } from '../../utils/share';
+import { qrImageUrl } from '../../utils/qr';
 
 interface LiveRoomPanelProps {
   open: boolean;
@@ -206,6 +207,16 @@ export const LiveRoomPanel: React.FC<LiveRoomPanelProps> = ({
                   {inviteBusy ? '…' : 'Invitar'}
                 </button>
               </div>
+              {roomCode && (
+                <div className="live-qr-wrap">
+                  <img
+                    src={qrImageUrl(buildRoomInviteUrl(roomCode), 160)}
+                    alt={`QR ${roomCode}`}
+                    className="live-qr"
+                  />
+                  <span>Escaneá para unirte</span>
+                </div>
+              )}
               <span className={`live-role ${isHost ? 'host' : 'guest'}`}>
                 {isHost ? 'Anfitrión' : 'Oyente'}
               </span>
@@ -501,6 +512,25 @@ export const LiveRoomPanel: React.FC<LiveRoomPanelProps> = ({
             border-radius: 999px;
             padding: 6px 10px;
             color: #1ed760;
+          }
+
+          .live-qr-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            margin: 4px 0 8px;
+          }
+          .live-qr {
+            width: 140px;
+            height: 140px;
+            border-radius: 12px;
+            background: #fff;
+            padding: 6px;
+          }
+          .live-qr-wrap span {
+            font-size: 11px;
+            color: rgba(255,255,255,0.5);
           }
 
           .live-role {

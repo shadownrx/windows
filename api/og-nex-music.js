@@ -122,13 +122,14 @@ export default async function handler(req, res) {
 
   let title = 'NEX Music';
   let description = 'Escuchá juntos · YouTube + Spotify · salas en vivo y listas globales.';
-  let image = `${base}/wallpaper-premium.png`;
+  let image = `${base}/api/og-image?title=${encodeURIComponent('NEX Music')}&subtitle=${encodeURIComponent('Escuchá juntos')}&kind=playlist`;
   let appTarget = `${base}/nex-music`;
 
   if (room && /^[A-Z0-9]{4,6}$/.test(room)) {
     title = `Unite a mi sala ${room} · NEX Music`;
     description = `Escuchá en vivo conmigo en NEX Music. Código: ${room}`;
     appTarget = `${base}/nex-music?room=${encodeURIComponent(room)}`;
+    image = `${base}/api/og-image?title=${encodeURIComponent(`Sala ${room}`)}&subtitle=${encodeURIComponent('Unite en un tap')}&kind=room`;
   } else if (shortCode && /^[A-Za-z0-9]{6,12}$/.test(shortCode)) {
     const meta = await fetchShortShareMeta(shortCode);
     if (meta?.name) {
@@ -136,7 +137,8 @@ export default async function handler(req, res) {
       description = meta.owner_nickname
         ? `Lista de ${meta.owner_nickname} en NEX Music. Tocá para escuchar.`
         : 'Lista compartida en NEX Music. Tocá para escuchar.';
-      if (meta.cover) image = meta.cover;
+      image = meta.cover
+        || `${base}/api/og-image?title=${encodeURIComponent(meta.name)}&subtitle=${encodeURIComponent(meta.owner_nickname || 'Lista compartida')}&kind=playlist`;
     } else {
       title = 'Lista compartida · NEX Music';
       description = 'Abrí esta lista en NEX Music y escuchá al toque.';
@@ -149,7 +151,8 @@ export default async function handler(req, res) {
       description = meta.owner_nickname
         ? `Lista de ${meta.owner_nickname} en NEX Music. Tocá para escuchar.`
         : 'Lista compartida en NEX Music. Tocá para escuchar.';
-      if (meta.cover) image = meta.cover;
+      image = meta.cover
+        || `${base}/api/og-image?title=${encodeURIComponent(meta.name)}&subtitle=${encodeURIComponent(meta.owner_nickname || 'Lista')}&kind=playlist`;
     } else {
       title = 'Lista compartida · NEX Music';
       description = 'Abrí esta lista en NEX Music y escuchá al toque.';

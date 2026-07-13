@@ -23,6 +23,11 @@ import {
   shareOrCopy,
   shareResultToast,
 } from '../../utils/share';
+import {
+  fetchPlaylistComments,
+  postPlaylistComment,
+  toggleFollowCreator,
+} from '../../utils/socialCloud';
 
 interface SupabaseAuthProps {
   supabaseUserId: string | null;
@@ -183,6 +188,9 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
 }) => {
   const cloud = useGlobalPlaylists(nickname, supabaseUserId);
   const [showReactionsFor, setShowReactionsFor] = useState<string | null>(null);
+  const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
+  const [comments, setComments] = useState<Record<string, { id: string; user_nickname: string; body: string }[]>>({});
+  const [showCommentsFor, setShowCommentsFor] = useState<string | null>(null);
 
   const localPublic = localFallback
     .filter((p) => !p.isPrivate)
@@ -330,6 +338,83 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
               <span className="play-count-badge">{cloudView.playCount} plays</span>
             )}
           </div>
+
+          {isCloud && cloudView && (
+            <div className="global-social-row">
+              <button
+                type="button"
+                className="global-action-btn"
+                onClick={() => {
+                  void (async () => {
+                    if (!nickname) {
+                      showToast('Configurá tu nickname', 'info');
+                      return;
+                    }
+                    try {
+                      const nowFollowing = await toggleFollowCreator(nickname, cloudView.ownerName);
+                      showToast(
+                        nowFollowing
+                          ? `Seguís a ${cloudView.ownerName}`
+                          : `Dejaste de seguir a ${cloudView.ownerName}`,
+                        'success',
+                      );
+                    } catch {
+                      showToast('Ejecutá schema-social-v3.sql en Supabase para follows', 'info');
+                    }
+                  })();
+                }}
+              >
+                Seguir
+              </button>
+              <button
+                type="button"
+                className="global-action-btn"
+                onClick={() => {
+                  const open = showCommentsFor === id ? null : id;
+                  setShowCommentsFor(open);
+                  if (open) {
+                    void fetchPlaylistComments(id).then((rows) => {
+                      setComments((prev) => ({ ...prev, [id]: rows as never }));
+                    });
+                  }
+                }}
+              >
+                Comentarios
+              </button>
+            </div>
+          )}
+
+          {isCloud && showCommentsFor === id && (
+            <div className="global-comments">
+              {(comments[id] || []).slice(0, 5).map((c) => (
+                <div key={c.id} className="global-comment">
+                  <strong>@{c.user_nickname}</strong> {c.body}
+                </div>
+              ))}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const body = (commentDraft[id] || '').trim();
+                  if (!body || !nickname) return;
+                  void postPlaylistComment(id, nickname, body)
+                    .then(async () => {
+                      setCommentDraft((prev) => ({ ...prev, [id]: '' }));
+                      const rows = await fetchPlaylistComments(id);
+                      setComments((prev) => ({ ...prev, [id]: rows as never }));
+                      showToast('Comentario publicado', 'success');
+                    })
+                    .catch(() => showToast('Ejecutá schema-social-v3.sql para comentarios', 'info'));
+                }}
+              >
+                <input
+                  value={commentDraft[id] || ''}
+                  onChange={(e) => setCommentDraft((prev) => ({ ...prev, [id]: e.target.value }))}
+                  placeholder="Comentá en 1 línea…"
+                  maxLength={280}
+                />
+              </form>
+            </div>
+          )}
 
           {isCloud && (
             <div className="global-reactions">
@@ -574,6 +659,15 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
           background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
           color: #fff; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
           min-width: 0;
+        }
+        .global-social-row { display: flex; gap: 6px; margin-top: 8px; width: 100%; }
+        .global-social-row .global-action-btn { flex: 1; }
+        .global-comments { width: 100%; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+        .global-comment { font-size: 12px; color: rgba(255,255,255,0.75); line-height: 1.35; }
+        .global-comments input {
+          width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.35);
+          border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+          color: #fff; padding: 8px 10px; font-size: 12px;
         }
         .global-action-btn:hover { background: rgba(255,255,255,0.15); }
         .play-count-badge, .weekly-badge { font-size: 11px; color: rgba(255,255,255,0.5); }

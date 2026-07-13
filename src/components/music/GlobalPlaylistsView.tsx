@@ -30,6 +30,7 @@ import {
   toggleFollowCreator,
 } from '../../utils/socialCloud';
 import { NicknameWithBadge } from './VerifiedBadge';
+import StaffVerifyPanel from './StaffVerifyPanel';
 
 interface SupabaseAuthProps {
   supabaseUserId: string | null;
@@ -195,6 +196,7 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
   const [comments, setComments] = useState<Record<string, { id: string; user_nickname: string; body: string }[]>>({});
   const [showCommentsFor, setShowCommentsFor] = useState<string | null>(null);
   const [requestingVerify, setRequestingVerify] = useState(false);
+  const [showStaffPanel, setShowStaffPanel] = useState(false);
 
   const localPublic = localFallback
     .filter((p) => !p.isPrivate)
@@ -573,9 +575,23 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
                 {requestingVerify ? 'Enviando…' : 'Solicitar verificación ✓'}
               </button>
             )}
+            <button
+              type="button"
+              className="global-staff-btn"
+              title="Panel staff"
+              onClick={() => setShowStaffPanel(true)}
+            >
+              Staff
+            </button>
           </div>
         )}
       </div>
+
+      <StaffVerifyPanel
+        open={showStaffPanel}
+        onClose={() => setShowStaffPanel(false)}
+        showToast={showToast}
+      />
 
       {cloud.loading && usingCloud && (
         <div className="spotify-loading">
@@ -737,6 +753,17 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
           font-size: 13px;
           color: rgba(255,255,255,0.75);
         }
+        .global-staff-btn {
+          margin-left: auto;
+          background: transparent;
+          border: 1px solid rgba(255,255,255,0.15);
+          color: rgba(255,255,255,0.4);
+          border-radius: 999px;
+          padding: 6px 12px;
+          font-size: 11px;
+          cursor: pointer;
+        }
+        .global-staff-btn:hover { color: #8ecdf8; border-color: rgba(29,155,240,0.4); }
         .global-play-actions { display: flex; gap: 8px; padding: 0; width: 100%; margin-top: 4px; }
         .global-action-btn {
           flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;

@@ -1,32 +1,30 @@
 # Verified users (NEX Music)
 
-## 1. Apply schema
+## Setup (una sola vez)
 
-In Supabase → SQL Editor, run:
+En Supabase → SQL Editor, corré **en orden**:
 
-`supabase/schema-profiles-v4.sql`
+1. `supabase/schema-profiles-v4.sql`
+2. `supabase/schema-staff-verify-v5.sql`
 
-## 2. Users create a profile automatically
-
-Opening NEX Music with a nickname upserts `user_profiles` (cannot self-verify).
-
-## 3. Mark someone verified (admin)
-
-In SQL Editor (as project owner):
+Luego cambiá la clave default en el panel Staff (o por SQL):
 
 ```sql
-select public.admin_verify_nickname('SuNickname', 'creator');
--- reasons: creator | artist | staff | partner
+update nex_staff_config set staff_key = 'tu-clave-secreta-larga' where id = 1;
 ```
 
-The user must have opened the app at least once with that nickname (so the profile row exists).
+Default inicial: `nex-staff-cambia-esto`
 
-## 4. In the app
+## Uso diario (sin SQL)
 
-- Global playlists / comments show a blue ✓ next to verified nicknames
-- Header: **Solicitar verificación ✓** → inserts `verification_requests`
-- Review pending:
+1. NEX Music → **Listas Globales** → botón **Staff**
+2. Entrá con la clave staff
+3. Aprobá solicitudes pendientes, o escribí un nickname y **Dar ✓**
 
-```sql
-select * from verification_requests where status = 'pending' order by created_at desc;
-```
+La clave queda en `sessionStorage` hasta que cierres la pestaña / “Cerrar sesión staff”.
+
+## Usuarios
+
+- Abren la app con nickname → se crea el perfil
+- Tocan **Solicitar verificación ✓**
+- Vos aprobás desde el panel Staff

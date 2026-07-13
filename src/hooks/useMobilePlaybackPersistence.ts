@@ -39,6 +39,7 @@ interface UseMobilePlaybackPersistenceOptions {
   currentTrack: Track | null;
   isPlaying: boolean;
   progress: number;
+  duration?: number;
   volume: number;
   queue: Track[];
   playerRef: React.RefObject<{ playVideo?: () => void; pauseVideo?: () => void; getCurrentTime?: () => number; seekTo?: (s: number, allow: boolean) => void } | null>;
@@ -51,6 +52,7 @@ export function useMobilePlaybackPersistence({
   currentTrack,
   isPlaying,
   progress,
+  duration = 0,
   volume,
   queue,
   playerRef,
@@ -120,8 +122,17 @@ export function useMobilePlaybackPersistence({
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentTrack.title,
       artist: currentTrack.artist,
-      artwork: [{ src: currentTrack.cover, sizes: '512x512', type: 'image/jpeg' }],
+      artwork: currentTrack.cover
+        ? [{ src: currentTrack.cover, sizes: '512x512', type: 'image/jpeg' }]
+        : [],
     });
+
+    const seekBy = (delta: number) => {
+      const player = playerRef.current;
+      if (!player?.getCurrentTime || !player?.seekTo) return;
+      const next = Math.max(0, player.getCurrentTime() + delta);
+      player.seekTo(next, true);
+    };
 
     navigator.mediaSession.setActionHandler('play', () => {
       playerRef.current?.playVideo?.();
@@ -139,19 +150,47 @@ export function useMobilePlaybackPersistence({
     navigator.mediaSession.setActionHandler('nexttrack', () => {
       window.dispatchEvent(new CustomEvent('nex-music-next'));
     });
+    try {
+      navigator.mediaSession.setActionHandler('seekbackward', () => seekBy(-10));
+      navigator.mediaSession.setActionHandler('seekforward', () => seekBy(10));
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime == null || !playerRef.current?.seekTo) return;
+        playerRef.current.seekTo(details.seekTime, true);
+      });
+    } catch {
+      /* some browsers don't support seek handlers */
+    }
 
     navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
     return () => {
-      ['play', 'pause', 'previoustrack', 'nexttrack'].forEach((action) => {
-        try {
-          navigator.mediaSession.setActionHandler(action as MediaSessionAction, null);
-        } catch {
-          /* unsupported action */
-        }
-      });
+      ['play', 'pause', 'previoustrack', 'nexttrack', 'seekbackward', 'seekforward', 'seekto'].forEach(
+        (action) => {
+          try {
+            navigator.mediaSession.setActionHandler(action as MediaSessionAction, null);
+          } catch {
+            /* unsupported action */
+          }
+        },
+      );
     };
   }, [currentTrack, isPlaying, playerRef, setIsPlaying, startProgressTracking, stopProgressTracking]);
+
+  // Keep lock-screen scrubber in sync
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !currentTrack) return;
+    const durationSec = duration > 0 ? duration : 0;
+    if (durationSec <= 0) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: durationSec,
+        playbackRate: 1,
+        position: Math.min(durationSec, Math.max(0, (progress / 100) * durationSec)),
+      });
+    } catch {
+      /* ignore */
+    }
+  }, [currentTrack, duration, progress, isPlaying]);
 
   // Wake Lock while playing (helps on Android PWA)
   useEffect(() => {

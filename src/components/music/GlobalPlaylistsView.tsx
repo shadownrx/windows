@@ -37,6 +37,7 @@ interface GlobalPlaylistsViewProps extends SupabaseAuthProps {
   unvoteForPlaylist?: (playlistId: string) => void;
   showToast: (message: string, type?: 'success' | 'error' | 'info' | 'premium') => void;
   onOpenSpotifyImport?: () => void;
+  spotifyImportLabel?: string;
 }
 
 export const PublishToCloudButton: React.FC<{
@@ -141,6 +142,7 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
   supabaseAuthError,
   supabaseRetry,
   onOpenSpotifyImport,
+  spotifyImportLabel = 'Importar de Spotify',
 }) => {
   const cloud = useGlobalPlaylists(nickname, supabaseUserId);
   const [showReactionsFor, setShowReactionsFor] = useState<string | null>(null);
@@ -340,7 +342,7 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
               className="global-spotify-import-btn"
               onClick={onOpenSpotifyImport}
             >
-              Importar de Spotify
+              {spotifyImportLabel}
             </button>
           )}
         </div>
@@ -396,7 +398,7 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
           </p>
           {onOpenSpotifyImport && (
             <button type="button" className="global-spotify-import-btn global-spotify-import-btn-empty" onClick={onOpenSpotifyImport}>
-              Importar playlist de Spotify
+              {spotifyImportLabel}
             </button>
           )}
         </div>

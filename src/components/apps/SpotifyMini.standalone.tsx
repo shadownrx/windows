@@ -26,9 +26,11 @@ import {
   Delete24Regular,
   Sparkle24Regular,
   Dismiss24Regular,
+  Options24Regular,
 } from '@fluentui/react-icons';
 import { useMusicSync } from '../../hooks/useMusicSync';
 import { useMobilePlaybackPersistence, loadPlaybackSession } from '../../hooks/useMobilePlaybackPersistence';
+import { useNexAudioEnhance } from '../../hooks/useNexAudioEnhance';
 import {
   closeSidebarWithHistory,
   exitMobileApp,
@@ -42,12 +44,14 @@ import { useCloudLibrary, type CloudSyncStatus } from '../../hooks/useCloudLibra
 import LiveRoomPanel from '../music/LiveRoomPanel';
 import GlobalPlaylistsView, { PublishToCloudButton } from '../music/GlobalPlaylistsView';
 import CloudSyncBadge from '../music/CloudSyncBadge';
+import AudioEnhancePanel from '../music/AudioEnhancePanel';
 import type { Track, ChatMessage, LiveReaction, RoomUser, DjEqSettings, DjModeState, DjVoteEntry, Playlist } from '../../types/music';
 import { shuffleTracks, PREVIEW_SECONDS, type CloudPlayMode } from '../../utils/cloudPlaylist';
 import { fetchSpotifyPlaylist, spotifyTracksToNexTracks, startSpotifyAuth, getSpotifySession } from '../../utils/spotifyPlaylist';
 import { resolveTrackForPlayback, trackNeedsYoutubeResolution } from '../../utils/resolveTrack';
 import { getSupabase } from '../../lib/supabase';
 import PartyModeLayer from '../music/PartyModeLayer';
+import { useMusicKeyboardShortcuts } from '../../hooks/useMusicKeyboardShortcuts';
 
 // --- SPOTIFY SDK GLOBAL TYPES ---
 declare global {
@@ -375,15 +379,45 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
         return;
       }
       playable = resolved;
+      // Guardar videoId en playlists para el próximo play instantáneo
+      if (resolved.videoId) {
+        setPlaylists((prev) =>
+          prev.map((p) => ({
+            ...p,
+            tracks: p.tracks.map((t) =>
+              t.id === track.id && !t.videoId
+                ? { ...t, videoId: resolved.videoId }
+                : t,
+            ),
+          })),
+        );
+      }
     }
     setCurrentTrack(playable);
     setIsPlaying(true);
     setProgress(0);
     setHistory(prev => {
-      const filtered = prev.filter(t => t.id !== track.id);
+      const filtered = prev.filter(t => t.id !== track.id && t.id !== playable.id);
       return [playable, ...filtered].slice(0, 50);
     });
   }, []);
+
+  // Precargar el siguiente de la cola (Spotify → YouTube) mientras suena el actual
+  useEffect(() => {
+    const upcoming = queue[0];
+    if (!upcoming || !trackNeedsYoutubeResolution(upcoming)) return;
+    let cancelled = false;
+    void resolveTrackForPlayback(upcoming).then((resolved) => {
+      if (cancelled || !resolved?.videoId) return;
+      setQueue((prev) => {
+        if (!prev[0] || prev[0].id !== upcoming.id || prev[0].videoId) return prev;
+        return [{ ...prev[0], videoId: resolved.videoId }, ...prev.slice(1)];
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [queue[0]?.id, currentTrack?.id]);
 
   const tryDjAutoNext = useCallback(() => {
     if (
@@ -784,6 +818,14 @@ const SpotifyMiniStandalone: React.FC = () => {
   const [spotifyImportUrl, setSpotifyImportUrl] = useState('');
   const [spotifyImporting, setSpotifyImporting] = useState(false);
   const [spotifyConnected, setSpotifyConnected] = useState(false);
+  const [showAudioPanel, setShowAudioPanel] = useState(false);
+  const audioEnhance = useNexAudioEnhance();
+  const audioEnhanceRef = useRef(audioEnhance);
+  audioEnhanceRef.current = audioEnhance;
+  const volumeRef = useRef(volume);
+  volumeRef.current = volume;
+  const isFirstVideoLoadRef = useRef(true);
+  const crossfadingRef = useRef(false);
 
   const showToast = (message: string, type: 'success'|'error'|'info'|'premium' = 'success') => {
     const id = Date.now();
@@ -932,27 +974,60 @@ const SpotifyMiniStandalone: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTrack]);
 
-  // Update YouTube player volume whenever volume changes
+  // Update YouTube player volume whenever volume / audio settings change
   useEffect(() => {
-    if (playerRef.current && playerRef.current.setVolume) {
-      playerRef.current.setVolume(volume);
+    audioEnhance.applyVolume(playerRef.current, volume);
+  }, [volume, audioEnhance.settings, audioEnhance.applyVolume]);
+
+  const loadVideoIntoPlayer = (videoId: string) => {
+    if (!playerRef.current?.loadVideoById) return;
+    const { settings, applyHdQuality, applyVolume } = audioEnhanceRef.current;
+    if (settings.hd) {
+      playerRef.current.loadVideoById({ videoId, suggestedQuality: 'hd1080' });
+      applyHdQuality(playerRef.current);
+    } else {
+      playerRef.current.loadVideoById(videoId);
     }
-  }, [volume]);
+    applyVolume(playerRef.current, volumeRef.current);
+    setIsPlaying(true);
+  };
 
   const initPlayer = () => {
     if (!currentTrack?.videoId) return;
+    if (crossfadingRef.current) return;
+    const videoId = currentTrack.videoId;
 
-    // Case 1: Player exists and is ready - just load new video!
+    // Case 1: Player exists and is ready - load new video (with optional crossfade)
     if (playerRef.current && playerRef.current.loadVideoById) {
-      playerRef.current.loadVideoById(currentTrack.videoId);
-      setIsPlaying(true);
+      const { settings, crossfadeToNext } = audioEnhanceRef.current;
+      const shouldCrossfade =
+        !isFirstVideoLoadRef.current && settings.crossfadeSec > 0;
+
+      if (shouldCrossfade) {
+        crossfadingRef.current = true;
+        void crossfadeToNext(playerRef.current, volumeRef.current, () => {
+          if (settings.hd) {
+            playerRef.current.loadVideoById({ videoId, suggestedQuality: 'hd1080' });
+          } else {
+            playerRef.current.loadVideoById(videoId);
+          }
+          setIsPlaying(true);
+        }).finally(() => {
+          crossfadingRef.current = false;
+          isFirstVideoLoadRef.current = false;
+        });
+        return;
+      }
+
+      isFirstVideoLoadRef.current = false;
+      loadVideoIntoPlayer(videoId);
       return;
     }
 
     // Case 2: Player doesn't exist but YT API is ready - create new player!
     if (window.YT && !playerRef.current) {
       playerRef.current = new window.YT.Player('youtube-player', {
-        videoId: currentTrack.videoId,
+        videoId,
         playerVars: {
           origin: window.location.origin,
           enablejsapi: 1,
@@ -960,17 +1035,22 @@ const SpotifyMiniStandalone: React.FC = () => {
         },
         events: {
           onReady: (event: any) => {
+            const { settings, applyHdQuality, applyVolume } = audioEnhanceRef.current;
             playerRef.current = event.target;
             if (playerRef.current.getDuration) {
               setDuration(playerRef.current.getDuration());
             }
-            playerRef.current.setVolume(volume);
-            // When a new track loads, automatically play it!
+            applyVolume(playerRef.current, volumeRef.current);
+            if (settings.hd) applyHdQuality(playerRef.current);
+            isFirstVideoLoadRef.current = false;
             setIsPlaying(true);
             playerRef.current.playVideo();
           },
           onStateChange: (event: any) => {
             if (window.YT && event.data === window.YT.PlayerState.PLAYING) {
+              if (audioEnhanceRef.current.settings.hd) {
+                audioEnhanceRef.current.applyHdQuality(event.target);
+              }
               setIsPlaying(true);
               startProgressTracking();
             } else if (window.YT && event.data === window.YT.PlayerState.PAUSED) {
@@ -1011,6 +1091,7 @@ const SpotifyMiniStandalone: React.FC = () => {
     currentTrack,
     isPlaying,
     progress,
+    duration,
     volume,
     queue,
     playerRef,
@@ -1029,6 +1110,14 @@ const SpotifyMiniStandalone: React.FC = () => {
     }
   };
 
+  const seekBySeconds = useCallback((delta: number) => {
+    if (!playerRef.current?.getCurrentTime || !playerRef.current?.seekTo) return;
+    const current = playerRef.current.getCurrentTime();
+    const next = Math.max(0, current + delta);
+    playerRef.current.seekTo(next, true);
+    if (duration > 0) setProgress((next / duration) * 100);
+  }, [duration, setProgress]);
+
   const handleTogglePlay = () => {
     // --- YOUTUBE ---
     if (currentTrack?.videoId && playerRef.current) {
@@ -1045,6 +1134,13 @@ const SpotifyMiniStandalone: React.FC = () => {
       togglePlay();
     }
   };
+
+  useMusicKeyboardShortcuts({
+    togglePlay: handleTogglePlay,
+    nextTrack,
+    prevTrack,
+    seekBySeconds,
+  });
 
   const handleLogoClick = () => {
     setLogoAnimating(true);
@@ -1566,6 +1662,26 @@ const SpotifyMiniStandalone: React.FC = () => {
           <span className="power-by">Creado por Salvador Juarez</span>
           {nickname && <span className="user-nickname">@{nickname}</span>}
           <CloudSyncBadge status={cloudSyncStatus} />
+          {!spotifyConnected ? (
+            <button
+              type="button"
+              className="sidebar-spotify-connect"
+              onClick={() => startSpotifyAuth(window.location.pathname || '/nex-music')}
+            >
+              Conectar Spotify
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="sidebar-spotify-connect connected"
+              onClick={() => {
+                setShowSpotifyImportModal(true);
+                closeSidebar();
+              }}
+            >
+              Importar Spotify
+            </button>
+          )}
         </div>
         {/* --- TOP MENU --- */}
         <div className="spotify-sidebar-top">
@@ -1870,13 +1986,23 @@ const SpotifyMiniStandalone: React.FC = () => {
                   <h2>Mis Listas de Reproducción</h2>
                 </div>
                 <div className="header-actions">
-                  <button
-                    type="button"
-                    className="spotify-btn-secondary spotify-import-spotify-btn"
-                    onClick={() => setShowSpotifyImportModal(true)}
-                  >
-                    Spotify
-                  </button>
+                  {!spotifyConnected ? (
+                    <button
+                      type="button"
+                      className="spotify-btn-primary spotify-connect-header-btn"
+                      onClick={() => startSpotifyAuth(window.location.pathname || '/nex-music')}
+                    >
+                      Conectar Spotify
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="spotify-btn-secondary spotify-import-spotify-btn"
+                      onClick={() => setShowSpotifyImportModal(true)}
+                    >
+                      Importar Spotify
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="spotify-btn-secondary"
@@ -2090,7 +2216,12 @@ const SpotifyMiniStandalone: React.FC = () => {
               supabaseAuthReady={supabaseAuthReady}
               supabaseAuthError={supabaseAuthError}
               supabaseRetry={supabaseRetry}
-              onOpenSpotifyImport={() => setShowSpotifyImportModal(true)}
+              onOpenSpotifyImport={() =>
+                spotifyConnected
+                  ? setShowSpotifyImportModal(true)
+                  : startSpotifyAuth(window.location.pathname || '/nex-music')
+              }
+              spotifyImportLabel={spotifyConnected ? 'Importar de Spotify' : 'Conectar Spotify'}
             />
           )}
 
@@ -2299,6 +2430,23 @@ const SpotifyMiniStandalone: React.FC = () => {
 
           {/* --- RIGHT VOLUME --- */}
           <div className="spotify-player-right">
+            <div className="audio-enhance-anchor">
+              <button
+                type="button"
+                className={`spotify-player-btn ${showAudioPanel ? 'active' : ''}`}
+                onClick={() => setShowAudioPanel((v) => !v)}
+                title="Audio Pro · HD, crossfade, boost"
+                aria-pressed={showAudioPanel}
+              >
+                <Options24Regular />
+              </button>
+              <AudioEnhancePanel
+                open={showAudioPanel}
+                onClose={() => setShowAudioPanel(false)}
+                settings={audioEnhance.settings}
+                onChange={audioEnhance.setSettings}
+              />
+            </div>
             <button
               type="button"
               className={`spotify-player-btn party-toggle ${isPartyMode ? 'active' : ''}`}
@@ -3175,6 +3323,41 @@ const SpotifyMiniStandalone: React.FC = () => {
           font-size: 14px;
           color: #1db954;
           font-weight: 600;
+        }
+
+        .sidebar-spotify-connect {
+          width: 100%;
+          margin-top: 4px;
+          padding: 10px 12px;
+          border: none;
+          border-radius: 999px;
+          background: #1db954;
+          color: #000;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: transform 0.15s ease, filter 0.15s ease;
+        }
+
+        .sidebar-spotify-connect:hover {
+          filter: brightness(1.08);
+          transform: translateY(-1px);
+        }
+
+        .sidebar-spotify-connect.connected {
+          background: rgba(30, 215, 96, 0.15);
+          color: #1ed760;
+          border: 1px solid rgba(30, 215, 96, 0.4);
+        }
+
+        .spotify-connect-header-btn {
+          background: #1db954 !important;
+          color: #000 !important;
+          border: none !important;
+        }
+
+        .audio-enhance-anchor {
+          position: relative;
         }
 
         /* --- MAIN CONTENT --- */

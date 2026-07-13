@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Play24Filled,
   MusicNote224Filled,
@@ -15,6 +15,7 @@ import {
   useGlobalPlaylists,
   type CloudPlaylistView,
 } from '../../hooks/useGlobalPlaylists';
+import { useUserProfiles, useVerifiedMap } from '../../hooks/useUserProfiles';
 import { isSupabaseConfigured, getSupabaseErrorMessage } from '../../lib/supabase';
 import type { CloudPlayMode } from '../../utils/cloudPlaylist';
 import type { Playlist, Track } from '../../types/music';
@@ -28,6 +29,7 @@ import {
   postPlaylistComment,
   toggleFollowCreator,
 } from '../../utils/socialCloud';
+import { NicknameWithBadge } from './VerifiedBadge';
 
 interface SupabaseAuthProps {
   supabaseUserId: string | null;
@@ -187,10 +189,12 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
   spotifyImportLabel = 'Importar de Spotify',
 }) => {
   const cloud = useGlobalPlaylists(nickname, supabaseUserId);
+  const { myProfile, requestVerify, isVerified } = useUserProfiles(nickname, supabaseUserId);
   const [showReactionsFor, setShowReactionsFor] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
   const [comments, setComments] = useState<Record<string, { id: string; user_nickname: string; body: string }[]>>({});
   const [showCommentsFor, setShowCommentsFor] = useState<string | null>(null);
+  const [requestingVerify, setRequestingVerify] = useState(false);
 
   const localPublic = localFallback
     .filter((p) => !p.isPrivate)
@@ -199,6 +203,16 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
   const usingCloud = cloud.enabled && supabaseAuthReady && !!supabaseUserId;
   const displayCloud = usingCloud ? cloud.playlists : [];
   const isEmpty = usingCloud ? displayCloud.length === 0 && !cloud.loading : localPublic.length === 0;
+
+  const nicknamesForBadges = useMemo(() => {
+    const names = new Set<string>();
+    if (nickname) names.add(nickname);
+    displayCloud.forEach((p) => names.add(p.ownerName));
+    Object.values(comments).forEach((rows) => rows.forEach((c) => names.add(c.user_nickname)));
+    return [...names];
+  }, [nickname, displayCloud, comments]);
+
+  const { isVerified: nickIsVerified, reasonFor } = useVerifiedMap(nicknamesForBadges);
 
   const handleCloudPlay = (playlist: CloudPlaylistView, mode: CloudPlayMode) => {
     if (playlist.tracks.length === 0) return;
@@ -265,7 +279,14 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
 
         <div className="spotify-card-info">
           <div className="spotify-card-title">{playlist.name}</div>
-          <div className="spotify-card-artist">Por {playlist.ownerName}</div>
+          <div className="spotify-card-artist">
+            Por{' '}
+            <NicknameWithBadge
+              name={playlist.ownerName}
+              verified={nickIsVerified(playlist.ownerName)}
+              reason={reasonFor(playlist.ownerName)}
+            />
+          </div>
         </div>
 
         {isCloud && cloudView && (
@@ -388,7 +409,15 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
             <div className="global-comments">
               {(comments[id] || []).slice(0, 5).map((c) => (
                 <div key={c.id} className="global-comment">
-                  <strong>@{c.user_nickname}</strong> {c.body}
+                  <strong>
+                    @
+                    <NicknameWithBadge
+                      name={c.user_nickname}
+                      verified={nickIsVerified(c.user_nickname)}
+                      reason={reasonFor(c.user_nickname)}
+                    />
+                  </strong>{' '}
+                  {c.body}
                 </div>
               ))}
               <form
@@ -513,6 +542,37 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
                 {tab.label}
               </button>
             ))}
+          </div>
+        )}
+        {usingCloud && nickname && (
+          <div className="global-verify-row">
+            {isVerified || myProfile?.verified ? (
+              <span className="global-verify-status">
+                <NicknameWithBadge name={nickname} verified reason={myProfile?.verifiedReason} size="md" />
+                <span> Cuenta verificada</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="global-verify-btn"
+                disabled={requestingVerify}
+                onClick={() => {
+                  void (async () => {
+                    setRequestingVerify(true);
+                    try {
+                      await requestVerify('Quiero el check de creador en NEX Music');
+                      showToast('Solicitud enviada · te avisamos cuando te verifiquen', 'premium');
+                    } catch (err) {
+                      showToast(err instanceof Error ? err.message : 'No se pudo solicitar', 'info');
+                    } finally {
+                      setRequestingVerify(false);
+                    }
+                  })();
+                }}
+              >
+                {requestingVerify ? 'Enviando…' : 'Solicitar verificación ✓'}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -653,6 +713,30 @@ const GlobalPlaylistsView: React.FC<GlobalPlaylistsViewProps> = ({
           font-size: 13px; font-weight: 600; cursor: pointer;
         }
         .global-ranking-tab.active { background: #fff; color: #000; border-color: #fff; }
+        .global-verify-row {
+          margin-top: 12px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .global-verify-btn {
+          background: rgba(29, 155, 240, 0.15);
+          border: 1px solid rgba(29, 155, 240, 0.45);
+          color: #8ecdf8;
+          border-radius: 999px;
+          padding: 7px 14px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .global-verify-btn:disabled { opacity: 0.6; cursor: wait; }
+        .global-verify-status {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          color: rgba(255,255,255,0.75);
+        }
         .global-play-actions { display: flex; gap: 8px; padding: 0; width: 100%; margin-top: 4px; }
         .global-action-btn {
           flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;

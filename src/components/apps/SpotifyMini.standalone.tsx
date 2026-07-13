@@ -46,6 +46,7 @@ import {
 } from '../../hooks/useMobileAppShell';
 import { SupabaseAuthProvider, useSupabaseAuthContext } from '../../context/SupabaseAuthContext';
 import { useCloudLibrary, type CloudSyncStatus } from '../../hooks/useCloudLibrary';
+import { useUserProfiles } from '../../hooks/useUserProfiles';
 import LiveRoomPanel from '../music/LiveRoomPanel';
 import GlobalPlaylistsView, { PublishToCloudButton } from '../music/GlobalPlaylistsView';
 import CloudSyncBadge from '../music/CloudSyncBadge';
@@ -322,6 +323,7 @@ const SpotifyMiniStandaloneProviderInner: React.FC<{ children: React.ReactNode }
     setFavorites,
     setHistory,
   });
+  useUserProfiles(nickname, userId);
 
   useEffect(() => {
     sync.onRemotePlayback((state) => {

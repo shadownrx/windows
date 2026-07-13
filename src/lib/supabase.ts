@@ -46,6 +46,9 @@ export function getSupabaseErrorMessage(err: unknown, fallback = 'Error de Supab
       if (o.message.includes('owner_user_id')) {
         return `${o.message} — ejecutá supabase/schema-v2.sql en el SQL Editor`;
       }
+      if (o.message.includes('user_profiles') || o.message.includes('verification_requests')) {
+        return `${o.message} — ejecutá supabase/schema-profiles-v4.sql en el SQL Editor`;
+      }
       if (o.code === '42501') return 'Sin permiso (RLS). Revisá las políticas en Supabase.';
       return o.details ? `${o.message}: ${o.details}` : o.message;
     }
@@ -108,4 +111,15 @@ export interface DbUserLibrary {
   favorites: unknown;
   history: unknown;
   updated_at: string;
+}
+
+export interface DbUserProfile {
+  user_id: string;
+  nickname: string;
+  display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  verified: boolean;
+  verified_at: string | null;
+  verified_reason: string | null;
 }

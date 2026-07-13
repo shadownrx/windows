@@ -24,18 +24,45 @@ function appBase(req) {
   return `${proto}://${host}`;
 }
 
-async function fetchCloudMeta(id) {
+async function supabaseCreds() {
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.VITE_SUPBASE_URL;
   const key =
     process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
     process.env.VITE_SUPABASE_ANON_KEY ||
     process.env.SUPABASE_ANON_KEY ||
     process.env.VITE_SUPBASE_PUBLISHABLE_KEY;
+  return { url, key };
+}
+
+async function fetchCloudMeta(id) {
+  const { url, key } = await supabaseCreds();
   if (!url || !key || !id) return null;
 
   try {
     const res = await fetch(
       `${url}/rest/v1/global_playlists?id=eq.${encodeURIComponent(id)}&select=name,cover,owner_nickname`,
+      {
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+        },
+      },
+    );
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return Array.isArray(rows) && rows[0] ? rows[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchShortShareMeta(code) {
+  const { url, key } = await supabaseCreds();
+  if (!url || !key || !code) return null;
+
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/playlist_shares?code=eq.${encodeURIComponent(code)}&select=name,cover,owner_nickname&limit=1`,
       {
         headers: {
           apikey: key,
@@ -91,6 +118,7 @@ export default async function handler(req, res) {
   const base = appBase(req);
   const room = typeof req.query.room === 'string' ? req.query.room.trim().toUpperCase() : '';
   const cloud = typeof req.query.cloud === 'string' ? req.query.cloud.trim() : '';
+  const shortCode = typeof req.query.p === 'string' ? req.query.p.trim() : '';
 
   let title = 'NEX Music';
   let description = 'Escuchá juntos · YouTube + Spotify · salas en vivo y listas globales.';
@@ -101,6 +129,19 @@ export default async function handler(req, res) {
     title = `Unite a mi sala ${room} · NEX Music`;
     description = `Escuchá en vivo conmigo en NEX Music. Código: ${room}`;
     appTarget = `${base}/nex-music?room=${encodeURIComponent(room)}`;
+  } else if (shortCode && /^[A-Za-z0-9]{6,12}$/.test(shortCode)) {
+    const meta = await fetchShortShareMeta(shortCode);
+    if (meta?.name) {
+      title = `${meta.name} · NEX Music`;
+      description = meta.owner_nickname
+        ? `Lista de ${meta.owner_nickname} en NEX Music. Tocá para escuchar.`
+        : 'Lista compartida en NEX Music. Tocá para escuchar.';
+      if (meta.cover) image = meta.cover;
+    } else {
+      title = 'Lista compartida · NEX Music';
+      description = 'Abrí esta lista en NEX Music y escuchá al toque.';
+    }
+    appTarget = `${base}/nex-music?p=${encodeURIComponent(shortCode)}`;
   } else if (cloud) {
     const meta = await fetchCloudMeta(cloud);
     if (meta?.name) {
@@ -116,7 +157,10 @@ export default async function handler(req, res) {
     appTarget = `${base}/nex-music?cloud=${encodeURIComponent(cloud)}`;
   }
 
-  const shareUrl = `${base}/share${req.url?.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`;
+  const shareUrl =
+    shortCode && /^[A-Za-z0-9]{6,12}$/.test(shortCode)
+      ? `${base}/p/${shortCode}`
+      : `${base}/share${req.url?.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`;
 
   if (!isBot(req.headers['user-agent'] || '')) {
     res.writeHead(302, { Location: appTarget, 'Cache-Control': 'public, max-age=60' });

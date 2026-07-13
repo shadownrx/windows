@@ -54,10 +54,12 @@ import { getSupabase } from '../../lib/supabase';
 import PartyModeLayer from '../music/PartyModeLayer';
 import { useMusicKeyboardShortcuts } from '../../hooks/useMusicKeyboardShortcuts';
 import {
-  buildPlaylistHashShareUrl,
+  createShortPlaylistShareUrl,
   decodePlaylistShareCode,
   extractPlaylistShareCodeFromInput,
+  fetchShortPlaylistShare,
   isValidRoomCode,
+  isValidShortShareCode,
 } from '../../utils/playlistShare';
 import {
   buildNexMusicHomeUrl,
@@ -844,8 +846,10 @@ const SpotifyMiniStandalone: React.FC = () => {
   const crossfadingRef = useRef(false);
   const pendingRoomRef = useRef<string | null>(null);
   const pendingCloudRef = useRef<string | null>(null);
+  const pendingShortRef = useRef<string | null>(null);
   const roomJoinAttemptedRef = useRef(false);
   const cloudImportAttemptedRef = useRef(false);
+  const shortImportAttemptedRef = useRef(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   const showToast = (message: string, type: 'success'|'error'|'info'|'premium' = 'success') => {
@@ -929,11 +933,12 @@ const SpotifyMiniStandalone: React.FC = () => {
     }
   }, [nickname]);
 
-  // Viral deep links: ?room= / ?cloud= (+ skip onboarding)
+  // Viral deep links: ?room= / ?cloud= / ?p= (+ skip onboarding)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const room = params.get('room');
     const cloud = params.get('cloud');
+    const shortP = params.get('p');
     if (room && isValidRoomCode(room)) {
       pendingRoomRef.current = room.toUpperCase();
       try { localStorage.setItem('nexMusicOnboardingSeen', '1'); } catch { /* ignore */ }
@@ -942,9 +947,13 @@ const SpotifyMiniStandalone: React.FC = () => {
       pendingCloudRef.current = cloud;
       try { localStorage.setItem('nexMusicOnboardingSeen', '1'); } catch { /* ignore */ }
     }
+    if (shortP && isValidShortShareCode(shortP)) {
+      pendingShortRef.current = shortP;
+      try { localStorage.setItem('nexMusicOnboardingSeen', '1'); } catch { /* ignore */ }
+    }
     try {
       const seen = localStorage.getItem('nexMusicOnboardingSeen') === '1';
-      if (!seen && !room && !cloud) setShowOnboarding(true);
+      if (!seen && !room && !cloud && !shortP) setShowOnboarding(true);
     } catch {
       setShowOnboarding(true);
     }
@@ -1023,6 +1032,35 @@ const SpotifyMiniStandalone: React.FC = () => {
       setActivePlaylistId(imported.id);
       setActiveTab('my-playlists');
       showToast(`Lista "${detail.name}" lista para escuchar ☁️`, 'success');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [setPlaylists, setActivePlaylistId]);
+
+  useEffect(() => {
+    const code = pendingShortRef.current;
+    if (!code || shortImportAttemptedRef.current) return;
+    shortImportAttemptedRef.current = true;
+    let cancelled = false;
+    void fetchShortPlaylistShare(code).then((imported) => {
+      if (cancelled) return;
+      const params = new URLSearchParams(window.location.search);
+      params.delete('p');
+      const qs = params.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
+      pendingShortRef.current = null;
+      if (!imported || imported.tracks.length === 0) {
+        showToast('No se encontró esa lista compartida', 'error');
+        return;
+      }
+      setPlaylists((prev) => {
+        if (prev.some((p) => p.id === imported.id || p.name === imported.name)) return prev;
+        return [imported, ...prev];
+      });
+      setActivePlaylistId(imported.id);
+      setActiveTab('my-playlists');
+      showToast(`Lista "${imported.name}" lista para escuchar 🔗`, 'success');
     });
     return () => {
       cancelled = true;
@@ -1541,12 +1579,23 @@ const SpotifyMiniStandalone: React.FC = () => {
               if (!data) return;
               try {
                 const code = extractPlaylistShareCodeFromInput(data);
-                const p = code ? decodePlaylistShareCode(code) : null;
-                if (!p) throw new Error('invalid');
-                setPlaylists([...playlists, p]);
-                setImportCode('');
-                setShowImportModal(false);
-                showToast(`Lista "${p.name}" importada con éxito! 🎉`, 'success');
+                if (!code) throw new Error('invalid');
+                void (async () => {
+                  try {
+                    let p: Playlist | null = null;
+                    if (isValidShortShareCode(code)) {
+                      p = await fetchShortPlaylistShare(code);
+                    }
+                    if (!p) p = decodePlaylistShareCode(code);
+                    if (!p) throw new Error('invalid');
+                    setPlaylists([...playlists, p]);
+                    setImportCode('');
+                    setShowImportModal(false);
+                    showToast(`Lista "${p.name}" importada con éxito! 🎉`, 'success');
+                  } catch {
+                    showToast('Enlace o código inválido. Verifica e intenta de nuevo.', 'error');
+                  }
+                })();
               } catch {
                 showToast('Enlace o código inválido. Verifica e intenta de nuevo.', 'error');
               }
@@ -2175,17 +2224,25 @@ const SpotifyMiniStandalone: React.FC = () => {
                                 className="spotify-icon-btn"
                                 onClick={() => {
                                   void (async () => {
-                                    const url = buildPlaylistHashShareUrl(activePlaylist);
-                                    const result = await shareOrCopy({
-                                      title: `${activePlaylist.name} · NEX Music`,
-                                      text: `Escuchá mi lista "${activePlaylist.name}" en NEX Music`,
-                                      url,
-                                    });
-                                    const msg = shareResultToast(result);
-                                    if (msg) showToast(msg, 'success');
+                                    try {
+                                      showToast('Generando link corto…', 'info');
+                                      const { url } = await createShortPlaylistShareUrl(activePlaylist);
+                                      const result = await shareOrCopy({
+                                        title: `${activePlaylist.name} · NEX Music`,
+                                        text: `Escuchá mi lista "${activePlaylist.name}" en NEX Music`,
+                                        url,
+                                      });
+                                      const msg = shareResultToast(result);
+                                      if (msg) showToast(msg, 'success');
+                                    } catch (err) {
+                                      showToast(
+                                        err instanceof Error ? err.message : 'No se pudo crear el link corto',
+                                        'error',
+                                      );
+                                    }
                                   })();
                                 }}
-                                title="Compartir lista"
+                                title="Compartir lista (link corto)"
                               >
                                 <Share24Regular />
                               </button>

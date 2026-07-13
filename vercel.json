@@ -11,10 +11,17 @@
     {
       "source": "/share",
       "destination": "/api/og-nex-music"
+    },
+    {
+      "source": "/p/:code",
+      "destination": "/api/og-nex-music?p=:code"
     }
   ],
   "functions": {
     "api/spotify-playlist.js": {
+      "maxDuration": 30
+    },
+    "api/playlist-share.js": {
       "maxDuration": 30
     }
   }

@@ -133,6 +133,37 @@ export async function fetchProfilesByNicknames(nicknames: string[]): Promise<Map
   return map;
 }
 
+/** Search public profiles by nickname (ilike). Empty query → verified first. */
+export async function searchUserProfiles(query: string, limit = 40): Promise<ProfilePublic[]> {
+  const supabase = getSupabase();
+  if (!supabase || !isSupabaseConfigured) return [];
+
+  const q = query.trim();
+  let req = supabase
+    .from('user_profiles')
+    .select('nickname, display_name, verified, verified_reason, updated_at')
+    .order('verified', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+
+  if (q) {
+    req = req.or(`nickname.ilike.%${q}%,display_name.ilike.%${q}%`);
+  }
+
+  const { data, error } = await req;
+  if (error) {
+    console.warn('[profiles search]', getSupabaseErrorMessage(error));
+    return [];
+  }
+
+  return (data ?? []).map((row) => ({
+    nickname: row.nickname as string,
+    displayName: (row.display_name as string | null) ?? null,
+    verified: Boolean(row.verified),
+    verifiedReason: (row.verified_reason as VerifiedReason | null) ?? null,
+  }));
+}
+
 export function isNicknameVerified(map: Map<string, ProfilePublic>, nickname: string | undefined | null): boolean {
   if (!nickname) return false;
   return Boolean(map.get(nickname.trim().toLowerCase())?.verified);

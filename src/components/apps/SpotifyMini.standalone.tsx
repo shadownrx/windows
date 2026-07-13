@@ -49,6 +49,7 @@ import { useCloudLibrary, type CloudSyncStatus } from '../../hooks/useCloudLibra
 import { useUserProfiles } from '../../hooks/useUserProfiles';
 import LiveRoomPanel from '../music/LiveRoomPanel';
 import GlobalPlaylistsView, { PublishToCloudButton } from '../music/GlobalPlaylistsView';
+import UsersDirectoryView from '../music/UsersDirectoryView';
 import CloudSyncBadge from '../music/CloudSyncBadge';
 import AudioEnhancePanel from '../music/AudioEnhancePanel';
 import MusicOnboardingBanner from '../music/MusicOnboardingBanner';
@@ -868,7 +869,7 @@ const SpotifyMiniStandalone: React.FC = () => {
   } = useSpotifyMini();
 
   const [activeService, setActiveService] = useState<ServiceType>('youtube');
-  const [activeTab, setActiveTab] = useState<'search' | 'my-playlists' | 'global-playlists' | 'queue' | 'favorites' | 'history'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'my-playlists' | 'global-playlists' | 'users' | 'queue' | 'favorites' | 'history'>('search');
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -2201,6 +2202,10 @@ const SpotifyMiniStandalone: React.FC = () => {
             <Globe24Regular />
             <span>Listas Globales</span>
           </div>
+          <div className={`spotify-nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); closeSidebar(); }}>
+            <People24Regular />
+            <span>Usuarios</span>
+          </div>
         </div>
 
         {/* --- LIBRARY --- */}
@@ -2731,6 +2736,15 @@ const SpotifyMiniStandalone: React.FC = () => {
                   : startSpotifyAuth(window.location.pathname || '/nex-music')
               }
               spotifyImportLabel={spotifyConnected ? 'Importar de Spotify' : 'Conectar Spotify'}
+            />
+          )}
+
+          {activeTab === 'users' && (
+            <UsersDirectoryView
+              nickname={nickname}
+              supabaseUserId={supabaseUserId}
+              supabaseAuthReady={supabaseAuthReady}
+              showToast={showToast}
             />
           )}
 

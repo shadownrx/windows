@@ -2758,6 +2758,7 @@ const SpotifyMiniStandalone: React.FC = () => {
               supabaseAuthReady={supabaseAuthReady}
               showToast={showToast}
               initialProfileNick={profileDeepLink}
+              onProfileClosed={() => setProfileDeepLink(null)}
               playCloudPlaylist={playCloudPlaylist}
             />
           )}
@@ -2770,6 +2771,7 @@ const SpotifyMiniStandalone: React.FC = () => {
                 supabaseAuthReady={supabaseAuthReady}
                 showToast={showToast}
                 forceOwnProfile
+                onLeaveOwnProfile={() => setActiveTab('users')}
                 playCloudPlaylist={playCloudPlaylist}
               />
             ) : (

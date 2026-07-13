@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { People24Regular, Search24Regular } from '@fluentui/react-icons';
 import { useUserProfiles } from '../../hooks/useUserProfiles';
 import { isSupabaseConfigured } from '../../lib/supabase';
@@ -30,6 +30,10 @@ interface UsersDirectoryViewProps {
   initialProfileNick?: string | null;
   /** Force own profile mode */
   forceOwnProfile?: boolean;
+  /** Called when leaving a profile (clears deep link, etc.) */
+  onProfileClosed?: () => void;
+  /** Back from Mi perfil tab */
+  onLeaveOwnProfile?: () => void;
   playCloudPlaylist?: (
     tracks: Track[],
     mode: CloudPlayMode,
@@ -44,6 +48,8 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
   showToast,
   initialProfileNick = null,
   forceOwnProfile = false,
+  onProfileClosed,
+  onLeaveOwnProfile,
   playCloudPlaylist,
 }) => {
   const { myProfile, isVerified } = useUserProfiles(nickname, supabaseUserId);
@@ -53,6 +59,7 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
   const [staffReady, setStaffReady] = useState(false);
   const [showStaffPanel, setShowStaffPanel] = useState(false);
   const [busyNick, setBusyNick] = useState<string | null>(null);
+  const deepLinkAppliedRef = useRef<string | null>(null);
   const [selectedNick, setSelectedNick] = useState<string | null>(() => {
     if (forceOwnProfile && nickname) return nickname;
     return initialProfileNick;
@@ -62,9 +69,22 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
     if (forceOwnProfile && nickname) setSelectedNick(nickname);
   }, [forceOwnProfile, nickname]);
 
+  // Apply deep link once — don't re-open profile after Volver
   useEffect(() => {
-    if (initialProfileNick) setSelectedNick(initialProfileNick);
+    if (!initialProfileNick) {
+      deepLinkAppliedRef.current = null;
+      return;
+    }
+    if (deepLinkAppliedRef.current === initialProfileNick) return;
+    deepLinkAppliedRef.current = initialProfileNick;
+    setSelectedNick(initialProfileNick);
   }, [initialProfileNick]);
+
+  const closeProfile = useCallback(() => {
+    setSelectedNick(null);
+    onProfileClosed?.();
+    if (forceOwnProfile) onLeaveOwnProfile?.();
+  }, [forceOwnProfile, onLeaveOwnProfile, onProfileClosed]);
 
   const runSearch = useCallback(async (q: string) => {
     setLoading(true);
@@ -105,7 +125,7 @@ const UsersDirectoryView: React.FC<UsersDirectoryViewProps> = ({
         myNickname={nickname}
         myUserId={supabaseUserId}
         isOwn={viewingOwn}
-        onBack={forceOwnProfile ? undefined : () => setSelectedNick(null)}
+        onBack={closeProfile}
         showToast={showToast}
         playCloudPlaylist={playCloudPlaylist}
       />

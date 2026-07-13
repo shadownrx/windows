@@ -2,10 +2,25 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import { mountStreamRoutes, ytDlpAvailable } from './stream.js';
 
 const app = express();
 app.use(cors());
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'nex-music-server' }));
+app.get('/health', async (_req, res) => {
+  const ytdlp = await ytDlpAvailable();
+  res.json({
+    ok: true,
+    service: 'nex-music-server',
+    stream: ytdlp.ok,
+    ytDlp: ytdlp,
+  });
+});
+
+const PORT = Number(process.env.MUSIC_PORT || 4000);
+const PUBLIC_BASE =
+  (process.env.MUSIC_PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+
+mountStreamRoutes(app, { publicBase: PUBLIC_BASE });
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -344,7 +359,13 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = Number(process.env.MUSIC_PORT || 4000);
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, async () => {
+  const ytdlp = await ytDlpAvailable();
   console.log(`NEX Music Socket.io server → http://localhost:${PORT}`);
+  console.log(`Stream public base → ${PUBLIC_BASE}`);
+  console.log(
+    ytdlp.ok
+      ? `yt-dlp OK (${ytdlp.version}) · DSP stream listo`
+      : `yt-dlp NO encontrado (${ytdlp.bin}) · instalá yt-dlp o npm i en server/`,
+  );
 });

@@ -31,6 +31,7 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
   if (!open) return null;
 
   const dspLive = playbackMode === 'dsp';
+  const hasMusicServer = Boolean(import.meta.env.VITE_MUSIC_SERVER_URL);
 
   return (
     <div className="audio-enhance-panel" role="dialog" aria-label="Sonido Potencia">
@@ -45,7 +46,9 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
         {dspLive
           ? 'DSP en vivo · EQ + compresor + 8D stereo'
           : playbackMode === 'youtube'
-            ? 'YouTube · potencia/8D por volumen (EQ real bloqueado por YT)'
+            ? hasMusicServer
+              ? 'YouTube · music server no resolvió este tema'
+              : 'YouTube · falta music server (yt-dlp) para DSP real'
             : 'Esperando reproducción'}
       </div>
 
@@ -216,9 +219,9 @@ const AudioEnhancePanel: React.FC<AudioEnhancePanelProps> = ({
       </div>
 
       <p className="audio-enhance-note">
-        YouTube bloquea casi todos los streams de audio públicos (2026), así que EQ real suele
-        no estar disponible. En modo YouTube igual podés sentir Potencia + 8D (volumen). Si el
-        stream abre, pasa a DSP en vivo con EQ de verdad.
+        DSP real necesita el music server con yt-dlp (
+        <code style={{ fontSize: 10 }}>VITE_MUSIC_SERVER_URL</code>
+        ). Sin eso, YouTube bloquea el stream y solo queda potencia/8D por volumen.
       </p>
 
       <style>{`

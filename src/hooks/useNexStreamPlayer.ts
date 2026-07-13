@@ -129,27 +129,41 @@ async function resolveFromMusicServer(videoId: string, signal: AbortSignal): Pro
   const base = (import.meta.env.VITE_MUSIC_SERVER_URL as string | undefined)?.replace(/\/$/, '');
   if (!base) return null;
   const res = await fetch(`${base}/stream/${encodeURIComponent(videoId)}`, { signal });
-  if (!res.ok) return null;
-  return res.json() as Promise<StreamResolveResult>;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string; detail?: string }).detail || (body as { error?: string }).error || `music-server ${res.status}`);
+  }
+  const data = (await res.json()) as StreamResolveResult;
+  if (!data?.url) return null;
+  return data;
 }
 
 async function resolveStream(videoId: string, signal?: AbortSignal): Promise<StreamResolveResult> {
   const ac = signal ?? new AbortController().signal;
-  // 1) Optional self-hosted resolver (yt-dlp etc.)
+  const errors: string[] = [];
+
+  // 1) Self-hosted yt-dlp proxy (real DSP path)
   try {
     const custom = await resolveFromMusicServer(videoId, ac);
     if (custom?.url) return custom;
-  } catch {
-    /* ignore */
+  } catch (err) {
+    errors.push(`music-server:${(err as Error).message}`);
   }
-  // 2) Browser → Piped (same network as playback; best chance when instance works)
+
+  // 2) Browser → Piped (rare hits)
   try {
     return await resolveFromPipedClient(videoId, ac);
-  } catch {
-    /* fall through */
+  } catch (err) {
+    errors.push(`piped:${(err as Error).message}`);
   }
-  // 3) Our Vercel API (same Piped backends, cached)
-  return resolveFromApi(videoId, ac);
+
+  // 3) Our Vercel API
+  try {
+    return await resolveFromApi(videoId, ac);
+  } catch (err) {
+    errors.push(`api:${(err as Error).message}`);
+    throw new Error(errors.join(' | ') || 'stream resolve failed');
+  }
 }
 
 function waitForMedia(el: HTMLMediaElement, signal: AbortSignal, timeoutMs = 14000): Promise<void> {

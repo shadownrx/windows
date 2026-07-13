@@ -62,11 +62,24 @@ export function useMobilePlaybackPersistence({
 }: UseMobilePlaybackPersistenceOptions) {
   const wasPlayingRef = useRef(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const saveTimerRef = useRef<number | null>(null);
 
-  // Persist session on state changes
+  // Persist session — debounce progress writes (every tick was freezing phones)
+  useEffect(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      savePlaybackSession({ currentTrack, isPlaying, progress, volume, queue });
+    }, 1200);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [currentTrack, isPlaying, progress, volume, queue]);
+
+  // Flush immediately on track / play-state changes
   useEffect(() => {
     savePlaybackSession({ currentTrack, isPlaying, progress, volume, queue });
-  }, [currentTrack, isPlaying, progress, volume, queue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTrack?.id, isPlaying, volume, queue]);
 
   // Resume playback when returning from background / bfcache
   useEffect(() => {
@@ -176,11 +189,15 @@ export function useMobilePlaybackPersistence({
     };
   }, [currentTrack, isPlaying, playerRef, setIsPlaying, startProgressTracking, stopProgressTracking]);
 
-  // Keep lock-screen scrubber in sync
+  // Keep lock-screen scrubber in sync (throttled — every progress tick was expensive on phones)
+  const lastPosWriteRef = useRef(0);
   useEffect(() => {
     if (!('mediaSession' in navigator) || !currentTrack) return;
     const durationSec = duration > 0 ? duration : 0;
     if (durationSec <= 0) return;
+    const now = Date.now();
+    if (now - lastPosWriteRef.current < 1000 && isPlaying) return;
+    lastPosWriteRef.current = now;
     try {
       navigator.mediaSession.setPositionState({
         duration: durationSec,

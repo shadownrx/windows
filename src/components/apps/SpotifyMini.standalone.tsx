@@ -994,32 +994,52 @@ const SpotifyMiniStandalone: React.FC = () => {
     sessionStorage.setItem('nexMusicPartyMode', String(isPartyMode));
   }, [isPartyMode]);
 
-  // Keep YT iframes pinned tiny — iOS sometimes expands them over the whole page
+  // Keep YT iframes tiny — do NOT observe attributes (setting styles would infinite-loop and freeze phones)
   useEffect(() => {
+    let pinning = false;
     const pinIframes = () => {
-      const host = document.querySelector('.spotify-yt-audio');
-      if (!host) return;
-      host.querySelectorAll('iframe').forEach((el) => {
-        const iframe = el as HTMLIFrameElement;
-        iframe.setAttribute('playsinline', '1');
-        iframe.setAttribute('webkit-playsinline', '1');
-        iframe.removeAttribute('allowfullscreen');
-        iframe.setAttribute(
-          'allow',
-          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture',
-        );
-        Object.assign(iframe.style, {
-          width: '2px',
-          height: '2px',
-          maxWidth: '2px',
-          maxHeight: '2px',
-          position: 'absolute',
-          left: '0px',
-          top: '0px',
-          border: '0',
-          pointerEvents: 'none',
+      if (pinning) return;
+      pinning = true;
+      try {
+        const host = document.querySelector('.spotify-yt-audio');
+        if (!host) return;
+        host.querySelectorAll('iframe').forEach((el) => {
+          const iframe = el as HTMLIFrameElement;
+          if (iframe.dataset.nexPinned === '1' && iframe.style.width === '2px') return;
+          iframe.dataset.nexPinned = '1';
+          iframe.setAttribute('playsinline', '1');
+          iframe.setAttribute('webkit-playsinline', '1');
+          iframe.removeAttribute('allowfullscreen');
+          Object.assign(iframe.style, {
+            width: '2px',
+            height: '2px',
+            maxWidth: '2px',
+            maxHeight: '2px',
+            position: 'absolute',
+            left: '0px',
+            top: '0px',
+            border: '0',
+            pointerEvents: 'none',
+          });
         });
-      });
+      } finally {
+        pinning = false;
+      }
+    };
+
+    pinIframes();
+    const host = document.querySelector('.spotify-yt-audio');
+    const mo = host
+      ? new MutationObserver((mutations) => {
+          // Only react when YouTube injects a new iframe, not when we style it
+          if (mutations.some((m) => m.type === 'childList' && m.addedNodes.length > 0)) {
+            pinIframes();
+          }
+        })
+      : null;
+    mo?.observe(host as Node, { childList: true, subtree: true, attributes: false });
+
+    const onFs = () => {
       try {
         if (document.fullscreenElement) void document.exitFullscreen?.();
         const doc = document as Document & {
@@ -1028,22 +1048,14 @@ const SpotifyMiniStandalone: React.FC = () => {
         };
         if (doc.webkitFullscreenElement) doc.webkitExitFullscreen?.();
       } catch { /* ignore */ }
+      pinIframes();
     };
-
-    pinIframes();
-    const host = document.querySelector('.spotify-yt-audio');
-    const mo = host
-      ? new MutationObserver(() => pinIframes())
-      : null;
-    mo?.observe(host as Node, { childList: true, subtree: true, attributes: true });
-    const iv = window.setInterval(pinIframes, 800);
-    document.addEventListener('fullscreenchange', pinIframes);
-    document.addEventListener('webkitfullscreenchange', pinIframes as EventListener);
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs as EventListener);
     return () => {
       mo?.disconnect();
-      clearInterval(iv);
-      document.removeEventListener('fullscreenchange', pinIframes);
-      document.removeEventListener('webkitfullscreenchange', pinIframes as EventListener);
+      document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('webkitfullscreenchange', onFs as EventListener);
     };
   }, []);
 
@@ -1363,7 +1375,12 @@ const SpotifyMiniStandalone: React.FC = () => {
             if (event.target.getDuration) setDuration(event.target.getDuration());
             // HD on mobile often expands the video surface → black fullscreen
             if (settings.hd && !isMobile) applyHdQuality(event.target);
-            startTrackEnvelope(event.target, volumeRef.current);
+            // Skip punch/auto-gain envelopes on mobile — they spam volume timers and jank the UI
+            if (isMobile) {
+              audioEnhanceRef.current.applyVolume(event.target, volumeRef.current);
+            } else {
+              startTrackEnvelope(event.target, volumeRef.current);
+            }
             isFirstVideoLoadRef.current = false;
             setIsPlaying(true);
             event.target.playVideo();
@@ -1468,21 +1485,28 @@ const SpotifyMiniStandalone: React.FC = () => {
 
     isFirstVideoLoadRef.current = false;
     loadInto(active, videoId);
-    startTrackEnvelope(active, volumeRef.current);
+    if (isMobile) {
+      audioEnhanceRef.current.applyVolume(active, volumeRef.current);
+    } else {
+      startTrackEnvelope(active, volumeRef.current);
+    }
     setIsPlaying(true);
     try { active?.playVideo?.(); } catch { /* ignore */ }
   };
 
   const startProgressTracking = () => {
     stopProgressTracking();
+    const tickMs = isMobile ? 1000 : 500;
     progressIntervalRef.current = window.setInterval(() => {
       if (playerRef.current && playerRef.current.getCurrentTime && playerRef.current.getDuration) {
         const currentTime = playerRef.current.getCurrentTime();
         const dur = playerRef.current.getDuration();
-        setDuration(dur);
-        setProgress((currentTime / dur) * 100);
+        if (Number.isFinite(dur) && dur > 0) {
+          setDuration(dur);
+          setProgress((currentTime / dur) * 100);
+        }
       }
-    }, 500);
+    }, tickMs);
   };
 
   const stopProgressTracking = () => {

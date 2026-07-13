@@ -16,9 +16,21 @@ app.get('/health', async (_req, res) => {
   });
 });
 
-const PORT = Number(process.env.MUSIC_PORT || 4000);
-const PUBLIC_BASE =
-  (process.env.MUSIC_PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+const PORT = Number(process.env.PORT || process.env.MUSIC_PORT || 4000);
+
+function resolvePublicBase() {
+  if (process.env.MUSIC_PUBLIC_URL) return process.env.MUSIC_PUBLIC_URL.replace(/\/$/, '');
+  // Railway provides the public domain without scheme
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    return `https://${process.env.RAILWAY_PUBLIC_DOMAIN.replace(/\/$/, '')}`;
+  }
+  if (process.env.RENDER_EXTERNAL_URL) {
+    return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '');
+  }
+  return `http://localhost:${PORT}`;
+}
+
+const PUBLIC_BASE = resolvePublicBase();
 
 mountStreamRoutes(app, { publicBase: PUBLIC_BASE });
 

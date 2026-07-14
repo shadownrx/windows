@@ -105,7 +105,8 @@ function runYtDlp(args, timeoutMs = 35000) {
     child.on('close', (code) => {
       clearTimeout(timer);
       if (code !== 0) {
-        reject(new Error(stderr.trim().slice(0, 500) || `yt-dlp exit ${code}`));
+        // Keep enough of the traceback for cookie/bot debugging in Render logs + API
+        reject(new Error(stderr.trim().slice(0, 1800) || `yt-dlp exit ${code}`));
         return;
       }
       resolve(stdout.trim());
@@ -216,7 +217,7 @@ export async function resolveAudioUrl(videoId) {
     return entry;
   } catch (err) {
     lastErr = err instanceof Error ? err : new Error(String(err));
-    console.warn('[stream] yt-dlp failed', videoId, lastErr.message.slice(0, 180));
+    console.warn('[stream] yt-dlp failed', videoId, lastErr.message);
   }
 
   try {
@@ -234,10 +235,11 @@ export async function resolveAudioUrl(videoId) {
       ? ' Configurá YT_DLP_COOKIES (cookies.txt) o YT_DLP_COOKIES_FROM_BROWSER=chrome (cerrá Chrome antes).'
       : '';
     const bot = lastErr && isBotWallError(lastErr.message);
+    const ytdlpBit = (lastErr?.message || 'fail').slice(0, 900);
     throw new Error(
       bot
-        ? `YouTube bot-wall / 429.${authHint} yt-dlp: ${lastErr.message.slice(0, 160)} | piped: ${pipedMsg}`
-        : `yt-dlp: ${lastErr?.message?.slice(0, 160) || 'fail'} | piped: ${pipedMsg}`,
+        ? `YouTube bot-wall / 429.${authHint} yt-dlp: ${ytdlpBit} | piped: ${pipedMsg}`
+        : `yt-dlp: ${ytdlpBit} | piped: ${pipedMsg}`,
     );
   }
 }

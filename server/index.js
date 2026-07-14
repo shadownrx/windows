@@ -42,33 +42,51 @@ loadEnvFiles();
  * - YT_DLP_COOKIES=/etc/secrets/youtube-cookies.txt  (Render Secret File)
  * - YT_DLP_COOKIES_CONTENT=<netscape cookies.txt body>
  * - YT_DLP_COOKIES_B64=<base64 of cookies.txt>
+ *
+ * Always copy to a writable /tmp path — yt-dlp may update the jar and
+ * /etc/secrets is read-only (causes opaque Python tracebacks).
  */
 function materializeCookiesFile() {
   const secretDefault = '/etc/secrets/youtube-cookies.txt';
-  if (!(process.env.YT_DLP_COOKIES || '').trim() && existsSync(secretDefault)) {
-    process.env.YT_DLP_COOKIES = secretDefault;
-    console.log('[cookies] Render Secret File →', secretDefault);
+  let sourcePath = (process.env.YT_DLP_COOKIES || '').trim();
+  if (!sourcePath && existsSync(secretDefault)) sourcePath = secretDefault;
+
+  let body = '';
+  if (sourcePath && existsSync(sourcePath)) {
+    try {
+      body = readFileSync(sourcePath, 'utf8');
+    } catch (err) {
+      console.warn('[cookies] no se pudo leer', sourcePath, err instanceof Error ? err.message : err);
+    }
+  }
+
+  if (!body) {
+    body = (process.env.YT_DLP_COOKIES_CONTENT || '').trim();
+    const b64 = (process.env.YT_DLP_COOKIES_B64 || '').trim();
+    if (!body && b64) {
+      try {
+        body = Buffer.from(b64, 'base64').toString('utf8');
+      } catch {
+        console.warn('[cookies] YT_DLP_COOKIES_B64 inválido');
+      }
+    }
+  }
+
+  if (!body) {
+    console.log('[cookies] ninguna configurada');
     return;
   }
 
-  if ((process.env.YT_DLP_COOKIES || '').trim()) {
-    const p = process.env.YT_DLP_COOKIES.trim();
-    if (existsSync(p)) {
-      console.log('[cookies] usando archivo', p);
-      return;
-    }
-  }
+  // Strip UTF-8 BOM if present
+  if (body.charCodeAt(0) === 0xfeff) body = body.slice(1);
 
-  let body = (process.env.YT_DLP_COOKIES_CONTENT || '').trim();
-  const b64 = (process.env.YT_DLP_COOKIES_B64 || '').trim();
-  if (!body && b64) {
-    try {
-      body = Buffer.from(b64, 'base64').toString('utf8');
-    } catch {
-      console.warn('[cookies] YT_DLP_COOKIES_B64 inválido');
-    }
+  const first = body.split(/\r?\n/).find((l) => l.trim()) || '';
+  if (!/# Netscape HTTP Cookie File|# HTTP Cookie File/i.test(first) && !first.startsWith('#')) {
+    console.warn(
+      '[cookies] el archivo no parece Netscape (primera línea):',
+      first.slice(0, 80),
+    );
   }
-  if (!body) return;
 
   const dir = process.env.YT_DLP_COOKIES_DIR || '/tmp';
   try {
@@ -79,7 +97,7 @@ function materializeCookiesFile() {
   const out = resolve(dir, 'youtube-cookies.txt');
   writeFileSync(out, body.endsWith('\n') ? body : `${body}\n`, 'utf8');
   process.env.YT_DLP_COOKIES = out;
-  console.log('[cookies] materializado desde env →', out);
+  console.log('[cookies] listo →', out, `(${Buffer.byteLength(body, 'utf8')} bytes)`);
 }
 materializeCookiesFile();
 

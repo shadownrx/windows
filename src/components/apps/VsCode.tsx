@@ -1,8 +1,16 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import NexMonacoEditor, { type NexMonacoHandle, langFromPath } from './nexcode/NexMonacoEditor';
+import {
+  buildFileTree,
+  languageForPath,
+  loadWorkspace,
+  saveWorkspace,
+  searchWorkspace,
+  type SearchHit,
+} from './nexcode/workspace';
 
 /* =====================================================================
-   NEX CODE — clon de alta fidelidad de un editor tipo VS Code,
-   con IA (Groq) integrada y temas importables desde vscodethemes.com
+   NEX CODE — editor tipo VS Code con Monaco + IA (Groq) + temas
    ===================================================================== */
 
 /* ---------- TEMAS (paletas reales recreadas) ---------- */
@@ -223,14 +231,15 @@ button:hover {
   'README.md': {
     language: 'markdown', content: `# NEX CODE
 
-Editor de código con IA integrada (Groq) y soporte de temas de vscodethemes.com.
+Editor moderno con **Monaco** (motor de VS Code), IA (Groq) y temas.
 
 ## Atajos
 - **Ctrl+Shift+P** — Paleta de comandos
 - **Ctrl+P** — Abrir archivo rápido
-- **Ctrl+K Ctrl+T** — Cambiar de tema
-- **Tab** — Aceptar sugerencia de NEX AI
-- **Esc** — Descartar sugerencia
+- **Ctrl+K** — Editar selección con NEX AI
+- **Ctrl+F** — Buscar en el archivo
+- **Ctrl+\`** — Terminal
+- **Tab** — Aceptar sugerencia inline de NEX AI
 ` },
 };
 
@@ -251,35 +260,6 @@ function FileIcon({ ext, size = 14 }: { ext: string; size?: number }) {
   if (ext === 'css') return <span style={{ color: '#519aba', fontSize: size - 2, fontWeight: 700 }}>#</span>;
   if (ext === 'md' || ext === 'markdown') return <span style={{ color: '#519aba', fontSize: size - 2, fontWeight: 700 }}>M↓</span>;
   return <span style={{ color: m?.c || '#cccccc' }}>●</span>;
-}
-
-function tokenize(code: string, lang: string, p: any) {
-  const lines = code.split('\n');
-  return lines.map((line: string, i: number) => {
-    let h = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    let n = 0; const stash: Record<string, string> = {};
-    const put = (html: string) => { const k = `\u0001${n++}\u0001`; stash[k] = html; return k; };
-    if (lang === 'tsx' || lang === 'ts' || lang === 'typescript') {
-      h = h.replace(/(\/\/.*)/g, m => put(`<span style="color:${p.com}">${m}</span>`));
-      h = h.replace(/(['"`])((?:[^\\]|\\.)*?)\1/g, m => put(`<span style="color:${p.str}">${m}</span>`));
-      h = h.replace(/(&lt;\/?)([\w.]+)/g, (m, a, b) => put(`${a}<span style="color:${p.type}">${b}</span>`));
-      h = h.replace(/\b([a-zA-Z_$][\w$]*)(?=\s*:)/g, m => put(`<span style="color:${p.prop}">${m}</span>`));
-      h = h.replace(/\b(import|export|from|const|let|var|function|return|default|interface|type|extends|class|new|if|else|for|while|async|await|React|useState|useEffect|useRef|useCallback|void|null|undefined|true|false)\b/g, m => put(`<span style="color:${p.kw}">${m}</span>`));
-      h = h.replace(/([{}()[\]])/g, m => put(`<span style="color:${p.bracket}">${m}</span>`));
-    } else if (lang === 'json') {
-      h = h.replace(/("[\w$]+")\s*:/g, (m, a) => `${put(`<span style="color:${p.prop}">${a}</span>`)}:`);
-      h = h.replace(/:\s*(".*?")/g, (m, a) => `: ${put(`<span style="color:${p.str}">${a}</span>`)}`);
-      h = h.replace(/:\s*(\d+\.?\d*)/g, (m, a) => `: ${put(`<span style="color:${p.num}">${a}</span>`)}`);
-    } else if (lang === 'css') {
-      h = h.replace(/([\w-]+)\s*:/g, (m, a) => `${put(`<span style="color:${p.prop}">${a}</span>`)}:`);
-      h = h.replace(/:\s*(.*?)(;|$)/g, (m, a, b) => `: ${put(`<span style="color:${p.str}">${a}</span>`)}${b}`);
-    } else if (lang === 'markdown' || lang === 'md') {
-      h = h.replace(/^(#+\s.*)$/g, m => put(`<span style="color:${p.kw};font-weight:700">${m}</span>`));
-      h = h.replace(/(\*\*.*?\*\*)/g, m => put(`<span style="color:${p.fn}">${m}</span>`));
-    }
-    for (let j = n - 1; j >= 0; j--) h = h.replace(`\u0001${j}\u0001`, stash[`\u0001${j}\u0001`]);
-    return { i, html: h || '&nbsp;' };
-  });
 }
 
 function isErrorLine(line: string): boolean {
@@ -342,13 +322,23 @@ async function callNexAI(messages: any[], { model = 'llama-3.3-70b-versatile', m
   return data.content ?? '';
 }
 
-const LINE_H = 19; // altura real de línea de VS Code a 14px
-
 export default function NexCode() {
-  const [files, setFiles] = useState<Record<string, { language: string; content: string }>>(INITIAL_FILES);
-  const [dirty, setDirty] = useState<Record<string, boolean>>({});
-  const [activeFile, setActiveFile] = useState('src/App.tsx');
-  const [openFiles, setOpenFiles] = useState(['src/App.tsx', 'src/index.tsx', 'src/index.css', 'package.json']);
+  const initialWs = useMemo(
+    () =>
+      loadWorkspace({
+        files: INITIAL_FILES,
+        openFiles: ['src/App.tsx', 'src/index.tsx', 'src/index.css', 'package.json'],
+        activeFile: 'src/App.tsx',
+        themeName: 'NEX Dark+ (default)',
+        dirty: {},
+      }),
+    [],
+  );
+
+  const [files, setFiles] = useState<Record<string, { language: string; content: string }>>(initialWs.files);
+  const [dirty, setDirty] = useState<Record<string, boolean>>(initialWs.dirty || {});
+  const [activeFile, setActiveFile] = useState(initialWs.activeFile);
+  const [openFiles, setOpenFiles] = useState(initialWs.openFiles);
   const [activityView, setActivityView] = useState('explorer');
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalTab, setTerminalTab] = useState('terminal');
@@ -356,23 +346,37 @@ export default function NexCode() {
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [maximized] = useState(true);
   const [explorerOpenFolders, setExplorerOpenFolders] = useState<Record<string, boolean>>({ src: true });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchHits, setSearchHits] = useState<SearchHit[]>([]);
+  const [revealTarget, setRevealTarget] = useState<{
+    line: number; column: number; endLine?: number; endColumn?: number; nonce: number;
+  } | null>(null);
 
   const [terminalLines, setTerminalLines] = useState<string[]>([
     'Microsoft Windows [Version 10.0.22631.4317]',
     '(c) Microsoft Corporation. Todos los derechos reservados.', '',
+    'NEX CODE · Monaco Editor listo. Ctrl+Shift+P = comandos · Ctrl+P = archivos · Ctrl+K = editar con IA.',
   ]);
   const [termInput, setTermInput] = useState('');
   const termRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<HTMLTextAreaElement>(null);
-  const highlightRef = useRef<HTMLDivElement>(null);
-  const minimapRef = useRef<HTMLDivElement>(null);
+  const monacoRef = useRef<NexMonacoHandle>(null);
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
 
   // Temas
-  const [themeName, setThemeName] = useState('NEX Dark+ (default)');
+  const [themeName, setThemeName] = useState(initialWs.themeName);
   const [customThemes, setCustomThemes] = useState<Record<string, any>>({});
   const allThemes: Record<string, any> = { ...BUILTIN_THEMES, ...customThemes };
   const p = allThemes[themeName] || BUILTIN_THEMES['NEX Dark+ (default)'];
+  const statusbarIsLight = (() => {
+    const hex = (p.statusbar || '#007acc').replace('#', '');
+    if (hex.length < 6) return false;
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 > 160;
+  })();
+  const statusFg = statusbarIsLight ? '#1e1e1e' : '#ffffff';
+  const statusItemClass = statusbarIsLight ? 'nex-statusbar-item nex-statusbar-item-dark' : 'nex-statusbar-item';
   const themeNames = useMemo(() => Object.keys(allThemes), [allThemes]);
 
   const cycleTheme = (dir: 1 | -1) => {
@@ -420,13 +424,14 @@ export default function NexCode() {
   const [chatLoading, setChatLoading] = useState(false);
   const chatBoxRef = useRef<HTMLDivElement>(null);
 
-  // Autocompletado
-  const [ghostText, setGhostText] = useState('');
+  // Autocompletado ghost (Monaco inline suggest + Groq)
   const [ghostLoading, setGhostLoading] = useState(false);
-  const ghostTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ghostAbort = useRef(0);
 
   const file = files[activeFile];
+
+  useEffect(() => {
+    saveWorkspace({ files, openFiles, activeFile, themeName, dirty });
+  }, [files, openFiles, activeFile, themeName, dirty]);
 
   /* ---- chequeo de salud del backend al montar ---- */
   useEffect(() => {
@@ -450,8 +455,6 @@ export default function NexCode() {
         e.preventDefault(); openPalette('commands');
       } else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault(); openPalette('files');
-      } else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'k' && document.activeElement === editorRef.current) {
-        e.preventDefault(); openInlineEdit();
       } else if (e.key === 'Escape' && paletteOpen) {
         setPaletteOpen(false);
       } else if (e.ctrlKey && e.key.toLowerCase() === '`') {
@@ -460,14 +463,24 @@ export default function NexCode() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [paletteOpen, file]);
+  }, [paletteOpen]);
 
   useEffect(() => { if (termRef.current) termRef.current.scrollTop = termRef.current.scrollHeight; }, [terminalLines]);
   useEffect(() => { if (chatBoxRef.current) chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight; }, [chatMessages, chatLoading]);
 
-  const openFile = (name: string) => {
+  const openFile = (name: string, reveal?: Omit<SearchHit, 'path' | 'preview'>) => {
+    if (!files[name]) return;
     if (!openFiles.includes(name)) setOpenFiles(o => [...o, name]);
-    setActiveFile(name); setGhostText('');
+    setActiveFile(name);
+    if (reveal) {
+      setRevealTarget({
+        line: reveal.line,
+        column: reveal.column,
+        endLine: reveal.line,
+        endColumn: reveal.endColumn,
+        nonce: Date.now(),
+      });
+    }
   };
   const closeFile = (name: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -476,64 +489,105 @@ export default function NexCode() {
     if (activeFile === name) setActiveFile(next[next.length - 1] || '');
   };
 
-  const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const v = e.target.value;
-    setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: v } }));
+  const handleEditorChange = useCallback((v: string) => {
+    setFiles(prev => {
+      const cur = prev[activeFile];
+      if (!cur) return prev;
+      return { ...prev, [activeFile]: { ...cur, content: v } };
+    });
     setDirty(d => ({ ...d, [activeFile]: true }));
-    setGhostText('');
-    if (!backendStatus.online || !backendStatus.groqConfigured) return;
-    if (ghostTimer.current) clearTimeout(ghostTimer.current);
-    const myId = ++ghostAbort.current;
-    ghostTimer.current = setTimeout(async () => {
-      const cursor = e.target.selectionStart;
-      const before = v.slice(Math.max(0, cursor - 1200), cursor);
-      const after = v.slice(cursor, cursor + 200);
-      if (!before.trim()) return;
-      setGhostLoading(true);
-      try {
-        const completion = await callNexAI([
-          { role: 'system', content: 'Sos un motor de autocompletado tipo Copilot. Te dan el código antes y después del cursor. Respondé SOLO con la continuación natural desde el cursor (sin repetir nada anterior, sin explicaciones, sin markdown, máx 3 líneas).' },
-          { role: 'user', content: `LENGUAJE: ${file?.language}\n--- ANTES ---\n${before}\n--- DESPUÉS ---\n${after}\n--- Continuá: ---` },
-        ], { model: groqModel, maxTokens: 80 });
-        if (myId === ghostAbort.current) setGhostText(completion.replace(/```[\w]*\n?|```/g, ''));
-      } catch { /* silencioso */ } finally { if (myId === ghostAbort.current) setGhostLoading(false); }
-    }, 600) as any;
-  };
+  }, [activeFile]);
 
-  const updateCursor = (ta: HTMLTextAreaElement) => {
-    const v = ta.value.slice(0, ta.selectionStart);
-    const lines = v.split('\n');
-    setCursorPos({ line: lines.length, col: lines[lines.length - 1].length + 1 });
-  };
+  const requestInlineCompletion = useCallback(async ({ language, before, after, signal }: {
+    language: string; before: string; after: string; signal: AbortSignal;
+  }) => {
+    if (!backendStatus.online || !backendStatus.groqConfigured) return null;
+    setGhostLoading(true);
+    try {
+      const completion = await callNexAI([
+        { role: 'system', content: 'Sos un motor de autocompletado tipo Copilot. Te dan el código antes y después del cursor. Respondé SOLO con la continuación natural desde el cursor (sin repetir nada anterior, sin explicaciones, sin markdown, máx 3 líneas).' },
+        { role: 'user', content: `LENGUAJE: ${language}\n--- ANTES ---\n${before}\n--- DESPUÉS ---\n${after}\n--- Continuá: ---` },
+      ], { model: groqModel, maxTokens: 80 });
+      if (signal.aborted) return null;
+      return completion.replace(/```[\w]*\n?|```/g, '');
+    } catch {
+      return null;
+    } finally {
+      if (!signal.aborted) setGhostLoading(false);
+    }
+  }, [backendStatus.online, backendStatus.groqConfigured, groqModel]);
 
-  const onEditorKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab' && ghostText) {
-      e.preventDefault();
-      const ta = editorRef.current;
-      if (!ta) return;
-      const cursor = ta.selectionStart; const v = file.content;
-      const newVal = v.slice(0, cursor) + ghostText + v.slice(cursor);
-      setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: newVal } }));
-      setDirty(d => ({ ...d, [activeFile]: true }));
-      setGhostText('');
-      requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = cursor + ghostText.length; updateCursor(ta); });
+  const createFile = () => {
+    const raw = window.prompt('Ruta del archivo nuevo (ej: src/utils/helpers.ts)', 'src/nuevo.ts');
+    if (!raw) return;
+    const path = raw.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+    if (!path || files[path]) {
+      pushTerm([`No se pudo crear: ${path || '(vacío)'} (ya existe o inválido)`]);
       return;
     }
-    if (e.key === 'Escape' && ghostText) { setGhostText(''); return; }
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const ta = e.target as HTMLTextAreaElement; const s = ta.selectionStart, en = ta.selectionEnd; const v = file.content;
-      const newVal = v.slice(0, s) + '  ' + v.slice(en);
-      setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: newVal } }));
-      requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = s + 2; });
-      return;
-    }
-    requestAnimationFrame(() => updateCursor(e.target as HTMLTextAreaElement));
+    setFiles(prev => ({
+      ...prev,
+      [path]: { language: languageForPath(path), content: '' },
+    }));
+    setDirty(d => ({ ...d, [path]: true }));
+    openFile(path);
+    const folder = path.includes('/') ? path.split('/')[0] : '';
+    if (folder) setExplorerOpenFolders(o => ({ ...o, [folder]: true }));
+    pushTerm([`Creado: ${path}`]);
   };
 
-  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
-    if (highlightRef.current) { highlightRef.current.scrollTop = e.currentTarget.scrollTop; highlightRef.current.scrollLeft = e.currentTarget.scrollLeft; }
+  const renameFile = (oldPath: string) => {
+    const raw = window.prompt('Nueva ruta', oldPath);
+    if (!raw || raw === oldPath) return;
+    const path = raw.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+    if (!path || files[path]) {
+      pushTerm([`No se pudo renombrar a ${path}`]);
+      return;
+    }
+    setFiles(prev => {
+      const next = { ...prev };
+      const entry = next[oldPath];
+      if (!entry) return prev;
+      delete next[oldPath];
+      next[path] = { ...entry, language: languageForPath(path) };
+      return next;
+    });
+    setDirty(d => {
+      const next = { ...d };
+      if (next[oldPath]) { next[path] = true; delete next[oldPath]; }
+      return next;
+    });
+    setOpenFiles(o => o.map(f => (f === oldPath ? path : f)));
+    if (activeFile === oldPath) setActiveFile(path);
+    pushTerm([`Renombrado: ${oldPath} → ${path}`]);
   };
+
+  const deleteFile = (path: string) => {
+    if (!files[path]) return;
+    if (!window.confirm(`¿Borrar ${path}?`)) return;
+    setFiles(prev => {
+      const next = { ...prev };
+      delete next[path];
+      return next;
+    });
+    setDirty(d => {
+      const next = { ...d };
+      delete next[path];
+      return next;
+    });
+    const nextOpen = openFiles.filter(f => f !== path);
+    setOpenFiles(nextOpen);
+    if (activeFile === path) setActiveFile(nextOpen[nextOpen.length - 1] || Object.keys(files).find(f => f !== path) || '');
+    pushTerm([`Eliminado: ${path}`]);
+  };
+
+  const runSearch = (q: string) => {
+    setSearchQuery(q);
+    setSearchHits(searchWorkspace(files, q));
+  };
+
+  const pushTerm = (lines: string[]) => setTerminalLines(prev => [...prev, ...lines]);
+  const clearTerminal = () => { setTerminalLines([]); };
 
   const saveFile = () => { setDirty(d => ({ ...d, [activeFile]: false })); pushTerm([`Guardado: ${activeFile}`]); };
   useEffect(() => {
@@ -564,8 +618,6 @@ export default function NexCode() {
     </script></body></html>`;
   };
 
-  const pushTerm = (lines: string[]) => setTerminalLines(prev => [...prev, ...lines]);
-  const clearTerminal = () => { setTerminalLines([]); };
   const handleTermInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter') return;
     const cmd = termInput.trim();
@@ -634,11 +686,22 @@ export default function NexCode() {
 
   /* ---- Edición inline con IA (estilo Cmd+K) ---- */
   const openInlineEdit = () => {
-    const ta = editorRef.current;
-    if (!ta || !file) return;
-    let s = ta.selectionStart, en = ta.selectionEnd;
-    if (s === en) { s = 0; en = file.content.length; } // sin selección: usa todo el archivo
-    setInlineEdit({ open: true, instruction: '', loading: false, error: '', original: file.content.slice(s, en), result: '', selStart: s, selEnd: en });
+    if (!file) return;
+    const { start, end, text } = monacoRef.current?.getSelectionOffsets() || {
+      start: 0,
+      end: file.content.length,
+      text: file.content,
+    };
+    setInlineEdit({
+      open: true,
+      instruction: '',
+      loading: false,
+      error: '',
+      original: text,
+      result: '',
+      selStart: start,
+      selEnd: end,
+    });
   };
 
   const submitInlineEdit = async () => {
@@ -661,7 +724,9 @@ export default function NexCode() {
 
   const acceptInlineEdit = () => {
     if (!inlineEdit.result || !file) return;
-    const newContent = file.content.slice(0, inlineEdit.selStart) + inlineEdit.result + file.content.slice(inlineEdit.selEnd);
+    monacoRef.current?.replaceRange(inlineEdit.selStart, inlineEdit.selEnd, inlineEdit.result);
+    const newContent =
+      file.content.slice(0, inlineEdit.selStart) + inlineEdit.result + file.content.slice(inlineEdit.selEnd);
     setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: newContent } }));
     setDirty(d => ({ ...d, [activeFile]: true }));
     setInlineEdit({ open: false, instruction: '', loading: false, error: '', original: '', result: '', selStart: 0, selEnd: 0 });
@@ -712,9 +777,8 @@ export default function NexCode() {
   };
 
   const explainSelection = async () => {
-    const ta = editorRef.current;
-    if (!ta) return;
-    const sel = file.content.slice(ta.selectionStart, ta.selectionEnd) || file.content;
+    if (!file) return;
+    const sel = monacoRef.current?.getSelectionText() || file.content;
     setAiPanelOpen(true);
     setChatMessages(p2 => [...p2, { role: 'user', content: `Explicá/Refactorizá:\n\n\`\`\`${file.language}\n${sel}\n\`\`\`` }]);
     if (!backendStatus.online || !backendStatus.groqConfigured) {
@@ -757,8 +821,10 @@ export default function NexCode() {
     { id: 'toggle-ai', label: 'Ver: Alternar panel NEX AI', keybind: '', action: () => setAiPanelOpen(o => !o) },
     { id: 'toggle-preview', label: 'NEX CODE: Alternar vista previa', keybind: '', action: () => setPreviewOpen(v => !v) },
     { id: 'save', label: 'Archivo: Guardar', keybind: 'Ctrl+S', action: saveFile },
+    { id: 'new-file', label: 'Archivo: Nuevo archivo…', keybind: '', action: createFile },
     { id: 'explorer-view', label: 'Ver: Mostrar explorador', keybind: '', action: () => setActivityView('explorer') },
-    { id: 'search-view', label: 'Ver: Mostrar búsqueda', keybind: '', action: () => setActivityView('search') },
+    { id: 'search-view', label: 'Ver: Mostrar búsqueda', keybind: 'Ctrl+Shift+F', action: () => setActivityView('search') },
+    { id: 'inline-edit', label: 'NEX AI: Editar selección (Ctrl+K)', keybind: 'Ctrl+K', action: openInlineEdit },
     { id: 'git-view', label: 'Ver: Mostrar control de código', keybind: '', action: () => setActivityView('git') },
     { id: 'settings', label: 'Preferencias: Abrir configuración', keybind: '', action: () => { setSettingsTabOpen(true); setPaletteOpen(false); } },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -767,20 +833,25 @@ export default function NexCode() {
   const ext = activeFile.split('.').pop() || '';
 
   /* ---------- render del árbol de explorador ---------- */
-  const tree = [
-    { name: 'src', type: 'folder', children: [{ name: 'App.tsx', path: 'src/App.tsx' }, { name: 'index.tsx', path: 'src/index.tsx' }, { name: 'index.css', path: 'src/index.css' }] },
-    { name: 'package.json', path: 'package.json' }, { name: 'tsconfig.json', path: 'tsconfig.json' }, { name: 'README.md', path: 'README.md' },
-  ];
-  const renderTree = (items: any[], level = 0): React.ReactNode => items.map((item, idx) => {
+  const tree = useMemo(() => buildFileTree(Object.keys(files)), [files]);
+  const renderTree = (items: ReturnType<typeof buildFileTree>, level = 0): React.ReactNode => items.map((item, idx) => {
     if (item.type === 'folder') {
-      const open = !!explorerOpenFolders[item.name];
+      const open = explorerOpenFolders[item.name] !== false;
       return (
-        <div key={idx}>
-          <div onClick={() => setExplorerOpenFolders(o => ({ ...o, [item.name]: !o[item.name] }))}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: `3px 8px 3px ${8 + level * 14}px`, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-            <span style={{ fontSize: 10, color: p.textDim, transform: open ? 'rotate(90deg)' : 'none', display: 'inline-block', width: 10 }}>▶</span>
-            <svg viewBox="0 0 16 16" width="14" height="14"><path d="M1.5 1A1.5 1.5 0 0 0 0 2.5v11A1.5 1.5 0 0 0 1.5 15h13a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H8L6.5 3H1.5z" fill={p.textDim} /></svg>
-            <span>{item.name}</span>
+        <div key={`${item.name}-${idx}`}>
+          <div
+            className="nex-tree-row"
+            onClick={() => setExplorerOpenFolders(o => ({ ...o, [item.name]: !(o[item.name] !== false) }))}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, padding: `2px 8px 2px ${6 + level * 12}px`,
+              fontSize: 13, cursor: 'pointer', userSelect: 'none', height: 22, color: p.text,
+            }}
+          >
+            <span style={{ fontSize: 9, color: p.textDim, transform: open ? 'rotate(90deg)' : 'none', display: 'inline-block', width: 10, transition: 'transform 0.1s' }}>▶</span>
+            <svg viewBox="0 0 16 16" width="14" height="14" style={{ flexShrink: 0 }}>
+              <path d="M1.5 1A1.5 1.5 0 0 0 0 2.5v11A1.5 1.5 0 0 0 1.5 15h13a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H8L6.5 3H1.5z" fill={open ? '#dcb67a' : '#c09553'} />
+            </svg>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
           </div>
           {open && renderTree(item.children, level + 1)}
         </div>
@@ -789,13 +860,28 @@ export default function NexCode() {
     const fext = item.path.split('.').pop() || '';
     const active = activeFile === item.path;
     return (
-      <div key={idx} onClick={() => openFile(item.path)} style={{
-        display: 'flex', alignItems: 'center', gap: 6, padding: `3px 8px 3px ${22 + level * 14}px`, fontSize: 13, cursor: 'pointer',
-        background: active ? p.selection : 'transparent', color: active ? '#fff' : p.text, userSelect: 'none',
-      }}>
-        <FileIcon ext={fext} />
-        <span>{item.name}</span>
-        {dirty[item.path] && <span style={{ marginLeft: 'auto', marginRight: 8, width: 8, height: 8, borderRadius: '50%', background: p.text, opacity: 0.7 }} />}
+      <div
+        key={item.path}
+        className="nex-tree-row"
+        onClick={() => openFile(item.path)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          const choice = window.prompt('Acción: rename | delete', 'rename');
+          if (choice === 'rename') renameFile(item.path);
+          else if (choice === 'delete') deleteFile(item.path);
+        }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: `2px 8px 2px ${20 + level * 12}px`,
+          fontSize: 13, cursor: 'pointer', height: 22,
+          background: active ? p.selection : 'transparent',
+          color: active ? p.text : p.text,
+          userSelect: 'none',
+          borderLeft: active ? `2px solid ${p.accent}` : '2px solid transparent',
+        }}
+      >
+        <FileIcon ext={fext} size={15} />
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+        {dirty[item.path] && <span style={{ marginRight: 2, width: 7, height: 7, borderRadius: '50%', background: p.text, opacity: 0.75, flexShrink: 0 }} />}
       </div>
     );
   });
@@ -869,8 +955,6 @@ export default function NexCode() {
     else if (e.key === 'Escape') { e.preventDefault(); setPaletteOpen(false); }
   };
 
-  const tokenized = useMemo(() => file ? tokenize(file.content, file.language, p) : [], [file?.content, file?.language, p]);
-
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', height: '100%', background: p.bg, color: p.text,
@@ -883,77 +967,220 @@ export default function NexCode() {
         .nex-scroll::-webkit-scrollbar-track { background: transparent; }
         .nex-input::placeholder { color: ${p.textDim}; }
         @keyframes nexBlink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+        .nex-tree-row:hover { background: ${p.lineHL} !important; }
+        .nex-tab .nex-tab-close { opacity: 0; }
+        .nex-tab:hover .nex-tab-close { opacity: 1; }
+        .nex-tab.dirty .nex-tab-close { opacity: 0; }
+        .nex-tab.dirty:hover .nex-tab-dirty { display: none; }
+        .nex-tab.dirty:hover .nex-tab-close { opacity: 1; }
+        .nex-statusbar-item:hover { background: rgba(255,255,255,0.12); }
+        .nex-statusbar-item-dark:hover { background: rgba(0,0,0,0.08); }
       `}</style>
 
       {/* ---------- Title bar ---------- */}
-      <div style={{ height: 30, background: p.titlebar, display: 'flex', alignItems: 'center', flexShrink: 0, fontSize: 12, color: p.text, WebkitAppRegion: 'drag' } as any}>
-        <div style={{ flex: 1, textAlign: 'center', color: p.textDim, fontSize: 12 }}>
-          {activeFile}{dirty[activeFile] ? ' •' : ''} — nex-code-app — NEX CODE
+      <div style={{ height: 22, background: p.titlebar, display: 'flex', alignItems: 'center', flexShrink: 0, fontSize: 11, color: p.text, WebkitAppRegion: 'drag' } as any}>
+        <div style={{ flex: 1, textAlign: 'center', color: p.textDim, letterSpacing: 0.2 }}>
+          {activeFile
+            ? `${activeFile.split('/').pop()}${dirty[activeFile] ? ' ●' : ''} — NEX-CODE-APP`
+            : 'NEX-CODE-APP — NEX CODE'}
         </div>
       </div>
 
       {/* Menubar */}
-      <div style={{ height: 28, background: p.titlebar, display: 'flex', alignItems: 'center', paddingLeft: 8, fontSize: 12, flexShrink: 0, borderBottom: `1px solid ${p.border}` }}>
-        <svg viewBox="0 0 100 100" width="15" height="15" style={{ marginRight: 8 }}>
+      <div style={{ height: 24, background: p.titlebar, display: 'flex', alignItems: 'center', paddingLeft: 6, fontSize: 12, flexShrink: 0, borderBottom: `1px solid ${p.border}`, gap: 0 }}>
+        <svg viewBox="0 0 100 100" width="14" height="14" style={{ marginRight: 6, marginLeft: 4, flexShrink: 0 }}>
           <path d="M74.9 10.4L50 35.3l-11-11L10 42.8v14.4l11-8.2 11 11 28-28.9V74l-11-8-11 11 28.9 13L90 79V21z" fill={p.accent} />
         </svg>
         {['Archivo', 'Editar', 'Selección', 'Ver', 'Ir', 'Ejecutar', 'Terminal', 'Ayuda'].map(item => (
-          <div key={item} style={{ padding: '5px 9px', color: p.textDim, cursor: 'pointer', borderRadius: 3 }}
+          <div key={item} style={{ padding: '2px 7px', color: p.text, cursor: 'pointer', borderRadius: 3, lineHeight: '18px' }}
             onMouseEnter={e => e.currentTarget.style.background = p.selection}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            onClick={() => { if (item === 'Ver') openPalette('commands'); else if (item === 'Archivo') openPalette('files'); }}
+            onClick={() => {
+              if (item === 'Ver' || item === 'Ayuda') openPalette('commands');
+              else if (item === 'Archivo' || item === 'Ir') openPalette('files');
+              else if (item === 'Terminal') setTerminalOpen(true);
+            }}
           >{item}</div>
         ))}
         <div style={{ flex: 1 }} />
         <div onClick={() => openPalette('commands')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, background: p.bgAlt, border: `1px solid ${p.border}`, borderRadius: 4, padding: '2px 10px', margin: '0 10px', fontSize: 11.5, color: p.textDim, cursor: 'pointer', minWidth: 280, justifyContent: 'space-between' }}>
-          <span>nex-code-app</span><span>Ctrl+Shift+P</span>
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, background: p.bg,
+            border: `1px solid ${p.border}`, borderRadius: 5, padding: '1px 10px', margin: '0 8px',
+            fontSize: 11, color: p.textDim, cursor: 'pointer', minWidth: 260, maxWidth: 420, height: 18,
+            justifyContent: 'center', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.02)',
+          }}>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style={{ opacity: 0.7 }}><path d="M15.7 14.3l-3.8-3.8A5.5 5.5 0 1 0 10.5 11.9l3.8 3.8a1 1 0 0 0 1.4-1.4zM7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" /></svg>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>NEX-CODE-APP</span>
+          <span style={{ marginLeft: 8, opacity: 0.55, fontSize: 10 }}>Ctrl+Shift+P</span>
         </div>
+        <div style={{ flex: 1 }} />
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* ---------- Activity bar ---------- */}
-        <div style={{ width: 48, background: p.activitybar, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 0', flexShrink: 0 }}>
+        <div style={{ width: 48, background: p.activitybar, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '4px 0', flexShrink: 0, borderRight: `1px solid ${p.border}` }}>
           {[
-            { id: 'explorer', icon: (<svg viewBox="0 0 16 16" width="22" height="22" fill="currentColor" style={{ padding: 4 }}><path d="M2 1.5A1.5 1.5 0 0 1 3.5 0h6a.5.5 0 0 1 .35.15l2 2A.5.5 0 0 1 12 2.5v12a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 2 14.5v-13zM3.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 .5-.5V2.707L9.793 1.5H3.5z" /></svg>) },
-            { id: 'search', icon: (<svg viewBox="0 0 16 16" width="22" height="22" fill="currentColor" style={{ padding: 4 }}><path fillRule="evenodd" d="M15.7 14.3l-3.8-3.8A5.5 5.5 0 1 0 10.5 11.9l3.8 3.8a1 1 0 0 0 1.4-1.4zM7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" /></svg>) },
-            { id: 'git', icon: (<svg viewBox="0 0 16 16" width="22" height="22" fill="currentColor" style={{ padding: 4 }}><path fillRule="evenodd" d="M10.5 7.5a2.5 2.5 0 0 1-2.45 2h-.1a2.5 2.5 0 0 1-2.35-1.75.5.5 0 1 0-.96.28A3.5 3.5 0 0 0 7.95 10h.1a3.5 3.5 0 1 0 2.45-6zM7 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zm6 9a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z" /></svg>) },
-            { id: 'nexai', icon: (<span style={{ fontSize: 18 }}>✨</span>) },
-          ].map(item => (
-            <button key={item.id} onClick={() => item.id === 'nexai' ? setAiPanelOpen(o => !o) : setActivityView(item.id)} title={item.id}
-              style={{
-                width: 48, height: 42, background: 'transparent', border: 'none', cursor: 'pointer', position: 'relative',
-                color: activityView === item.id ? '#fff' : p.textDim, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-              {activityView === item.id && <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2, background: '#fff' }} />}
-              {item.icon}
-            </button>
-          ))}
+            {
+              id: 'explorer',
+              title: 'Explorador',
+              icon: (
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                  <path d="M17.5 0h-9L7 1.5V6H2.5L1 7.5v15.07L2.5 24h12.07L16 22.57V18h4.7l1.3-1.43V4.5L17.5 0zm0 2.12l2.38 2.38H17.5V2.12zm-3 20.38h-12v-15H7v9.07L8.5 18h6v4.5zm6-6h-12v-15H16V6h4.5v10.5z" />
+                </svg>
+              ),
+            },
+            {
+              id: 'search',
+              title: 'Buscar',
+              icon: (
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                  <path d="M15.25 0a8.25 8.25 0 0 0-6.18 13.58L0 22.65 1.35 24l9.07-9.07A8.25 8.25 0 1 0 15.25 0zm0 15a6.75 6.75 0 1 1 0-13.5 6.75 6.75 0 0 1 0 13.5z" />
+                </svg>
+              ),
+            },
+            {
+              id: 'git',
+              title: 'Control de código fuente',
+              icon: (
+                <svg viewBox="0 0 16 16" width="24" height="24" fill="currentColor">
+                  <path fillRule="evenodd" d="M11.5 4.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM9 6.95v2.1a2.5 2.5 0 0 1-1.5 2.29V14.5a.5.5 0 0 1-1 0v-3.16A2.5 2.5 0 0 1 5 9.05V6.95a2.5 2.5 0 1 1 1 0v2.1a1.5 1.5 0 0 0 2 0V6.95a2.5 2.5 0 0 1 1 0zM4.5 4.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm7 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM2.5 12a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" />
+                </svg>
+              ),
+            },
+            {
+              id: 'nexai',
+              title: 'NEX AI',
+              icon: (
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                  <path d="M12 2l1.8 5.4L19 9.2l-5.2 1.8L12 16.5l-1.8-5.5L5 9.2l5.2-1.8L12 2zm7 11l.9 2.7L23 16.5l-3.1.9L19 20l-.9-2.6-3.1-.9 3.1-.9.9-2.6zM5 14l.7 2.1L8 16.8l-2.3.7L5 19.5l-.7-2-.2.1-2.1-.7 2.3-.7L5 14z" />
+                </svg>
+              ),
+            },
+          ].map(item => {
+            const isActive = item.id === 'nexai' ? aiPanelOpen : activityView === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => (item.id === 'nexai' ? setAiPanelOpen(o => !o) : setActivityView(item.id))}
+                title={item.title}
+                style={{
+                  width: 48, height: 48, background: 'transparent', border: 'none', cursor: 'pointer', position: 'relative',
+                  color: isActive ? p.text : p.textDim, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: isActive ? 1 : 0.7,
+                }}
+              >
+                {isActive && (
+                  <span style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 2, borderRadius: 1, background: p.accent }} />
+                )}
+                {item.icon}
+              </button>
+            );
+          })}
           <div style={{ flex: 1 }} />
-          <button onClick={() => openPalette('groqStatus')} title="Estado del backend NEX AI"
-            style={{ width: 48, height: 42, background: 'transparent', border: 'none', cursor: 'pointer', color: backendStatus.online && backendStatus.groqConfigured ? '#4ec9b0' : p.textDim, fontSize: 18 }}>⚙</button>
+          <button
+            type="button"
+            onClick={() => openPalette('groqStatus')}
+            title="Administrar NEX AI"
+            style={{
+              width: 48, height: 48, background: 'transparent', border: 'none', cursor: 'pointer',
+              color: backendStatus.online && backendStatus.groqConfigured ? p.accent : p.textDim,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+              <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.2 7.2 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.55-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.77 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.89 14.5a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.3.59.22l2.39-.96c.5.39 1.04.71 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.55 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z" />
+            </svg>
+          </button>
         </div>
 
         {/* ---------- Sidebar ---------- */}
         {activityView === 'explorer' && (
-          <div className="nex-scroll" style={{ width: 240, background: p.sidebar, borderRight: `1px solid ${p.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
-            <div style={{ fontSize: 11, padding: '10px 16px 6px', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Explorador</div>
-            <div style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', textTransform: 'uppercase', color: p.textDim, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 9, transform: 'rotate(90deg)', display: 'inline-block' }}>▶</span> NEX-CODE-APP
+          <div style={{ width: 260, background: p.sidebar, borderRight: `1px solid ${p.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, minHeight: 0 }}>
+            <div style={{
+              fontSize: 11, padding: '10px 12px 8px', textTransform: 'uppercase', fontWeight: 600,
+              letterSpacing: 0.8, display: 'flex', alignItems: 'center', gap: 8, color: p.text,
+              position: 'sticky', top: 0, background: p.sidebar, zIndex: 1,
+            }}>
+              <span style={{ flex: 1 }}>Explorador</span>
+              <button type="button" onClick={createFile} title="Nuevo archivo" style={{ background: 'transparent', border: 'none', color: p.textDim, cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 2 }}>＋</button>
             </div>
-            {renderTree(tree)}
+            <div className="nex-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+              <div
+                className="nex-tree-row"
+                style={{
+                  fontSize: 11, fontWeight: 700, padding: '4px 8px', textTransform: 'uppercase',
+                  color: p.text, display: 'flex', alignItems: 'center', gap: 4, letterSpacing: 0.4, height: 22,
+                }}
+              >
+                <span style={{ fontSize: 9, transform: 'rotate(90deg)', display: 'inline-block', color: p.textDim }}>▶</span>
+                NEX-CODE-APP
+              </div>
+              {renderTree(tree)}
+            </div>
+            <div style={{ padding: '8px 12px', fontSize: 10, color: p.textDim, borderTop: `1px solid ${p.border}` }}>
+              Clic derecho: rename / delete
+            </div>
           </div>
         )}
         {activityView === 'search' && (
-          <div style={{ width: 240, background: p.sidebar, borderRight: `1px solid ${p.border}`, flexShrink: 0, padding: 10 }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>Búsqueda</div>
-            <input className="nex-input" placeholder="Buscar" style={{ width: '100%', background: p.bgAlt, border: `1px solid ${p.border}`, color: p.text, padding: '6px 8px', borderRadius: 3, fontSize: 12.5, outline: 'none' }} />
+          <div style={{ width: 280, background: p.sidebar, borderRight: `1px solid ${p.border}`, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{
+              fontSize: 11, textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.8,
+              padding: '10px 12px 8px', color: p.text,
+            }}>
+              Buscar
+            </div>
+            <div style={{ padding: '0 10px 8px' }}>
+              <input
+                className="nex-input"
+                value={searchQuery}
+                onChange={(e) => runSearch(e.target.value)}
+                placeholder="Buscar"
+                style={{
+                  width: '100%', background: p.bg, border: `1px solid ${p.border}`, color: p.text,
+                  padding: '5px 8px', borderRadius: 2, fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div className="nex-scroll" style={{ flex: 1, overflowY: 'auto', fontSize: 12 }}>
+              {!searchQuery.trim() && (
+                <div style={{ padding: 12, color: p.textDim, lineHeight: 1.5 }}>Escribí para buscar en todos los archivos del workspace.</div>
+              )}
+              {searchQuery.trim() && searchHits.length === 0 && (
+                <div style={{ padding: 12, color: p.textDim }}>Sin resultados.</div>
+              )}
+              {searchHits.map((hit, i) => (
+                <button
+                  key={`${hit.path}-${hit.line}-${i}`}
+                  type="button"
+                  className="nex-tree-row"
+                  onClick={() => openFile(hit.path, hit)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none',
+                    color: p.text, cursor: 'pointer', padding: '6px 12px',
+                  }}
+                >
+                  <div style={{ fontSize: 11, color: p.accent, marginBottom: 2 }}>{hit.path}:{hit.line}</div>
+                  <div style={{ color: p.textDim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{hit.preview}</div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {activityView === 'git' && (
-          <div style={{ width: 240, background: p.sidebar, borderRight: `1px solid ${p.border}`, flexShrink: 0, padding: 10, fontSize: 12.5 }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>Control de código</div>
-            <div style={{ color: p.textDim }}>main · sin cambios pendientes</div>
+          <div style={{ width: 260, background: p.sidebar, borderRight: `1px solid ${p.border}`, flexShrink: 0, padding: 0, fontSize: 12.5 }}>
+            <div style={{
+              fontSize: 11, textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.8,
+              padding: '10px 12px 8px', color: p.text,
+            }}>
+              Control de código fuente
+            </div>
+            <div style={{ padding: '8px 12px', color: p.textDim, lineHeight: 1.5 }}>
+              <div style={{ color: p.text, marginBottom: 6 }}>main</div>
+              Sin cambios pendientes en el workspace local.
+            </div>
           </div>
         )}
 
@@ -963,95 +1190,134 @@ export default function NexCode() {
             {/* Editor column */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               {/* Tabs */}
-              <div style={{ display: 'flex', background: p.sidebar, borderBottom: `1px solid ${p.border}`, minHeight: 35, alignItems: 'stretch' }}>
+              <div style={{ display: 'flex', background: p.bgAlt, borderBottom: `1px solid ${p.border}`, minHeight: 35, alignItems: 'stretch' }}>
                 <div className="nex-scroll" style={{ display: 'flex', flex: 1, overflowX: 'auto' }}>
                   {openFiles.map(fname => {
-                    const fext = fname.split('.').pop() ?? ''; const fn = fname.split('/').pop(); const isActive = activeFile === fname;
+                    const fext = fname.split('.').pop() ?? '';
+                    const fn = fname.split('/').pop();
+                    const isActive = activeFile === fname;
+                    const isDirty = Boolean(dirty[fname]);
                     return (
-                      <div key={fname} onClick={() => openFile(fname)} style={{
-                        display: 'flex', alignItems: 'center', gap: 6, padding: '0 6px 0 12px', fontSize: 13, minWidth: 130,
-                        background: isActive ? p.bg : 'transparent', color: isActive ? p.text : p.textDim,
-                        borderTop: isActive ? `1px solid ${p.tabActiveBorder}` : '1px solid transparent',
-                        borderRight: `1px solid ${p.border}`, cursor: 'pointer', height: 35, position: 'relative',
-                      }}>
-                        <FileIcon ext={fext} />
-                        <span style={{ fontStyle: isActive ? 'normal' : 'normal' }}>{fn}</span>
-                        {dirty[fname]
-                          ? <span style={{ marginLeft: 6, width: 8, height: 8, borderRadius: '50%', background: p.text, opacity: 0.8 }} />
-                          : <button onClick={e => closeFile(fname, e)} style={{ marginLeft: 6, background: 'transparent', border: 'none', color: p.textDim, cursor: 'pointer', fontSize: 13, opacity: 0.8 }}>✕</button>}
+                      <div
+                        key={fname}
+                        className={`nex-tab${isDirty ? ' dirty' : ''}${isActive ? ' active' : ''}`}
+                        onClick={() => openFile(fname)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6, padding: '0 4px 0 12px', fontSize: 13,
+                          minWidth: 120, maxWidth: 200,
+                          background: isActive ? p.bg : 'transparent',
+                          color: isActive ? p.text : p.textDim,
+                          borderTop: isActive ? `2px solid ${p.tabActiveBorder}` : '2px solid transparent',
+                          borderRight: `1px solid ${p.border}`,
+                          cursor: 'pointer', height: 35, position: 'relative',
+                        }}
+                      >
+                        <FileIcon ext={fext} size={15} />
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fn}</span>
+                        <span className="nex-tab-dirty" style={{
+                          display: isDirty ? 'inline-block' : 'none',
+                          width: 8, height: 8, borderRadius: '50%', background: p.text, opacity: 0.75, marginRight: 6, flexShrink: 0,
+                        }} />
+                        <button
+                          type="button"
+                          className="nex-tab-close"
+                          onClick={e => closeFile(fname, e)}
+                          title="Cerrar"
+                          style={{
+                            marginRight: 4, background: 'transparent', border: 'none', color: p.textDim,
+                            cursor: 'pointer', fontSize: 12, width: 20, height: 20, borderRadius: 3,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = p.selection; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                        >✕</button>
                       </div>
                     );
                   })}
                 </div>
-                <button onClick={explainSelection} title="Explicar selección con NEX AI"
-                  style={{ background: 'transparent', border: 'none', color: p.text, cursor: 'pointer', fontSize: 12, padding: '0 12px', borderLeft: `1px solid ${p.border}` }}>✨ Explicar</button>
-                <button onClick={() => setPreviewOpen(v => !v)} title="Vista previa"
-                  style={{ background: 'transparent', border: 'none', color: p.text, cursor: 'pointer', fontSize: 12, padding: '0 12px', borderLeft: `1px solid ${p.border}` }}>▶ Run</button>
+                <button type="button" onClick={explainSelection} title="Explicar selección con NEX AI"
+                  style={{ background: 'transparent', border: 'none', color: p.textDim, cursor: 'pointer', fontSize: 11, padding: '0 10px', borderLeft: `1px solid ${p.border}`, whiteSpace: 'nowrap' }}>
+                  NEX AI
+                </button>
+                <button type="button" onClick={() => setPreviewOpen(v => !v)} title="Vista previa"
+                  style={{ background: 'transparent', border: 'none', color: p.textDim, cursor: 'pointer', fontSize: 11, padding: '0 10px', borderLeft: `1px solid ${p.border}`, whiteSpace: 'nowrap' }}>
+                  Run
+                </button>
               </div>
 
               {/* Breadcrumb */}
               {file && (
-                <div style={{ display: 'flex', alignItems: 'center', padding: '3px 16px', fontSize: 12, color: p.textDim, borderBottom: `1px solid ${p.border}`, gap: 4 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', padding: '1px 12px', fontSize: 12,
+                  color: p.textDim, borderBottom: `1px solid ${p.border}`, gap: 2, minHeight: 22, background: p.bg,
+                }}>
                   {activeFile.split('/').map((part, i, arr) => (
                     <React.Fragment key={i}>
-                      <span style={{ color: i === arr.length - 1 ? p.text : p.textDim }}>{part}</span>
-                      {i < arr.length - 1 && <span>›</span>}
+                      <span style={{ color: i === arr.length - 1 ? p.text : p.textDim, padding: '0 2px' }}>{part}</span>
+                      {i < arr.length - 1 && <span style={{ opacity: 0.45, fontSize: 11, padding: '0 1px' }}>›</span>}
                     </React.Fragment>
                   ))}
                 </div>
               )}
 
-              {/* Editor */}
+              {/* Editor (Monaco) */}
               {file ? (
                 <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
-                  <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-                    <textarea
-                      ref={editorRef}
-                      value={file.content}
-                      onChange={handleCodeChange}
-                      onScroll={handleScroll}
-                      onKeyDown={onEditorKeyDown}
-                      onClick={e => updateCursor(e.target as HTMLTextAreaElement)}
-                      spellCheck={false}
-                      wrap="off"
-                      className="nex-scroll"
-                      style={{
-                        position: 'absolute', inset: 0, padding: `10px 0 10px 0`, background: 'transparent',
-                        color: p.text, caretColor: p.text, border: 'none', outline: 'none', resize: 'none',
-                        fontFamily: "'Cascadia Code','Consolas','Courier New',monospace", fontSize: 14, lineHeight: `${LINE_H}px`,
-                        whiteSpace: 'pre', overflow: 'auto', zIndex: 2, WebkitTextFillColor: 'transparent', boxSizing: 'border-box',
-                        paddingLeft: 54,
-                      }}
-                    />
-                    <div ref={highlightRef} style={{
-                      position: 'absolute', inset: 0, padding: '10px 0', pointerEvents: 'none',
-                      fontFamily: "'Cascadia Code','Consolas','Courier New',monospace", fontSize: 14, lineHeight: `${LINE_H}px`,
-                      whiteSpace: 'pre', overflow: 'hidden', zIndex: 1, boxSizing: 'border-box',
-                    }}>
-                      {tokenized.map((l: any) => (
-                        <div key={l.i} style={{ display: 'flex', height: LINE_H, background: l.i + 1 === cursorPos.line ? p.lineHL : 'transparent' }}>
-                          <span style={{ width: 54, minWidth: 54, textAlign: 'right', paddingRight: 18, color: l.i + 1 === cursorPos.line ? p.text : p.textDim, fontSize: 13, flexShrink: 0, userSelect: 'none' }}>{l.i + 1}</span>
-                          <span dangerouslySetInnerHTML={{ __html: l.html }} />
-                        </div>
-                      ))}
-                      {ghostText && <span style={{ color: p.textDim, opacity: 0.5, fontStyle: 'italic' }}>{ghostText}</span>}
+                  <NexMonacoEditor
+                    ref={monacoRef}
+                    path={activeFile}
+                    language={file.language || langFromPath(activeFile)}
+                    value={file.content}
+                    palette={p}
+                    themeName={themeName}
+                    onChange={handleEditorChange}
+                    onCursorChange={(line, col) => setCursorPos({ line, col })}
+                    onInlineEditRequest={openInlineEdit}
+                    requestInlineCompletion={requestInlineCompletion}
+                    reveal={revealTarget}
+                  />
+                  {ghostLoading && (
+                    <div style={{ position: 'absolute', bottom: 10, right: 18, fontSize: 11, color: p.textDim, zIndex: 3, pointerEvents: 'none' }}>
+                      NEX AI sugiriendo…
                     </div>
-                    {ghostLoading && <div style={{ position: 'absolute', bottom: 10, right: 18, fontSize: 11, color: p.textDim, zIndex: 3 }}>NEX AI pensando…</div>}
-                    {ghostText && !ghostLoading && <div style={{ position: 'absolute', bottom: 10, right: 18, fontSize: 11, color: p.accent, zIndex: 3 }}>Tab acepta · Esc descarta</div>}
-                  </div>
-
-                  {/* Minimap real */}
-                  <div style={{ width: 90, background: p.bg, borderLeft: `1px solid ${p.border}`, overflow: 'hidden', position: 'relative', flexShrink: 0 }}>
-                    <div ref={minimapRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '4px 0', transform: 'scale(0.62)', transformOrigin: 'top left', width: '161%' }}>
-                      {tokenized.map((l: any) => (
-                        <div key={l.i} style={{ height: 6, fontSize: 5.5, lineHeight: '6px', whiteSpace: 'pre', overflow: 'hidden' }} dangerouslySetInnerHTML={{ __html: l.html }} />
-                      ))}
-                    </div>
-                    <div style={{ position: 'absolute', top: 0, right: 0, width: 6, background: p.scrollbar, height: 60, borderRadius: 3 }} />
-                  </div>
+                  )}
                 </div>
               ) : (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: p.textDim }}>Abrí un archivo para empezar</div>
+                <div style={{
+                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  color: p.textDim, gap: 28, background: p.bg, userSelect: 'none',
+                }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <svg viewBox="0 0 100 100" width="64" height="64" style={{ opacity: 0.35, marginBottom: 12 }}>
+                      <path d="M74.9 10.4L50 35.3l-11-11L10 42.8v14.4l11-8.2 11 11 28-28.9V74l-11-8-11 11 28.9 13L90 79V21z" fill={p.accent} />
+                    </svg>
+                    <div style={{ fontSize: 20, color: p.text, fontWeight: 300, letterSpacing: 0.5 }}>NEX CODE</div>
+                    <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7 }}>Editor · Monaco · NEX AI</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 280 }}>
+                    <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4, color: p.textDim }}>Start</div>
+                    {[
+                      { label: 'Abrir archivo…', hint: 'Ctrl+P', action: () => openPalette('files') },
+                      { label: 'Mostrar todos los comandos', hint: 'Ctrl+Shift+P', action: () => openPalette('commands') },
+                      { label: 'Nuevo archivo', hint: '', action: createFile },
+                      { label: 'Abrir terminal', hint: 'Ctrl+`', action: () => setTerminalOpen(true) },
+                    ].map(row => (
+                      <button
+                        key={row.label}
+                        type="button"
+                        onClick={row.action}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          background: 'transparent', border: 'none', color: p.accent, cursor: 'pointer',
+                          fontSize: 13, padding: '4px 0', textAlign: 'left',
+                        }}
+                      >
+                        <span>{row.label}</span>
+                        {row.hint && <span style={{ color: p.textDim, fontSize: 11 }}>{row.hint}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
@@ -1107,7 +1373,7 @@ export default function NexCode() {
                   <span key={id} onClick={() => setTerminalTab(id)} style={{ fontSize: 11, letterSpacing: 0.4, cursor: 'pointer', color: terminalTab === id ? p.text : p.textDim, borderBottom: terminalTab === id ? `1px solid ${p.text}` : 'none', paddingBottom: 8 }}>{label}</span>
                 ))}
                 <div style={{ flex: 1 }} />
-                <button onClick={clearTerminal} style={{ background: 'transparent', border: 'none', color: p.textDim, cursor: 'pointer', fontSize: 13 }} title="Limpiar">🗑</button>
+                <button type="button" onClick={clearTerminal} style={{ background: 'transparent', border: 'none', color: p.textDim, cursor: 'pointer', fontSize: 12, padding: '0 6px' }} title="Limpiar">Clear</button>
                 <button onClick={() => setTerminalOpen(false)} style={{ background: 'transparent', border: 'none', color: p.textDim, cursor: 'pointer' }}>✕</button>
               </div>
               {terminalTab === 'terminal' ? (
@@ -1139,20 +1405,52 @@ export default function NexCode() {
       </div>
 
       {/* Status bar */}
-      <div style={{ height: 22, background: p.statusbar, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', fontSize: 11.5, color: '#fff', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 14 }}>
-          <span>🔀 main</span>
-          <span>✓ 0 ⚠ 0</span>
-          <span onClick={() => setTerminalOpen(t => !t)} style={{ cursor: 'pointer' }}>⌨ Terminal</span>
+      <div style={{
+        height: 22, background: p.statusbar, display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', padding: '0 2px', fontSize: 12, color: statusFg, flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'stretch', height: '100%' }}>
+          <span className={statusItemClass} style={{ display: 'flex', alignItems: 'center', padding: '0 8px', cursor: 'default' }}>
+            main*
+          </span>
+          <span className={statusItemClass} style={{ display: 'flex', alignItems: 'center', padding: '0 8px', cursor: 'default', gap: 6 }}>
+            <span>0</span><span style={{ opacity: 0.7 }}>⚠ 0</span>
+          </span>
+          <span
+            className={statusItemClass}
+            onClick={() => setTerminalOpen(t => !t)}
+            style={{ display: 'flex', alignItems: 'center', padding: '0 8px', cursor: 'pointer' }}
+          >
+            Terminal
+          </span>
         </div>
-        <div style={{ display: 'flex', gap: 14 }}>
-          <span>Ln {cursorPos.line}, Col {cursorPos.col}</span>
-          <span>Espacios: 2</span>
-          <span>UTF-8</span>
-          <span>{LANG_META[ext]?.label || 'Texto'}</span>
-          <span onClick={() => openPalette('themes')} style={{ cursor: 'pointer' }}>🎨 {themeName}</span>
-          <span onClick={() => openPalette('groqStatus')} style={{ cursor: 'pointer' }}>
-            {backendStatus.online && backendStatus.groqConfigured ? `Groq ✓ ${groqModel}` : backendStatus.online ? 'Backend ✓ / sin key' : 'Backend desconectado'}
+        <div style={{ display: 'flex', alignItems: 'stretch', height: '100%' }}>
+          <span className={statusItemClass} style={{ display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+            Ln {cursorPos.line}, Col {cursorPos.col}
+          </span>
+          <span className={statusItemClass} style={{ display: 'flex', alignItems: 'center', padding: '0 8px' }}>Espacios: 2</span>
+          <span className={statusItemClass} style={{ display: 'flex', alignItems: 'center', padding: '0 8px' }}>UTF-8</span>
+          <span className={statusItemClass} style={{ display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+            {LANG_META[ext]?.label || 'Plain Text'}
+          </span>
+          <span
+            className={statusItemClass}
+            onClick={() => openPalette('themes')}
+            style={{ display: 'flex', alignItems: 'center', padding: '0 8px', cursor: 'pointer', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            title={themeName}
+          >
+            {themeName}
+          </span>
+          <span
+            className={statusItemClass}
+            onClick={() => openPalette('groqStatus')}
+            style={{ display: 'flex', alignItems: 'center', padding: '0 8px', cursor: 'pointer' }}
+          >
+            {backendStatus.online && backendStatus.groqConfigured
+              ? `NEX AI · ${groqModel}`
+              : backendStatus.online
+                ? 'NEX AI · sin key'
+                : 'NEX AI · offline'}
           </span>
         </div>
       </div>

@@ -2,7 +2,40 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import { readFileSync, existsSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { mountStreamRoutes, ytDlpAvailable } from './stream.js';
+
+/** Load KEY=VAL from root/.env.local + server/.env into process.env (no overwrite). */
+function loadEnvFiles() {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const files = [resolve(here, '../.env.local'), resolve(here, '../.env'), resolve(here, '.env')];
+  for (const file of files) {
+    if (!existsSync(file)) continue;
+    try {
+      const text = readFileSync(file, 'utf8');
+      for (const line of text.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eq = trimmed.indexOf('=');
+        if (eq <= 0) continue;
+        const key = trimmed.slice(0, eq).trim();
+        let val = trimmed.slice(eq + 1).trim();
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        ) {
+          val = val.slice(1, -1);
+        }
+        if (key && process.env[key] === undefined) process.env[key] = val;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+}
+loadEnvFiles();
 
 const app = express();
 app.use(cors());
@@ -380,4 +413,12 @@ httpServer.listen(PORT, async () => {
       ? `yt-dlp OK (${ytdlp.version}) · DSP stream listo`
       : `yt-dlp NO encontrado (${ytdlp.bin}) · instalá yt-dlp o npm i en server/`,
   );
+  const c = ytdlp.cookies;
+  if (c?.mode === 'none') {
+    console.log(
+      'Cookies: ninguna · si YouTube dice "not a bot", exportá cookies.txt y poné YT_DLP_COOKIES en .env.local',
+    );
+  } else {
+    console.log(`Cookies: ${c.mode}=${c.value}`);
+  }
 });

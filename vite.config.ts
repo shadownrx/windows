@@ -50,18 +50,22 @@ export default defineConfig({
       input: {
         main: './index.html',
         spotify: './nex-music.html',
+        docs: './docs.html',
       },
     },
   },
   plugins: [
     react(),
-    // Custom middleware for /nex-music rewrite (dev only)
+    // Custom middleware for pretty routes (dev only)
     {
       name: 'custom-rewrite',
       configureServer(server) {
         server.middlewares.use((req, _res, next) => {
-          if (req.url === '/nex-music' || req.url === '/nex-music/') {
+          const url = req.url || ''
+          if (url === '/nex-music' || url === '/nex-music/') {
             req.url = '/nex-music.html'
+          } else if (url === '/docs' || url === '/docs/' || /^\/docs\?/.test(url)) {
+            req.url = '/docs.html' + (url.includes('?') ? url.slice(url.indexOf('?')) : '')
           }
           next()
         })

@@ -72,5 +72,6 @@ export const APPS: AppItem[] = [
   { id: 'clock', appId: 'clock', icon: <Clock24Regular />, label: 'Reloj' },
   { id: 'photos', appId: 'photos', icon: <Image24Regular />, label: 'Fotos' },
   { id: 'nexreproductor', appId: 'nexreproductor', icon: <MusicNote2Regular />, label: 'NexReproductor', isPinned: true },
+  { id: 'virtual-dj', appId: 'virtual-dj', icon: <MusicNote2Regular primaryFill="#ff6b4a" />, label: 'NEX DJ', isPinned: true },
   { id: 'spotify', appId: 'spotify', icon: <MusicNote2Regular />, label: 'Spotify' },
 ];

@@ -9,6 +9,14 @@
       "destination": "/nex-music.html"
     },
     {
+      "source": "/docs",
+      "destination": "/docs.html"
+    },
+    {
+      "source": "/docs/",
+      "destination": "/docs.html"
+    },
+    {
       "source": "/share",
       "destination": "/api/og-nex-music"
     },

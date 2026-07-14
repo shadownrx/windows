@@ -23,9 +23,19 @@ Root `.env.local`:
 
 ```
 VITE_MUSIC_SERVER_URL=http://localhost:4000
+
+# If yt-dlp says "Sign in to confirm you're not a bot":
+# Export cookies.txt from Chrome (extension: Get cookies.txt LOCALLY) while logged into YouTube,
+# save as server/youtube-cookies.txt, then:
+YT_DLP_COOKIES=server/youtube-cookies.txt
+
+# Or (close Chrome completely first on Windows):
+# YT_DLP_COOKIES_FROM_BROWSER=chrome
 ```
 
-Then `npm run dev` and open NEX Music on localhost.
+The music server reads root `.env.local` on start. Restart `npm run music:server` after changing cookies.
+
+If yt-dlp still fails, the server tries Piped as a fallback automatically.
 
 ---
 

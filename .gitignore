@@ -10,6 +10,10 @@ lerna-debug.log*
 .env.local
 .env.example
 
+# yt-dlp YouTube session (never commit)
+**/youtube-cookies.txt
+**/cookies.txt
+
 node_modules
 dist
 dist-ssr

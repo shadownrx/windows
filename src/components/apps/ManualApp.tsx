@@ -213,7 +213,9 @@ const ManualApp: React.FC = () => {
               <div>
                 <h4>Empezá acá</h4>
                 <p>
-                  Guía completa en <code>docs/SDK.md</code>. Demo interactiva: app <strong>SDK Docs</strong> en el escritorio.
+                  Sitio web: <a href="/docs#/sdk" target="_blank" rel="noreferrer">/docs#/sdk</a>
+                  {' · '}Markdown <code>docs/SDK.md</code>
+                  {' · '}Demo in-OS: app <strong>SDK Docs</strong>.
                 </p>
               </div>
             </div>

@@ -11,8 +11,7 @@
 >
 >**🌐 Nex Music:** [https://anex-os.vercel.app/nex-music.html](https://anex-os.vercel.app/nex-music.html)
 >
-> **📖 Documentación Completa:** Consulta la carpeta [docs/](./docs/) para guías detalladas.
-
+> **📖 Documentación:** sitio web en `/docs` (tras deploy) · Markdown en [docs/](./docs/) · SDK en [`packages/nex-os-sdk`](./packages/nex-os-sdk) y `/docs#/sdk`
 ---
 
 ## ✨ Características Destacadas

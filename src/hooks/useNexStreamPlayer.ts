@@ -1,170 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { NexAudioSettings } from './useNexAudioEnhance';
 import type { DspEngine } from './useNexDspEngine';
+import { resolveYoutubeStream, type StreamResolveResult } from '../utils/youtubeStream';
 
-export type StreamResolveResult = {
-  url: string;
-  mimeType: string;
-  quality: string;
-  kind: 'audio' | 'muxed';
-  title?: string;
-  duration?: number;
-  source: string;
-};
-
+export type { StreamResolveResult };
 export type PlaybackMode = 'idle' | 'dsp' | 'youtube';
 export type PlayVideoResult = 'ok' | 'abort' | 'fail';
-
-const PIPED_INSTANCES = [
-  'https://api.piped.private.coffee',
-  'https://pipedapi.adminforge.de',
-  'https://pipedapi.ducks.party',
-  'https://pipedapi.owo.si',
-  'https://pipedapi.leptons.xyz',
-];
-
-type PipedStream = {
-  url?: string;
-  bitrate?: number;
-  mimeType?: string;
-  quality?: string;
-  videoOnly?: boolean;
-};
-
-function pickFromPiped(data: {
-  title?: string;
-  duration?: number;
-  audioStreams?: PipedStream[];
-  videoStreams?: PipedStream[];
-}, source: string): StreamResolveResult | null {
-  const audios = (data.audioStreams || [])
-    .filter((s) => s.url && s.videoOnly !== true)
-    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-  if (audios[0]?.url) {
-    return {
-      url: audios[0].url,
-      mimeType: audios[0].mimeType || 'audio/mp4',
-      quality: audios[0].quality || 'audio',
-      kind: 'audio',
-      title: data.title,
-      duration: data.duration,
-      source,
-    };
-  }
-  const muxed = (data.videoStreams || [])
-    .filter(
-      (s) =>
-        s.url &&
-        s.videoOnly === false &&
-        typeof s.mimeType === 'string' &&
-        s.mimeType.includes('mp4') &&
-        !String(s.quality || '').toUpperCase().includes('LBRY'),
-    )
-    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-  if (muxed[0]?.url) {
-    return {
-      url: muxed[0].url,
-      mimeType: muxed[0].mimeType || 'video/mp4',
-      quality: muxed[0].quality || '360p',
-      kind: 'muxed',
-      title: data.title,
-      duration: data.duration,
-      source,
-    };
-  }
-  // Last resort: any muxed with url (incl. LBRY mirrors — rare but playable)
-  const any = (data.videoStreams || []).find(
-    (s) => s.url && s.videoOnly === false && String(s.mimeType || '').includes('mp4'),
-  );
-  if (any?.url) {
-    return {
-      url: any.url,
-      mimeType: any.mimeType || 'video/mp4',
-      quality: any.quality || 'mirror',
-      kind: 'muxed',
-      title: data.title,
-      duration: data.duration,
-      source,
-    };
-  }
-  return null;
-}
-
-async function resolveFromPipedClient(videoId: string, signal: AbortSignal): Promise<StreamResolveResult> {
-  const errors: string[] = [];
-  const tasks = PIPED_INSTANCES.map(async (base) => {
-    const res = await fetch(`${base}/streams/${encodeURIComponent(videoId)}`, {
-      signal,
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) {
-      errors.push(`${base}:${res.status}`);
-      throw new Error(`piped ${res.status}`);
-    }
-    const data = await res.json();
-    const picked = pickFromPiped(data, base);
-    if (!picked) {
-      errors.push(`${base}:empty`);
-      throw new Error('empty');
-    }
-    return picked;
-  });
-  try {
-    return await Promise.any(tasks);
-  } catch {
-    throw new Error(errors.slice(0, 3).join(',') || 'piped fail');
-  }
-}
-
-async function resolveFromApi(videoId: string, signal: AbortSignal): Promise<StreamResolveResult> {
-  const res = await fetch(`/api/youtube/search?stream=${encodeURIComponent(videoId)}`, { signal });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error || `Stream HTTP ${res.status}`);
-  }
-  return res.json() as Promise<StreamResolveResult>;
-}
-
-async function resolveFromMusicServer(videoId: string, signal: AbortSignal): Promise<StreamResolveResult | null> {
-  const base = (import.meta.env.VITE_MUSIC_SERVER_URL as string | undefined)?.replace(/\/$/, '');
-  if (!base) return null;
-  const res = await fetch(`${base}/stream/${encodeURIComponent(videoId)}`, { signal });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string; detail?: string }).detail || (body as { error?: string }).error || `music-server ${res.status}`);
-  }
-  const data = (await res.json()) as StreamResolveResult;
-  if (!data?.url) return null;
-  return data;
-}
-
-async function resolveStream(videoId: string, signal?: AbortSignal): Promise<StreamResolveResult> {
-  const ac = signal ?? new AbortController().signal;
-  const errors: string[] = [];
-
-  // 1) Self-hosted yt-dlp proxy (real DSP path)
-  try {
-    const custom = await resolveFromMusicServer(videoId, ac);
-    if (custom?.url) return custom;
-  } catch (err) {
-    errors.push(`music-server:${(err as Error).message}`);
-  }
-
-  // 2) Browser → Piped (rare hits)
-  try {
-    return await resolveFromPipedClient(videoId, ac);
-  } catch (err) {
-    errors.push(`piped:${(err as Error).message}`);
-  }
-
-  // 3) Our Vercel API
-  try {
-    return await resolveFromApi(videoId, ac);
-  } catch (err) {
-    errors.push(`api:${(err as Error).message}`);
-    throw new Error(errors.join(' | ') || 'stream resolve failed');
-  }
-}
 
 function waitForMedia(el: HTMLMediaElement, signal: AbortSignal, timeoutMs = 14000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -306,7 +147,7 @@ export function useNexStreamPlayer(opts: {
       abortRef.current = ac;
 
       try {
-        const resolved = await resolveStream(videoId, ac.signal);
+        const resolved = await resolveYoutubeStream(videoId, ac.signal);
         if (ac.signal.aborted) return 'abort';
 
         const el = ensureMedia();

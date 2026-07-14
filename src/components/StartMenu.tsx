@@ -66,6 +66,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
       { id: 'clock', appId: 'clock', icon: <span style={{ fontSize: 20 }}>🕐</span>, name: 'Reloj', color: '#60cdff' },
       { id: 'photos', appId: 'photos', icon: <span style={{ fontSize: 20 }}>📷</span>, name: 'Fotos', color: '#ff6b6b' },
       { id: 'nexreproductor', appId: 'nexreproductor', icon: <span style={{ fontSize: 20 }}>🎵</span>, name: 'NexReproductor', color: '#1db954' },
+      { id: 'virtual-dj', appId: 'virtual-dj', icon: <span style={{ fontSize: 20 }}>🎧</span>, name: 'NEX DJ', color: '#ff6b4a' },
     ];
     const builtinIds = new Set(builtins.map((a) => a.id));
     const community = getCommunityLauncherItems()

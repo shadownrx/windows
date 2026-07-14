@@ -23,8 +23,11 @@ npm run dev
 
 ## 📚 Documentación Principal
 
+> **Sitio web (estilo docs):** abrí [`/docs`](/docs) con `vercel dev` o tras el deploy.
+
 | Documento | Qué Es | Cuándo Leerlo |
 |-----------|--------|-------------|
+| [Sitio /docs](/docs) | Docs interactivas NEX OS + SDK | Primero |
 | [README.md](../README.md) | Descripción general | Primero |
 | [INSTALLATION.md](./INSTALLATION.md) | Setup detallado | Si tienes problemas |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | Cómo desarrollar | Antes de empezar |

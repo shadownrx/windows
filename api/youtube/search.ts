@@ -66,13 +66,16 @@ function isRateLimited(ip: string): boolean {
   return timestamps.length > MAX_REQUESTS;
 }
 
-/** Piped instances — public proxies that rewrite googlevideo with CORS *. */
-const PIPED_INSTANCES = [
-  'https://api.piped.private.coffee',
-  'https://pipedapi.adminforge.de',
-  'https://pipedapi.ducks.party',
-  'https://pipedapi.reallyawakening.tech',
-];
+/**
+ * Piped API bases. Official list (piped-instances.kavin.rocks) currently
+ * only reports private.coffee as healthy — dead hosts burn 9–10s on DNS/timeouts.
+ */
+const PIPED_INSTANCES = ['https://api.piped.private.coffee'];
+
+function pipedUrl(base: string, path: string): string {
+  const root = base.endsWith('/') ? base : `${base}/`;
+  return new URL(path.replace(/^\//, ''), root).toString();
+}
 
 interface PipedStream {
   url?: string;
@@ -117,7 +120,7 @@ function pickBestStream(data: PipedStreamsResponse): Omit<ResolvedAudioStream, '
     };
   }
 
-  // YouTube SABR often empties audioStreams — use muxed progressive MP4 (has audio).
+  // Prefer progressive googlevideo MP4 (has audio). Exclude LBRY mirrors first.
   const muxed = (data.videoStreams || [])
     .filter(
       (s) =>
@@ -138,6 +141,24 @@ function pickBestStream(data: PipedStreamsResponse): Omit<ResolvedAudioStream, '
       duration: data.duration,
     };
   }
+
+  // Last resort: LBRY / any muxed with url (SABR often empties native audioStreams)
+  const lbry = (data.videoStreams || []).find(
+    (s) =>
+      s.url &&
+      s.videoOnly === false &&
+      (String(s.mimeType || '').includes('mp4') || String(s.quality || '').toUpperCase().includes('LBRY')),
+  );
+  if (lbry?.url) {
+    return {
+      url: lbry.url,
+      mimeType: lbry.mimeType || 'video/mp4',
+      quality: lbry.quality || 'mirror',
+      kind: 'muxed',
+      title: data.title,
+      duration: data.duration,
+    };
+  }
   return null;
 }
 
@@ -145,8 +166,9 @@ async function resolvePipedStream(videoId: string): Promise<ResolvedAudioStream 
   for (const base of PIPED_INSTANCES) {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 9000);
-      const res = await fetch(`${base}/streams/${encodeURIComponent(videoId)}`, {
+      const timer = setTimeout(() => controller.abort(), 10000);
+      const url = pipedUrl(base, `streams/${encodeURIComponent(videoId)}`);
+      const res = await fetch(url, {
         signal: controller.signal,
         headers: { Accept: 'application/json' },
       });
@@ -158,10 +180,90 @@ async function resolvePipedStream(videoId: string): Promise<ResolvedAudioStream 
         return { ...picked, source: base };
       }
     } catch (err) {
-      console.warn('Piped resolve fail', base, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      // Keep logs short — dead hosts are expected
+      console.warn('Piped resolve fail', base, msg);
     }
   }
   return null;
+}
+
+type PipedSearchItem = {
+  type?: string;
+  url?: string;
+  title?: string;
+  thumbnail?: string;
+  uploaderName?: string;
+  uploaded?: number;
+  uploadedDate?: string;
+  shortDescription?: string;
+  description?: string;
+};
+
+function videoIdFromPipedUrl(url?: string): string | null {
+  if (!url) return null;
+  const m = url.match(/[?&]v=([a-zA-Z0-9_-]{6,20})/) || url.match(/\/watch\?v=([a-zA-Z0-9_-]{6,20})/) || url.match(/^\/([a-zA-Z0-9_-]{6,20})$/);
+  return m?.[1] || null;
+}
+
+/** Fallback search when YOUTUBE_API_KEY is missing or Google quota fails. */
+async function searchViaPiped(query: string): Promise<SimplifiedResult[]> {
+  for (const base of PIPED_INSTANCES) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 9000);
+      const res = await fetch(
+        pipedUrl(base, `search?q=${encodeURIComponent(query)}&filter=videos`),
+        { signal: controller.signal, headers: { Accept: 'application/json' } },
+      );
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const items: PipedSearchItem[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.items)
+          ? data.items
+          : [];
+      const results = items
+        .filter((item) => !item.type || item.type === 'stream' || item.type === 'video')
+        .map((item) => {
+          const id = videoIdFromPipedUrl(item.url);
+          if (!id) return null;
+          return {
+            id,
+            kind: 'video' as const,
+            title: decodeHtmlEntities(item.title || 'Untitled'),
+            channelTitle: decodeHtmlEntities(item.uploaderName || 'YouTube'),
+            publishedAt:
+              item.uploadedDate ||
+              (item.uploaded
+                ? new Date(item.uploaded > 1e12 ? item.uploaded : item.uploaded * 1000).toISOString()
+                : ''),
+            thumbnail: item.thumbnail || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+            description: decodeHtmlEntities(item.shortDescription || item.description || ''),
+          };
+        })
+        .filter(Boolean) as SimplifiedResult[];
+      if (results.length > 0) return results.slice(0, 12);
+    } catch (err) {
+      console.warn('Piped search fail', base, err);
+    }
+  }
+  return [];
+}
+
+function mapGoogleResults(items: YouTubeSearchItem[]): SimplifiedResult[] {
+  return items
+    .filter((item) => item.id.videoId || item.id.playlistId)
+    .map((item) => ({
+      id: (item.id.videoId || item.id.playlistId) as string,
+      kind: item.id.videoId ? ('video' as const) : ('playlist' as const),
+      title: decodeHtmlEntities(item.snippet.title),
+      channelTitle: decodeHtmlEntities(item.snippet.channelTitle),
+      publishedAt: item.snippet.publishedAt,
+      thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium?.url || '',
+      description: decodeHtmlEntities(item.snippet.description),
+    }));
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -195,12 +297,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!apiKey) {
-    console.error('YOUTUBE_API_KEY no está configurada en las variables de entorno de Vercel');
-    return res.status(500).json({ error: 'Servicio de búsqueda no disponible' });
-  }
-
   const query = (Array.isArray(req.query.q) ? req.query.q[0] : req.query.q || '').trim();
   if (!query) {
     return res.status(400).json({ error: 'Falta el parámetro de búsqueda "q"' });
@@ -210,53 +306,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const pageToken = Array.isArray(req.query.pageToken) ? req.query.pageToken[0] : req.query.pageToken;
+  const apiKey = process.env.YOUTUBE_API_KEY;
 
-  try {
-    const params = new URLSearchParams({
-      part: 'snippet',
-      q: query,
-      type: 'video,playlist',
-      maxResults: '12',
-      safeSearch: 'moderate',
-      key: apiKey,
-    });
-    if (pageToken) params.set('pageToken', pageToken);
+  // 1) Official YouTube Data API when key is configured
+  if (apiKey) {
+    try {
+      const params = new URLSearchParams({
+        part: 'snippet',
+        q: query,
+        type: 'video,playlist',
+        maxResults: '12',
+        safeSearch: 'moderate',
+        key: apiKey,
+      });
+      if (pageToken) params.set('pageToken', pageToken);
 
-    const ytResponse = await fetch(`${YOUTUBE_API_BASE}/search?${params.toString()}`);
+      const ytResponse = await fetch(`${YOUTUBE_API_BASE}/search?${params.toString()}`);
 
-    if (!ytResponse.ok) {
+      if (ytResponse.ok) {
+        const data = (await ytResponse.json()) as {
+          items: YouTubeSearchItem[];
+          nextPageToken?: string;
+        };
+        const results = mapGoogleResults(data.items || []);
+        res.setHeader('Cache-Control', 's-maxage=120, stale-while-revalidate=300');
+        return res.status(200).json({
+          results,
+          nextPageToken: data.nextPageToken || null,
+          source: 'youtube-data-api',
+        });
+      }
+
       const errBody = await ytResponse.text();
-      console.error('Error de YouTube API:', ytResponse.status, errBody);
-      return res.status(502).json({ error: 'No se pudo completar la búsqueda' });
+      console.error('Error de YouTube API, probando Piped:', ytResponse.status, errBody);
+    } catch (err) {
+      console.error('YouTube API falló, probando Piped:', err);
     }
+  } else {
+    console.warn('YOUTUBE_API_KEY ausente — búsqueda vía Piped');
+  }
 
-    const data = (await ytResponse.json()) as {
-      items: YouTubeSearchItem[];
-      nextPageToken?: string;
-    };
-
-    const results: SimplifiedResult[] = data.items
-      .filter((item) => item.id.videoId || item.id.playlistId)
-      .map((item) => ({
-        id: (item.id.videoId || item.id.playlistId) as string,
-        kind: item.id.videoId ? 'video' : 'playlist',
-        title: decodeHtmlEntities(item.snippet.title),
-        channelTitle: decodeHtmlEntities(item.snippet.channelTitle),
-        publishedAt: item.snippet.publishedAt,
-        thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium?.url || '',
-        description: decodeHtmlEntities(item.snippet.description),
-      }));
-
-    // Cache corto en el edge de Vercel: reduce llamadas repetidas a la
-    // misma búsqueda y ahorra cuota de la API.
-    res.setHeader('Cache-Control', 's-maxage=120, stale-while-revalidate=300');
-
+  // 2) Piped fallback (same instances used for stream resolve) — no Google key required
+  try {
+    const results = await searchViaPiped(query);
+    if (results.length === 0) {
+      return res.status(502).json({
+        error: 'No se pudo completar la búsqueda. Configurá YOUTUBE_API_KEY o reintentá.',
+      });
+    }
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=180');
     return res.status(200).json({
       results,
-      nextPageToken: data.nextPageToken || null,
+      nextPageToken: null,
+      source: 'piped',
     });
   } catch (err) {
-    console.error('Error inesperado consultando YouTube:', err);
+    console.error('Error inesperado en búsqueda:', err);
     return res.status(500).json({ error: 'Error interno al buscar' });
   }
 }

@@ -1,12 +1,16 @@
 import { spawn } from 'child_process';
 import { createRequire } from 'module';
+import { existsSync } from 'fs';
+import { resolve as pathResolve } from 'path';
 import { Readable } from 'stream';
 
 const require = createRequire(import.meta.url);
 
-/** @type {Map<string, { url: string; expires: number; mimeType: string; title?: string }>} */
+/** @type {Map<string, { url: string; expires: number; mimeType: string; title?: string; source?: string }>} */
 const cache = new Map();
 const CACHE_TTL_MS = 45 * 60 * 1000;
+
+const PIPED_INSTANCES = ['https://api.piped.private.coffee'];
 
 function findYtDlpBinary() {
   if (process.env.YT_DLP_PATH) return process.env.YT_DLP_PATH;
@@ -20,7 +24,62 @@ function findYtDlpBinary() {
   return null;
 }
 
-function runYtDlp(args, timeoutMs = 25000) {
+/** Cookie / JS-runtime flags for YouTube bot walls. */
+function ytDlpAuthArgs() {
+  const args = [];
+
+  // Signature / n-challenge solver (required by recent yt-dlp)
+  const jsRuntime = (process.env.YT_DLP_JS_RUNTIME || 'node').trim();
+  if (jsRuntime && jsRuntime !== 'off') {
+    args.push('--js-runtimes', jsRuntime);
+  }
+
+  const cookiesFile = (process.env.YT_DLP_COOKIES || '').trim();
+  if (cookiesFile) {
+    const candidates = [
+      pathResolve(cookiesFile),
+      pathResolve(process.cwd(), cookiesFile),
+      pathResolve(process.cwd(), '..', cookiesFile),
+    ];
+    const abs = candidates.find((p) => existsSync(p));
+    if (abs) {
+      args.push('--cookies', abs);
+    } else {
+      console.warn('[stream] YT_DLP_COOKIES no existe:', cookiesFile);
+    }
+  } else {
+    const fromBrowser = (process.env.YT_DLP_COOKIES_FROM_BROWSER || '').trim();
+    if (fromBrowser) {
+      // e.g. chrome, edge, brave, chromium — close the browser first on Windows
+      args.push('--cookies-from-browser', fromBrowser);
+    }
+  }
+
+  const extractorArgs = (process.env.YT_DLP_EXTRACTOR_ARGS || '').trim();
+  if (extractorArgs) {
+    args.push('--extractor-args', extractorArgs);
+  }
+
+  return args;
+}
+
+function cookiesConfigured() {
+  const file = (process.env.YT_DLP_COOKIES || '').trim();
+  if (file) {
+    const candidates = [
+      pathResolve(file),
+      pathResolve(process.cwd(), file),
+      pathResolve(process.cwd(), '..', file),
+    ];
+    const abs = candidates.find((p) => existsSync(p));
+    if (abs) return { mode: 'file', value: abs };
+  }
+  const browser = (process.env.YT_DLP_COOKIES_FROM_BROWSER || '').trim();
+  if (browser) return { mode: 'browser', value: browser };
+  return { mode: 'none', value: null };
+}
+
+function runYtDlp(args, timeoutMs = 35000) {
   return new Promise((resolve, reject) => {
     const bin = findYtDlpBinary() || 'yt-dlp';
     const child = spawn(bin, args, {
@@ -46,7 +105,7 @@ function runYtDlp(args, timeoutMs = 25000) {
     child.on('close', (code) => {
       clearTimeout(timer);
       if (code !== 0) {
-        reject(new Error(stderr.trim().slice(0, 400) || `yt-dlp exit ${code}`));
+        reject(new Error(stderr.trim().slice(0, 500) || `yt-dlp exit ${code}`));
         return;
       }
       resolve(stdout.trim());
@@ -54,8 +113,62 @@ function runYtDlp(args, timeoutMs = 25000) {
   });
 }
 
+function isBotWallError(msg) {
+  return /sign in to confirm|not a bot|cookies-from-browser|HTTP Error 429/i.test(msg);
+}
+
 /**
- * Resolve a direct audio media URL via yt-dlp.
+ * Resolve via Piped when yt-dlp is bot-walled (still proxied by our /audio route).
+ * @param {string} videoId
+ */
+async function resolveFromPiped(videoId) {
+  const errors = [];
+  for (const base of PIPED_INSTANCES) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(`${base.replace(/\/$/, '')}/streams/${encodeURIComponent(videoId)}`, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        errors.push(`${base}:${res.status}`);
+        continue;
+      }
+      const data = await res.json();
+      const audios = (data.audioStreams || [])
+        .filter((s) => s?.url && s.videoOnly !== true)
+        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+      if (audios[0]?.url) {
+        return {
+          url: audios[0].url,
+          mimeType: audios[0].mimeType || 'audio/mp4',
+          title: data.title || undefined,
+          source: `piped:${base}`,
+        };
+      }
+      const muxed = (data.videoStreams || []).find(
+        (s) => s?.url && s.videoOnly === false && String(s.mimeType || '').includes('mp4'),
+      );
+      if (muxed?.url) {
+        return {
+          url: muxed.url,
+          mimeType: muxed.mimeType || 'video/mp4',
+          title: data.title || undefined,
+          source: `piped:${base}`,
+        };
+      }
+      errors.push(`${base}:empty`);
+    } catch (err) {
+      errors.push(`${base}:${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  throw new Error(errors.slice(0, 2).join(' | ') || 'piped fail');
+}
+
+/**
+ * Resolve a direct audio media URL via yt-dlp (+ Piped fallback).
  * @param {string} videoId
  */
 export async function resolveAudioUrl(videoId) {
@@ -63,37 +176,70 @@ export async function resolveAudioUrl(videoId) {
   if (cached && cached.expires > Date.now()) return cached;
 
   const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  // -f ba = best audio; -g = print URL only; --no-playlist
-  const raw = await runYtDlp([
-    '-f',
-    'ba/bestaudio/best',
-    '-g',
-    '--no-playlist',
-    '--no-warnings',
-    watchUrl,
-  ]);
-  const url = raw.split(/\r?\n/).map((l) => l.trim()).find((l) => l.startsWith('http'));
-  if (!url) throw new Error('yt-dlp no devolvió URL');
+  const auth = ytDlpAuthArgs();
+  let lastErr = null;
 
-  let title;
   try {
-    title = await runYtDlp(['--print', '%(title)s', '--no-playlist', '--no-warnings', watchUrl], 15000);
-  } catch {
-    title = undefined;
+    const raw = await runYtDlp([
+      ...auth,
+      '-f',
+      'ba/bestaudio/best',
+      '-g',
+      '--no-playlist',
+      '--no-warnings',
+      watchUrl,
+    ]);
+    const url = raw.split(/\r?\n/).map((l) => l.trim()).find((l) => l.startsWith('http'));
+    if (!url) throw new Error('yt-dlp no devolvió URL');
+
+    let title;
+    try {
+      title = await runYtDlp(
+        [...auth, '--print', '%(title)s', '--no-playlist', '--no-warnings', watchUrl],
+        15000,
+      );
+    } catch {
+      title = undefined;
+    }
+
+    const mimeType =
+      url.includes('mime=audio%2Fwebm') || url.includes('webm') ? 'audio/webm' : 'audio/mp4';
+
+    const entry = {
+      url,
+      mimeType,
+      title: title || undefined,
+      source: 'yt-dlp',
+      expires: Date.now() + CACHE_TTL_MS,
+    };
+    cache.set(videoId, entry);
+    return entry;
+  } catch (err) {
+    lastErr = err instanceof Error ? err : new Error(String(err));
+    console.warn('[stream] yt-dlp failed', videoId, lastErr.message.slice(0, 180));
   }
 
-  const mimeType = url.includes('mime=audio%2Fwebm') || url.includes('webm')
-    ? 'audio/webm'
-    : 'audio/mp4';
-
-  const entry = {
-    url,
-    mimeType,
-    title: title || undefined,
-    expires: Date.now() + CACHE_TTL_MS,
-  };
-  cache.set(videoId, entry);
-  return entry;
+  try {
+    const piped = await resolveFromPiped(videoId);
+    const entry = {
+      ...piped,
+      expires: Date.now() + CACHE_TTL_MS,
+    };
+    cache.set(videoId, entry);
+    console.log('[stream] fallback Piped OK', videoId, piped.source);
+    return entry;
+  } catch (pipedErr) {
+    const pipedMsg = pipedErr instanceof Error ? pipedErr.message : String(pipedErr);
+    const authHint = cookiesConfigured().mode === 'none'
+      ? ' Configurá YT_DLP_COOKIES (cookies.txt) o YT_DLP_COOKIES_FROM_BROWSER=chrome (cerrá Chrome antes).'
+      : '';
+    const bot = lastErr && isBotWallError(lastErr.message);
+    throw new Error(
+      bot
+        ? `YouTube bot-wall / 429.${authHint} yt-dlp: ${lastErr.message.slice(0, 160)} | piped: ${pipedMsg}`
+        : `yt-dlp: ${lastErr?.message?.slice(0, 160) || 'fail'} | piped: ${pipedMsg}`,
+    );
+  }
 }
 
 export function ytDlpAvailable() {
@@ -104,8 +250,16 @@ export function ytDlpAvailable() {
     child.stdout.on('data', (d) => {
       out += d.toString();
     });
-    child.on('error', () => resolve({ ok: false, bin }));
-    child.on('close', (code) => resolve({ ok: code === 0, bin, version: out.trim() || null }));
+    child.on('error', () => resolve({ ok: false, bin, cookies: cookiesConfigured() }));
+    child.on('close', (code) =>
+      resolve({
+        ok: code === 0,
+        bin,
+        version: out.trim() || null,
+        cookies: cookiesConfigured(),
+        jsRuntime: process.env.YT_DLP_JS_RUNTIME || 'node',
+      }),
+    );
   });
 }
 
@@ -204,13 +358,17 @@ export function mountStreamRoutes(app, opts) {
         quality: 'bestaudio',
         kind: 'audio',
         title: resolved.title,
-        source: 'yt-dlp',
+        source: resolved.source || 'yt-dlp',
       });
     } catch (err) {
       console.error('[stream] resolve failed', videoId, err);
       res.status(502).json({
-        error: 'No se pudo resolver audio con yt-dlp',
+        error: 'No se pudo resolver audio',
         detail: err instanceof Error ? err.message : String(err),
+        hint:
+          cookiesConfigured().mode === 'none'
+            ? 'YouTube pide cookies. Exportá cookies.txt (extensión "Get cookies.txt LOCALLY") y poné YT_DLP_COOKIES=ruta\\al\\archivo.txt en .env.local, o cerrá Chrome y usá YT_DLP_COOKIES_FROM_BROWSER=chrome'
+            : undefined,
       });
     }
   });

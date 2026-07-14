@@ -106,6 +106,15 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        // Multi-page: don't let the SPA SW swallow /docs or /nex-music
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [
+          /^\/docs(?:\/|$|\?)/,
+          /^\/nex-music(?:\/|$|\?)/,
+          /^\/api\//,
+          /^\/share(?:\/|$|\?)/,
+          /^\/p\//,
+        ],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { mountStreamRoutes, ytDlpAvailable } from './stream.js';
@@ -36,6 +36,52 @@ function loadEnvFiles() {
   }
 }
 loadEnvFiles();
+
+/**
+ * Render/Fly often can't mount a local cookies file. Prefer:
+ * - YT_DLP_COOKIES=/etc/secrets/youtube-cookies.txt  (Render Secret File)
+ * - YT_DLP_COOKIES_CONTENT=<netscape cookies.txt body>
+ * - YT_DLP_COOKIES_B64=<base64 of cookies.txt>
+ */
+function materializeCookiesFile() {
+  const secretDefault = '/etc/secrets/youtube-cookies.txt';
+  if (!(process.env.YT_DLP_COOKIES || '').trim() && existsSync(secretDefault)) {
+    process.env.YT_DLP_COOKIES = secretDefault;
+    console.log('[cookies] Render Secret File →', secretDefault);
+    return;
+  }
+
+  if ((process.env.YT_DLP_COOKIES || '').trim()) {
+    const p = process.env.YT_DLP_COOKIES.trim();
+    if (existsSync(p)) {
+      console.log('[cookies] usando archivo', p);
+      return;
+    }
+  }
+
+  let body = (process.env.YT_DLP_COOKIES_CONTENT || '').trim();
+  const b64 = (process.env.YT_DLP_COOKIES_B64 || '').trim();
+  if (!body && b64) {
+    try {
+      body = Buffer.from(b64, 'base64').toString('utf8');
+    } catch {
+      console.warn('[cookies] YT_DLP_COOKIES_B64 inválido');
+    }
+  }
+  if (!body) return;
+
+  const dir = process.env.YT_DLP_COOKIES_DIR || '/tmp';
+  try {
+    mkdirSync(dir, { recursive: true });
+  } catch {
+    /* ignore */
+  }
+  const out = resolve(dir, 'youtube-cookies.txt');
+  writeFileSync(out, body.endsWith('\n') ? body : `${body}\n`, 'utf8');
+  process.env.YT_DLP_COOKIES = out;
+  console.log('[cookies] materializado desde env →', out);
+}
+materializeCookiesFile();
 
 const app = express();
 app.use(cors());
@@ -404,9 +450,9 @@ io.on('connection', (socket) => {
   });
 });
 
-httpServer.listen(PORT, async () => {
+httpServer.listen(PORT, '0.0.0.0', async () => {
   const ytdlp = await ytDlpAvailable();
-  console.log(`NEX Music Socket.io server → http://localhost:${PORT}`);
+  console.log(`NEX Music Socket.io server → http://0.0.0.0:${PORT}`);
   console.log(`Stream public base → ${PUBLIC_BASE}`);
   console.log(
     ytdlp.ok

@@ -4,7 +4,7 @@
 # Or from server/:
 #   cd server && fly launch
 
-app = 'nex-music-server'
+app = 'nex-music-anex'  # change if taken
 primary_region = 'gru'
 
 [build]

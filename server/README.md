@@ -37,6 +37,22 @@ The music server reads root `.env.local` on start. Restart `npm run music:server
 
 If yt-dlp still fails, the server tries Piped as a fallback automatically.
 
+### Render — YouTube bot-wall (cookies)
+
+1. En Chrome (logueado en YouTube), exportá cookies con la extensión **Get cookies.txt LOCALLY**.
+2. En Render → tu Web Service → **Environment** → **Secret Files**:
+   - Filename: `youtube-cookies.txt`
+   - Contents: pegá el archivo exportado
+3. Variable de entorno:
+   - `YT_DLP_COOKIES` = `/etc/secrets/youtube-cookies.txt`
+4. También asegurate:
+   - `MUSIC_PUBLIC_URL` = `https://tu-servicio.onrender.com`
+5. **Manual Deploy** → Clear build cache / Redeploy.
+
+En los logs debería aparecer: `[cookies] usando archivo /etc/secrets/youtube-cookies.txt`
+
+Las cookies caducan; si vuelve el bot-wall, reexportá y actualizá el Secret File.
+
 ---
 
 ## Production (Railway) — recommended

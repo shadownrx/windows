@@ -11,6 +11,11 @@ import {
   Pause24Filled,
   Previous24Filled,
   Next24Filled,
+  Apps24Regular,
+  Desktop24Regular,
+  Pin24Regular,
+  Dismiss24Regular,
+  SquareMultiple24Regular,
 } from '@fluentui/react-icons';
 import { useWindowManager } from '../context/WindowManager';
 import { useUI } from '../context/UIContext';
@@ -19,6 +24,19 @@ import { type AppItem } from '../constants/apps';
 import { useLauncherApps } from '../hooks/useLauncherApps';
 import ContextMenu, { type ContextMenuOption } from './ContextMenu';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
+
+const PIN_KEY = 'win11_pinned_apps';
+
+function loadPinnedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(PIN_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
 
 interface TaskbarProps {
   onStartClick: () => void;
@@ -58,17 +76,49 @@ const Taskbar: React.FC<TaskbarProps> = ({
   onRestart,
   onSearchClick,
 }) => {
-  const { openWindow, windows, minimizeWindow, focusedWindowId, minimizeAllWindows, restoreWindow } = useWindowManager();
+  const { openWindow, windows, minimizeWindow, focusedWindowId, minimizeAllWindows, restoreWindow, closeWindow } = useWindowManager();
   const { isWidgetsOpen, toggleWidgets } = useUI();
   const { isWifiEnabled, volume, isTaskViewOpen, setIsTaskViewOpen, notifications } = useSettings();
   const { currentTrack, isPlaying, togglePlay, nextTrack, prevTrack, isGlobalMiniPlayerVisible, toggleGlobalMiniPlayer } = useMusicPlayer();
   const launcherApps = useLauncherApps();
-  const [startContextMenu, setStartContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
-  const [taskbarContextMenu, setTaskbarContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
+  const [pinnedIds, setPinnedIds] = React.useState<Set<string>>(() => loadPinnedIds());
+  const [taskbarContextMenu, setTaskbarContextMenu] = React.useState<{
+    isOpen: boolean;
+    x: number;
+    y: number;
+    app?: AppItem;
+  }>({ isOpen: false, x: 0, y: 0 });
   const [isHovered, setIsHovered] = React.useState(false);
 
+  React.useEffect(() => {
+    localStorage.setItem(PIN_KEY, JSON.stringify([...pinnedIds]));
+  }, [pinnedIds]);
+
+  const appsWithPins = React.useMemo(
+    () =>
+      launcherApps.map((app) => ({
+        ...app,
+        isPinned: pinnedIds.has(app.id) || (!pinnedIds.has(`!${app.id}`) && !!app.isPinned),
+      })),
+    [launcherApps, pinnedIds],
+  );
+
+  const togglePin = (appId: string, currentlyPinned: boolean) => {
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      if (currentlyPinned) {
+        next.delete(appId);
+        next.add(`!${appId}`); // explicit unpin override
+      } else {
+        next.delete(`!${appId}`);
+        next.add(appId);
+      }
+      return next;
+    });
+  };
+
   // El dock es visible si se pasa el ratón por encima, o si hay un menú importante abierto
-  const isVisible = isHovered || isStartOpen || isWidgetsOpen || startContextMenu.isOpen || taskbarContextMenu.isOpen;
+  const isVisible = isHovered || isStartOpen || isWidgetsOpen || taskbarContextMenu.isOpen;
 
 
   const [allMinimized, setAllMinimized] = React.useState(false);
@@ -168,9 +218,24 @@ const Taskbar: React.FC<TaskbarProps> = ({
           <span>Buscar</span>
         </div>
 
+        <button
+          className={`taskbar-icon ${isTaskViewOpen ? 'active' : ''}`}
+          title="Vista de tareas"
+          onClick={(e) => { e.stopPropagation(); setIsTaskViewOpen(!isTaskViewOpen); }}
+        >
+          <SquareMultiple24Regular />
+        </button>
+
         {/* PINNED & OPEN APPS */}
-        <div className="taskbar-apps">
-          {launcherApps.filter(a => a.id !== 'search').map(app => {
+        <div
+          className="taskbar-apps"
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setTaskbarContextMenu({ isOpen: true, x: e.clientX, y: e.clientY });
+          }}
+        >
+          {appsWithPins.filter(a => a.id !== 'search').map(app => {
             const isOpen = windows.some(w => w.id === app.id);
             const isFocused = focusedWindowId === app.id;
             
@@ -182,6 +247,11 @@ const Taskbar: React.FC<TaskbarProps> = ({
                 key={app.id}
                 className={`taskbar-app-icon ${isOpen ? 'open' : ''} ${isFocused ? 'focused' : ''}`}
                 onClick={() => handleAppClick(app)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setTaskbarContextMenu({ isOpen: true, x: e.clientX, y: e.clientY, app });
+                }}
                 title={app.label}
               >
                 <div className="app-icon-inner">{app.icon}</div>
@@ -207,6 +277,58 @@ const Taskbar: React.FC<TaskbarProps> = ({
       </div>
     </footer>
     </div>
+
+    {taskbarContextMenu.isOpen && (
+      <ContextMenu
+        x={taskbarContextMenu.x}
+        y={taskbarContextMenu.y}
+        onClose={() => setTaskbarContextMenu({ isOpen: false, x: 0, y: 0 })}
+        options={((): ContextMenuOption[] => {
+          const app = taskbarContextMenu.app;
+          if (app) {
+            const win = windows.find((w) => w.id === app.id);
+            return [
+              {
+                label: 'Abrir',
+                icon: app.icon,
+                onClick: () => handleAppClick(app),
+              },
+              {
+                label: app.isPinned ? 'Desanclar de la barra' : 'Anclar a la barra',
+                icon: <Pin24Regular />,
+                onClick: () => togglePin(app.id, !!app.isPinned),
+              },
+              {
+                label: 'Cerrar ventana',
+                icon: <Dismiss24Regular />,
+                disabled: !win,
+                onClick: () => win && closeWindow(win.id),
+                divider: true,
+              },
+            ];
+          }
+          return [
+            {
+              label: 'Mostrar escritorio',
+              icon: <Desktop24Regular />,
+              onClick: () => toggleShowDesktop(),
+            },
+            {
+              label: 'Vista de tareas',
+              icon: <SquareMultiple24Regular />,
+              onClick: () => setIsTaskViewOpen(true),
+            },
+            {
+              label: 'Administrador de tareas',
+              icon: <Apps24Regular />,
+              onClick: () =>
+                openWindow('taskmanager', 'taskmanager', 'Administrador de tareas', <Apps24Regular />),
+              divider: true,
+            },
+          ];
+        })()}
+      />
+    )}
 
     <style>{`
         .taskbar-trigger-area {

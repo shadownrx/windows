@@ -1,13 +1,16 @@
 import React, { Suspense, lazy, useEffect } from 'react';
-import { WindowManagerProvider } from './context/WindowManager';
+import { WindowManagerProvider, useWindowManager } from './context/WindowManager';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import NotificationContainer from './components/system/NotificationToast';
-import { Info24Regular } from '@fluentui/react-icons';
+import { ArrowClockwise24Regular, Info24Regular } from '@fluentui/react-icons';
 import { FileSystemProvider } from './context/FileSystemContext';
 import { DesktopProvider } from './context/DesktopContext';
 import { UIProvider } from './context/UIContext';
 import { NexRuntimeProvider } from './context/NexRuntimeContext';
 import { MusicPlayerProvider } from './context/MusicPlayerContext';
+import { ClipboardHistoryProvider } from './context/ClipboardHistoryContext';
+import ClipboardHistoryPanel from './components/system/ClipboardHistoryPanel';
+import SnippingOverlay from './components/system/SnippingOverlay';
 
 const OffScreen = lazy(() => import('./components/system/OffScreen'));
 const BootScreen = lazy(() => import('./components/system/BootScreen'));
@@ -24,45 +27,58 @@ function ScreenFallback() {
   return <div className="w-screen h-screen bg-black" aria-hidden />;
 }
 
-function AppContent() {
-  const { isNightLightEnabled, systemState, setSystemState, addNotification, playSound, wallpaper, osType, setOsType } = useSettings();
+function WelcomeBackEffect() {
+  const { systemState, addNotification, playSound, osType } = useSettings();
+  const { windows } = useWindowManager();
   const hasLoggedInRef = React.useRef(false);
+
+  useEffect(() => {
+    if (systemState === 'DESKTOP' && !hasLoggedInRef.current) {
+      if (osType === 'windows') {
+        playSound('startup');
+        const openCount = windows.filter((w) => w.isOpen).length;
+        if (openCount > 0) {
+          addNotification(
+            'De nuevo en NEX',
+            `${openCount} ventana${openCount === 1 ? '' : 's'} restaurada${openCount === 1 ? '' : 's'} · seguí donde dejaste`,
+            <ArrowClockwise24Regular />,
+          );
+        } else {
+          addNotification('Bienvenido', 'NEX OS listo · Ctrl+Alt+V portapapeles · Ctrl+Alt+S recorte', <Info24Regular />);
+        }
+      }
+      hasLoggedInRef.current = true;
+    }
+    if (systemState === 'LOGIN' || systemState === 'OFF') {
+      hasLoggedInRef.current = false;
+    }
+  }, [systemState, osType, windows, addNotification, playSound]);
+
+  return null;
+}
+
+function AppContent() {
+  const { isNightLightEnabled, systemState, setSystemState, wallpaper, osType, setOsType } = useSettings();
 
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>;
     if (systemState === 'BOOTING') {
       timeout = setTimeout(() => {
-        setOsType('windows'); // Windows 11 Pro por defecto
+        setOsType('windows');
         setSystemState('WINDOWS_BOOT');
-      }, 2500); // BIOS POST time
-    }
-    else if (systemState === 'WINDOWS_BOOT') {
+      }, 2500);
+    } else if (systemState === 'WINDOWS_BOOT') {
       timeout = setTimeout(() => {
         setSystemState('LOGIN');
-      }, 3500); // Windows Loading time
-    }
-    else if (systemState === 'SHUTTING_DOWN') timeout = setTimeout(() => setSystemState('OFF'), 3000);
+      }, 3500);
+    } else if (systemState === 'SHUTTING_DOWN') timeout = setTimeout(() => setSystemState('OFF'), 3000);
     else if (systemState === 'RESTARTING') timeout = setTimeout(() => setSystemState('BOOTING'), 2500);
 
-    if (systemState === 'DESKTOP' && !hasLoggedInRef.current) {
-      if (osType === 'windows') {
-        playSound('startup');
-        addNotification('Bienvenido', 'Nex OS esta listo para usarse', <Info24Regular />);
-      }
-      hasLoggedInRef.current = true;
-    }
-
-    if (systemState === 'LOGIN' || systemState === 'OFF') {
-      hasLoggedInRef.current = false;
-    }
-
     return () => clearTimeout(timeout);
-  }, [systemState, setSystemState, addNotification, playSound, osType, setOsType]);
-
+  }, [systemState, setSystemState, setOsType]);
 
   return (
     <div className="w-screen h-screen bg-black overflow-hidden relative select-none gpu-accelerated">
-      {/* 0. Capas globales (Brillo y Luz Nocturna) */}
       <div className="brightness-overlay" />
       {isNightLightEnabled && (
         <div
@@ -71,11 +87,11 @@ function AppContent() {
         />
       )}
 
+      <WelcomeBackEffect />
+
       <Suspense fallback={<ScreenFallback />}>
-        {/* Global 3D — solo escritorio; chunk Three.js fuera del critical path */}
         {systemState === 'DESKTOP' && <Background3D />}
 
-        {/* 1. Ciclo de Vida: Pantallas */}
         {systemState === 'OFF' && <OffScreen onPowerOn={() => setSystemState('BOOTING')} />}
         {systemState === 'BOOTING' && <BootScreen />}
         {systemState === 'WINDOWS_BOOT' && <WindowsBoot />}
@@ -104,6 +120,8 @@ function AppContent() {
       </Suspense>
 
       <NotificationContainer />
+      <ClipboardHistoryPanel />
+      <SnippingOverlay />
     </div>
   );
 }
@@ -117,7 +135,9 @@ function App() {
             <DesktopProvider>
               <UIProvider>
                 <WindowManagerProvider>
-                  <AppContent />
+                  <ClipboardHistoryProvider>
+                    <AppContent />
+                  </ClipboardHistoryProvider>
                 </WindowManagerProvider>
               </UIProvider>
             </DesktopProvider>

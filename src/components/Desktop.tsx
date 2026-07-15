@@ -9,6 +9,7 @@ import CalendarMenu from './CalendarMenu';
 import SearchPane from './SearchPane';
 import WidgetsPanel from './system/WidgetsPanel';
 import TaskView from './system/TaskView';
+import AltTabSwitcher from './system/AltTabSwitcher';
 import Window from './Window';
 import ContextMenu from './ContextMenu';
 import { useWindowManager } from '../context/WindowManager';
@@ -69,10 +70,10 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
   const { windows, openWindow, closeFocusedWindow, minimizeAllWindows } = useWindowManager();
   const { desktopIcons, addDesktopIcon, updateDesktopIcon, removeDesktopIcon, sortDesktopIcons, currentDesktopId, virtualDesktops, switchDesktop, addDesktop } = useDesktop();
   const { isStartOpen, toggleStart, closeStart, isWidgetsOpen, toggleWidgets, closeWidgets, isDesktopSwitcherOpen } = useUI();
-  const { createFile } = useFileSystem();
+  const { createFile, clipboard, pasteItem, files, copyItem, cutItem } = useFileSystem();
   const { resolveNex } = useNexRuntime();
 
-  const { isTaskViewOpen, setIsTaskViewOpen, addNotification, userName, wallpaper, setWallpaper, neonTheme } = useSettings();
+  const { isTaskViewOpen, setIsTaskViewOpen, addNotification, userName, wallpaper, neonTheme } = useSettings();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -177,6 +178,35 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     });
   };
 
+  const handlePaste = () => {
+    if (!clipboard) return;
+    const mode = clipboard.type;
+    const sourceId = clipboard.id;
+    const source = files.find((f) => f.id === sourceId);
+    const pastedId = pasteItem('desktop');
+    if (!pastedId || !source) return;
+    if (mode === 'cut') {
+      removeDesktopIcon(sourceId);
+    }
+    const title = mode === 'copy' ? `${source.name} - Copia` : source.name;
+    addDesktopIcon({
+      id: pastedId,
+      title,
+      icon:
+        source.type === 'folder' ? (
+          <Folder24Regular primaryFill="#f1c40f" />
+        ) : (
+          <Document24Regular primaryFill="#ecf0f1" />
+        ),
+      type: source.type === 'folder' ? 'folder' : 'file',
+      x: contextMenu?.x || 120,
+      y: contextMenu?.y || 120,
+      appId: source.ext === 'txt' ? 'notepad' : undefined,
+      appProps: source.ext === 'txt' ? { fileId: pastedId } : undefined,
+    });
+    setContextMenu(null);
+  };
+
   const handleIconSizeChange = (size: 'small' | 'medium' | 'large') => {
     setIconSize(size);
     setContextMenu(null);
@@ -235,38 +265,42 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && e.key === 'F4') {
+      // Atajos Ctrl+Alt+* — Win+* / Alt+Tab los captura Windows antes del browser
+      const nexMod = e.ctrlKey && e.altKey && !e.metaKey;
+
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'F4') {
         e.preventDefault();
         closeFocusedWindow();
       }
-      if (e.metaKey && e.key.toLowerCase() === 'd') {
+      if (nexMod && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         minimizeAllWindows();
       }
-      if (e.metaKey && e.key.toLowerCase() === 'e') {
+      if (nexMod && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         openWindow('file-explorer', 'file-explorer', 'Explorador de archivos', <Desktop24Regular />);
       }
-      if (e.metaKey && e.key.toLowerCase() === 'r') {
+      if (nexMod && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         setRunDialogOpen(true);
         setRunCommand('');
         setRunError('');
       }
-      if (e.metaKey && e.key.toLowerCase() === 'tab') {
+      if (nexMod && e.key.toLowerCase() === 't') {
         e.preventDefault();
         setIsTaskViewOpen(!isTaskViewOpen);
       }
       if (e.key === 'Escape' && isTaskViewOpen) {
         setIsTaskViewOpen(false);
       }
-      if (e.metaKey && e.ctrlKey && e.key.toLowerCase() === 'arrowleft') {
+      // [ ] — no usar flechas (Intel Graphics rota la pantalla con Ctrl+Alt+←→)
+      if (nexMod && (e.key === '[' || e.code === 'BracketLeft')) {
         e.preventDefault();
         const currentIndex = virtualDesktops.findIndex((d) => d.id === currentDesktopId);
         const prevIndex = (currentIndex - 1 + virtualDesktops.length) % virtualDesktops.length;
         switchDesktop(virtualDesktops[prevIndex].id);
       }
-      if (e.metaKey && e.ctrlKey && e.key.toLowerCase() === 'arrowright') {
+      if (nexMod && (e.key === ']' || e.code === 'BracketRight')) {
         e.preventDefault();
         const currentIndex = virtualDesktops.findIndex((d) => d.id === currentDesktopId);
         const nextIndex = (currentIndex + 1) % virtualDesktops.length;
@@ -275,11 +309,31 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
       if (e.key === 'Escape' && runDialogOpen) {
         setRunDialogOpen(false);
       }
+      if (e.ctrlKey && e.key.toLowerCase() === 'v') {
+        if (!runDialogOpen && !isSearchOpen) {
+          e.preventDefault();
+          handlePaste();
+        }
+      }
+      if (e.ctrlKey && e.key.toLowerCase() === 'c' && selectedIconId) {
+        const icon = desktopIcons.find((i) => i.id === selectedIconId);
+        if (icon && (icon.type === 'file' || files.some((f) => f.id === icon.id))) {
+          e.preventDefault();
+          copyItem(icon.id);
+        }
+      }
+      if (e.ctrlKey && e.key.toLowerCase() === 'x' && selectedIconId) {
+        const icon = desktopIcons.find((i) => i.id === selectedIconId);
+        if (icon && (icon.type === 'file' || files.some((f) => f.id === icon.id))) {
+          e.preventDefault();
+          cutItem(icon.id);
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeFocusedWindow, minimizeAllWindows, openWindow, runDialogOpen, currentDesktopId, switchDesktop, virtualDesktops, isTaskViewOpen, setIsTaskViewOpen]);
+  }, [closeFocusedWindow, minimizeAllWindows, openWindow, runDialogOpen, currentDesktopId, switchDesktop, virtualDesktops, isTaskViewOpen, setIsTaskViewOpen, selectedIconId, desktopIcons, files, copyItem, cutItem, isSearchOpen, clipboard]);
 
   const toggleNotifications = () => {
     setIsNotificationsOpen(!isNotificationsOpen);
@@ -307,7 +361,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     <div 
       className="w-full h-full relative overflow-hidden"
       style={{
-        backgroundImage: `url(/wallpaper-premium.png)`,
+        backgroundImage: `url(${wallpaper || '/wallpaper-premium.png'})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
@@ -371,12 +425,13 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
           {runDialogOpen && (
             <div className="run-overlay" onClick={() => setRunDialogOpen(false)}>
               <div className="run-dialog" onClick={(e) => e.stopPropagation()}>
-                <div className="run-title">Ejecutar</div>
+                <div className="run-title">Ejecutar <span style={{ opacity: 0.45, fontWeight: 400, fontSize: 12 }}>Ctrl+Alt+R</span></div>
                 <input
                   className="run-input"
                   value={runCommand}
                   onChange={(e) => setRunCommand(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && executeRunCommand(runCommand)}
+                  placeholder="notepad · hello · explorer"
                   autoFocus
                 />
                 <div className="run-actions">
@@ -473,6 +528,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
         <NotificationsMenu isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
         <AnimatePresence>
            {isTaskViewOpen && <TaskView />}
+           <AltTabSwitcher />
         </AnimatePresence>
       </div>
 
@@ -524,8 +580,8 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
               ]
             },
             { label: 'Actualizar', icon: <ArrowClockwise24Regular />, onClick: () => window.location.reload(), divider: true },
-            { label: 'Pegar', icon: <ClipboardPaste24Regular />, onClick: () => {}, shortcut: 'Ctrl+V', disabled: true },
-            { label: 'Pegar acceso directo', icon: <ImageArrowBack24Regular />, onClick: () => {}, disabled: true, divider: true },
+            { label: 'Pegar', icon: <ClipboardPaste24Regular />, onClick: handlePaste, shortcut: 'Ctrl+V', disabled: !clipboard },
+            { label: 'Pegar acceso directo', icon: <ImageArrowBack24Regular />, onClick: handlePaste, disabled: !clipboard, divider: true },
             {
               label: 'Nuevo',
               icon: <Document24Regular />,

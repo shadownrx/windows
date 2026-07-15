@@ -48,7 +48,7 @@ export default defineApp<Props>({
 
 1. Guardá en `src/community-apps/`
 2. `import './MiApp'` en `index.ts`
-3. `npm run dev` → Buscar **Mi App** o Win+R → `mia`
+3. `npm run dev` → Buscar **Mi App** o Ctrl+Alt+R → `mia`
 
 ---
 
@@ -96,7 +96,7 @@ openApp('mi-app', { mode: 'pro' });
 - `permissions` en el manifest
 - `getAppsByCategory`
 - Host: `useOpenApp`, `useMusicPlayer`
-- Win+R resuelve aliases community
+- Ctrl+Alt+R resuelve aliases community
 
 ---
 

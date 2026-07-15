@@ -216,7 +216,7 @@ const { accentColor, addNotification } = useSettings();`}</Code>
 openApp('hello');
 openApp('mi-app', { mode: 'pro' });`}</Code>
         <h3 className="sdk-h3">Run dialog</h3>
-        <Code>{`Win+R → hello | sdk | sdk-demo`}</Code>
+        <Code>{`Ctrl+Alt+R → hello | sdk | sdk-demo`}</Code>
         <h3 className="sdk-h3">Notificación</h3>
         <Code>{`addNotification('Mi App', 'Listo.');`}</Code>
         <div className="sdk-actions">

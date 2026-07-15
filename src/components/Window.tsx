@@ -10,17 +10,31 @@ interface WindowProps {
   window: AppWindow;
 }
 
+const defaultSize = () => ({
+  width: globalThis.innerWidth < 640 ? globalThis.innerWidth : (globalThis.innerWidth < 1024 ? Math.min(800, globalThis.innerWidth - 40) : 800),
+  height: globalThis.innerWidth < 640 ? globalThis.innerHeight - 48 : (globalThis.innerWidth < 1024 ? Math.min(600, globalThis.innerHeight - 100) : 600),
+});
+
+const defaultPosition = (width: number, height: number) => ({
+  x: globalThis.innerWidth < 640 ? 0 : Math.max(0, (globalThis.innerWidth - width) / 2 + (Math.random() * 40 - 20)),
+  y: globalThis.innerWidth < 640 ? 0 : Math.max(0, (globalThis.innerHeight - height) / 2 + (Math.random() * 40 - 20)),
+});
+
 const Window: React.FC<WindowProps> = ({ window: appWindow }) => {
-  const { closeWindow, minimizeWindow, maximizeWindow, snapWindow, focusWindow, focusedWindowId } = useWindowManager();
+  const { closeWindow, minimizeWindow, maximizeWindow, snapWindow, focusWindow, focusedWindowId, updateWindowBounds, minimizeOthers } = useWindowManager();
   const { neonTheme } = useSettings();
-  const [size, setSize] = useState({ 
-    width: globalThis.innerWidth < 640 ? globalThis.innerWidth : (globalThis.innerWidth < 1024 ? Math.min(800, globalThis.innerWidth - 40) : 800), 
-    height: globalThis.innerWidth < 640 ? globalThis.innerHeight - 48 : (globalThis.innerWidth < 1024 ? Math.min(600, globalThis.innerHeight - 100) : 600) 
+  const [size, setSize] = useState(() => ({
+    width: appWindow.width ?? defaultSize().width,
+    height: appWindow.height ?? defaultSize().height,
+  }));
+  const [position, setPosition] = useState(() => {
+    if (typeof appWindow.x === 'number' && typeof appWindow.y === 'number') {
+      return { x: appWindow.x, y: appWindow.y };
+    }
+    const s = defaultSize();
+    return defaultPosition(appWindow.width ?? s.width, appWindow.height ?? s.height);
   });
-  const [position, setPosition] = useState({ 
-    x: globalThis.innerWidth < 640 ? 0 : Math.max(0, (globalThis.innerWidth - 800) / 2 + (Math.random() * 40 - 20)), 
-    y: globalThis.innerWidth < 640 ? 0 : Math.max(0, (globalThis.innerHeight - 600) / 2 + (Math.random() * 40 - 20)) 
-  });
+
 
   // Auto-maximize on mobile
   useEffect(() => {
@@ -84,8 +98,31 @@ const Window: React.FC<WindowProps> = ({ window: appWindow }) => {
       setPosition({ x: newX, y: newY });
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (upEvent: MouseEvent) => {
       setIsResizing(false);
+      const deltaX = upEvent.clientX - startX;
+      const deltaY = upEvent.clientY - startY;
+      let newWidth = startWidth;
+      let newHeight = startHeight;
+      let newX = startXPos;
+      let newY = startYPos;
+      if (direction.includes('e')) newWidth = Math.max(300, startWidth + deltaX);
+      if (direction.includes('s')) newHeight = Math.max(200, startHeight + deltaY);
+      if (direction.includes('w')) {
+        const potentialWidth = startWidth - deltaX;
+        if (potentialWidth > 300) {
+          newWidth = potentialWidth;
+          newX = startXPos + deltaX;
+        }
+      }
+      if (direction.includes('n')) {
+        const potentialHeight = startHeight - deltaY;
+        if (potentialHeight > 200) {
+          newHeight = potentialHeight;
+          newY = startYPos + deltaY;
+        }
+      }
+      updateWindowBounds(appWindow.id, { x: newX, y: newY, width: newWidth, height: newHeight });
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
@@ -187,10 +224,27 @@ const Window: React.FC<WindowProps> = ({ window: appWindow }) => {
           const startXPos = currentTargetX;
           const startYPos = currentTargetY;
           let dragSnapPreview: 'maximize' | 'left' | 'right' | null = null;
+          // Aero Shake: count horizontal direction flips while dragging
+          let lastX = startX;
+          let lastDir = 0;
+          let flips = 0;
+          let shook = false;
 
           const onMouseMove = (moveEvent: MouseEvent) => {
             const currentX = moveEvent.clientX;
             const currentY = moveEvent.clientY;
+
+            const dx = currentX - lastX;
+            if (Math.abs(dx) > 12) {
+              const dir = dx > 0 ? 1 : -1;
+              if (lastDir !== 0 && dir !== lastDir) flips += 1;
+              lastDir = dir;
+              lastX = currentX;
+              if (!shook && flips >= 4) {
+                shook = true;
+                minimizeOthers(appWindow.id);
+              }
+            }
 
             if (currentY <= 5) {
               dragSnapPreview = 'maximize';
@@ -209,14 +263,18 @@ const Window: React.FC<WindowProps> = ({ window: appWindow }) => {
             });
           };
 
-          const onMouseUp = () => {
+          const onMouseUp = (upEvent: MouseEvent) => {
             setIsDragging(false);
+            const nextX = startXPos + (upEvent.clientX - startX);
+            const nextY = startYPos + (upEvent.clientY - startY);
             if (dragSnapPreview === 'maximize') {
-              if (!appWindow.isMaximized) maximizeWindow(appWindow.id);
+              if (!appWindow.isMaximized) maximizeWindow(appWindow.id, { ...size, x: nextX, y: nextY });
             } else if (dragSnapPreview === 'left') {
               snapWindow(appWindow.id, 'left');
             } else if (dragSnapPreview === 'right') {
               snapWindow(appWindow.id, 'right');
+            } else {
+              updateWindowBounds(appWindow.id, { x: nextX, y: nextY, width: size.width, height: size.height });
             }
             setSnapPreview(null);
             document.removeEventListener('mousemove', onMouseMove);

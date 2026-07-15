@@ -74,4 +74,11 @@ export const APPS: AppItem[] = [
   { id: 'nexreproductor', appId: 'nexreproductor', icon: <MusicNote2Regular />, label: 'NexReproductor', isPinned: true },
   { id: 'virtual-dj', appId: 'virtual-dj', icon: <MusicNote2Regular primaryFill="#ff6b4a" />, label: 'NEX DJ', isPinned: true },
   { id: 'spotify', appId: 'spotify', icon: <MusicNote2Regular />, label: 'Spotify' },
+  {
+    id: 'nex-store',
+    appId: 'nex-store',
+    icon: <span style={{ fontSize: 18 }}>🛒</span>,
+    label: 'NEX Store',
+    isPinned: true,
+  },
 ];

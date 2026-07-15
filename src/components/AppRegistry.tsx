@@ -29,6 +29,7 @@ const SpotifyMini = React.lazy(() => import('./apps/SpotifyMini'));
 const VirtualDj = React.lazy(() => import('./apps/VirtualDj'));
 const VsCode = React.lazy(() => import('./apps/VsCode'));
 const HermesAgent = React.lazy(() => import('./apps/HermesAgent'));
+const NexStore = React.lazy(() => import('./apps/NexStore'));
 
 interface AppRegistryProps {
   appId: string;
@@ -74,6 +75,9 @@ const BUILTIN: Record<string, AnyLazy> = {
   'nex-code': VsCode,
   hermes: HermesAgent,
   'hermes-agent': HermesAgent,
+  'nex-store': NexStore,
+  store: NexStore,
+  'microsoft-store': NexStore,
 };
 
 const Fallback = () => (

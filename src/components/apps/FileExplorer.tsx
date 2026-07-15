@@ -40,6 +40,11 @@ import { useWindowManager } from '../../context/WindowManager';
 import { useFileSystem, type FileItem } from '../../context/FileSystemContext';
 import { useSettings } from '../../context/SettingsContext';
 import ContextMenu from '../ContextMenu';
+import {
+  buildOpenTarget,
+  getOpenTargetsForExt,
+  resolveDefaultOpen,
+} from '../../utils/fileAssociations';
 
 const NEX_ICONS: Record<string, React.ReactNode> = {
   notepad:       <Document20Regular />,
@@ -131,29 +136,25 @@ const FileExplorer: React.FC = () => {
     else if (currentFolderId !== null) navigate(null);
   };
 
+  const openWithApp = (item: FileItem, appId: string) => {
+    const target = buildOpenTarget(item, appId);
+    openWindow(target.windowId, target.appId, target.title, target.icon, target.appProps);
+  };
+
   const handleDoubleClick = (item: FileItem) => {
     if (item.type === 'folder' || item.type === 'drive') {
       navigate(item.id);
-    } else if ((item.ext === 'jpg' || item.ext === 'png') && item.imageUrl) {
-      openWindow(
-        `photos-${item.id}`,
-        'image-viewer',
-        `Fotos - ${item.name}`,
-        <Image20Regular />,
-        { files: [{ name: item.name, imageUrl: item.imageUrl }], initialIndex: 0 }
-      );
-    } else if (item.ext === 'txt') {
-      openWindow(
-        `notepad-${item.id}`,
-        'notepad',
-        item.name,
-        <Document20Regular />,
-        { fileId: item.id }
-      );
-    } else if (item.ext === 'nex' && item.nexPayload) {
+      return;
+    }
+    if (item.ext === 'nex' && item.nexPayload) {
       const payload = item.nexPayload;
       const appIcon = NEX_ICONS[payload.appId] || <Flash20Regular style={{ color: '#00ffff' }} />;
       openWindow(payload.appId, payload.appId, payload.title, appIcon);
+      return;
+    }
+    const target = resolveDefaultOpen(item);
+    if (target) {
+      openWindow(target.windowId, target.appId, target.title, target.icon, target.appProps);
     }
   };
 
@@ -295,6 +296,17 @@ const FileExplorer: React.FC = () => {
           onClose={() => setContextMenu(null)}
           options={contextMenu.item ? [
             { label: 'Abrir', onClick: () => handleDoubleClick(contextMenu.item!) },
+            ...(contextMenu.item.type === 'file'
+              ? [{
+                  label: 'Abrir con',
+                  onClick: () => {},
+                  submenu: getOpenTargetsForExt(contextMenu.item.ext).map((t) => ({
+                    label: t.label,
+                    icon: t.icon,
+                    onClick: () => openWithApp(contextMenu.item!, t.appId),
+                  })),
+                }]
+              : []),
             { label: 'Cortar', icon: <Cut20Regular />, onClick: () => cutItem(contextMenu.item!.id) },
             { label: 'Copiar', icon: <Copy20Regular />, onClick: () => copyItem(contextMenu.item!.id) },
             { label: 'Eliminar', icon: <Delete20Regular />, onClick: () => deleteItem(contextMenu.item!.id) },

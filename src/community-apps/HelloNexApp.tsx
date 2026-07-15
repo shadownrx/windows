@@ -51,7 +51,7 @@ export default function HelloNexApp({ greet = 'Hello NEX' }: HelloProps) {
         <code style={codeStyle}>useOpenApp</code> y hooks del host.
       </p>
       <p style={{ margin: '0 0 20px', fontSize: 12, opacity: 0.5 }}>
-        Tip: Win+R → <code style={codeStyle}>hello</code>
+        Tip: Ctrl+Alt+R → <code style={codeStyle}>hello</code>
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <button

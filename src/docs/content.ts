@@ -584,7 +584,7 @@ Vite /hermes proxy  ──►  llamadas REST opcionales sin CORS`,
             type: 'hero',
             eyebrow: '@nex-os/sdk · 0.2.0',
             title: 'Creá apps para NEX OS',
-            lead: 'defineApp tipado, useOpenApp, aliases en Win+R, y hooks del host (ventanas, settings, música).',
+            lead: 'defineApp tipado, useOpenApp, aliases en Ctrl+Alt+R, y hooks del host (ventanas, settings, música).',
           },
           {
             type: 'callout',
@@ -847,7 +847,7 @@ openApp('mi-app', { mode: 'pro' });`,
             code: `const openApp = useOpenApp();
 openApp('sdk-docs');
 
-// Win+R → hello | sdk | mia
+// Ctrl+Alt+R → hello | sdk | mia
 
 const { addNotification } = useSettings();
 addNotification('Mi App', 'Listo.');`,

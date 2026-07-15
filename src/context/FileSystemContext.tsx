@@ -38,7 +38,8 @@ interface FileSystemContextType {
   renameItem: (id: string, newName: string) => void;
   copyItem: (id: string) => void;
   cutItem: (id: string) => void;
-  pasteItem: (targetParentId: string) => void;
+  /** Returns the pasted item id (new copy or moved), or null if clipboard empty. */
+  pasteItem: (targetParentId: string) => string | null;
   clipboard: { id: string; type: 'copy' | 'cut' } | null;
   /** Path-based FS (IndexedDB blobs + VFS metadata). */
   nexFs: NexFs;
@@ -188,24 +189,28 @@ export const FileSystemProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const cutItem = useCallback((id: string) => setClipboard({ id, type: 'cut' }), []);
 
   const pasteItem = useCallback(
-    (targetParentId: string) => {
-      if (!clipboard) return;
+    (targetParentId: string): string | null => {
+      if (!clipboard) return null;
+      let resultId: string | null = null;
       setFiles((prev) => {
         const item = prev.find((f) => f.id === clipboard.id);
         if (!item) return prev;
         if (clipboard.type === 'copy') {
+          resultId = genId();
           const newItem: FileItem = {
             ...item,
-            id: genId(),
+            id: resultId,
             name: `${item.name} - Copia`,
             parentId: targetParentId,
             modified: new Date().toLocaleDateString('es-ES'),
           };
           return [...prev, newItem];
         }
+        resultId = clipboard.id;
         setClipboard(null);
         return prev.map((f) => (f.id === clipboard.id ? { ...f, parentId: targetParentId } : f));
       });
+      return resultId;
     },
     [clipboard],
   );

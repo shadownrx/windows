@@ -19,8 +19,8 @@ import {
 } from '@fluentui/react-icons';
 import { getCommunityLauncherItems, subscribeRegistry } from '@nex-os/sdk';
 import { useWindowManager } from '../context/WindowManager';
-
 import { useSettings } from '../context/SettingsContext';
+import { formatRecentWhen, recentAppsWithIcons } from '../utils/recentApps';
 
 
 interface StartMenuProps {
@@ -45,12 +45,19 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
   const [searchQuery, setSearchQuery] = useState('');
 
   const [registryTick, setRegistryTick] = useState(0);
+  const [recentsTick, setRecentsTick] = useState(0);
   useEffect(() => subscribeRegistry(() => setRegistryTick((n) => n + 1)), []);
+  useEffect(() => {
+    const onRecents = () => setRecentsTick((n) => n + 1);
+    window.addEventListener('nex-recents-changed', onRecents);
+    return () => window.removeEventListener('nex-recents-changed', onRecents);
+  }, []);
 
   const pinnedApps: App[] = useMemo(() => {
     const builtins: App[] = [
       { id: 'browser', appId: 'browser', icon: <Globe24Regular />, name: 'Edge', color: '#0078d4' },
       { id: 'files', appId: 'file-explorer', icon: <Folder24Regular />, name: 'Explorador', color: '#f1c40f' },
+      { id: 'nex-store', appId: 'nex-store', icon: <span style={{ fontSize: 20 }}>🛒</span>, name: 'NEX Store', color: '#3dd6c6' },
       { id: 'notepad', appId: 'notepad', icon: <Document24Regular />, name: 'Bloc de notas', color: '#4CAF50' },
       { id: 'calculator', appId: 'calculator', icon: <Calculator24Regular />, name: 'Calculadora', color: '#D32F2F' },
       { id: 'cmd', appId: 'cmd', icon: <span style={{ fontFamily: 'Consolas, monospace', fontSize: 18 }}>C:\\</span>, name: 'Terminal', color: '#64b5f6' },
@@ -81,12 +88,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
     return [...builtins, ...community];
   }, [registryTick]);
 
-  const recommended = [
-    { name: 'Informe Financiero', date: 'Agregado recientemente' },
-    { name: 'Fotos de Vacaciones', date: 'Hace 2 horas' },
-    { name: 'Hoja de Ruta Proyecto', date: 'Ayer' },
-    { name: 'Notas de la Reunión', date: '20 de marzo' },
-  ];
+  const recentApps = useMemo(() => recentAppsWithIcons(), [recentsTick, isOpen, registryTick]);
 
   const filteredApps = pinnedApps.filter(app => 
     app.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -142,18 +144,40 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
 
               <div className="section">
                 <div className="section-header">
-                  <h3>Recomendado</h3>
-                  <button className="section-action">Más &gt;</button>
+                  <h3>Recientes</h3>
+                  <button
+                    className="section-action"
+                    onClick={() => {
+                      openWindow('nex-store', 'nex-store', 'NEX Store', <span>🛒</span>);
+                      onClose();
+                    }}
+                  >
+                    NEX Store &gt;
+                  </button>
                 </div>
                 <div className="recommended-grid">
-                  {recommended.map((item, index) => (
-                    <button key={index} className="rec-item">
-                      <div className="rec-icon">
-                        <Document24Regular />
-                      </div>
+                  {recentApps.length === 0 && (
+                    <div className="rec-item" style={{ opacity: 0.55, cursor: 'default' }}>
+                      <div className="rec-icon"><Apps24Regular /></div>
                       <div className="rec-text">
-                        <span className="rec-name">{item.name}</span>
-                        <span className="rec-sub">{item.date}</span>
+                        <span className="rec-name">Todavía no hay recientes</span>
+                        <span className="rec-sub">Abrí una app y aparece acá</span>
+                      </div>
+                    </div>
+                  )}
+                  {recentApps.map((item) => (
+                    <button
+                      key={`${item.id}-${item.openedAt}`}
+                      className="rec-item"
+                      onClick={() => {
+                        openWindow(item.id, item.appId, item.title, item.icon);
+                        onClose();
+                      }}
+                    >
+                      <div className="rec-icon">{item.icon}</div>
+                      <div className="rec-text">
+                        <span className="rec-name">{item.title}</span>
+                        <span className="rec-sub">{formatRecentWhen(item.openedAt)}</span>
                       </div>
                     </button>
                   ))}

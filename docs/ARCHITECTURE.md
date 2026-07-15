@@ -360,7 +360,7 @@ NexRuntimeProvider
 Los archivos `.nex` son ejecutables virtuales (análogos a `.exe` en Windows) que permiten lanzar aplicaciones registradas en el sistema.
 
 - **Doble clic en FileExplorer**: Detecta la extensión `.nex`, lee la metadata (`nexPayload`) y utiliza `openWindow` del `WindowManager` para iniciar la aplicación correcta con su respectivo icono.
-- **Diálogo Ejecutar (Win+R)**: Permite lanzar archivos `.nex` de forma directa o implícita (p. ej. escribir `notepad` resuelve a `notepad.nex` usando `resolveNex`).
+- **Diálogo Ejecutar (Ctrl+Alt+R)**: Permite lanzar archivos `.nex` de forma directa o implícita (p. ej. escribir `notepad` resuelve a `notepad.nex` usando `resolveNex`). Los atajos usan `Ctrl+Alt+*` porque Windows captura `Win+*` / `Alt+Tab` antes del browser.
 - **Llamadas desde Terminal/CMD**: El comando `./vscode.nex` o `vscode.nex` busca en la ruta actual o en `C:\Program Files\NEX\` para lanzar la aplicación directamente en el entorno de ventanas.
 
 ### Flujo de Comandos de Paquetes (NPM y PNPM)

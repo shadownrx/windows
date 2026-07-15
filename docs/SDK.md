@@ -2,7 +2,7 @@
 
 **`@nex-os/sdk` v0.2.0** — la API oficial para crear apps que viven dentro de NEX OS.
 
-Abrí una ventana, anclala a la taskbar, aparecé en Buscar, Start y **Win+R**. Sin tocar el núcleo del shell: registrás un manifest y listo.
+Abrí una ventana, anclala a la taskbar, aparecé en Buscar, Start y **Ctrl+Alt+R** (Ejecutar). Sin tocar el núcleo del shell: registrás un manifest y listo.
 
 | | |
 | :--- | :--- |
@@ -86,7 +86,7 @@ npm run dev
 ```
 
 - **Buscar** → título → Enter  
-- **Win+R** → `mia` (alias)  
+- **Ctrl+Alt+R** → `mia` (alias)  
 - Si `pinToTaskbar: true`, también aparece en el dock
 
 ---
@@ -214,7 +214,7 @@ const openApp = useOpenApp();
 openApp('sdk-docs');
 ```
 
-### Win+R
+### Ejecutar (Ctrl+Alt+R)
 
 ```
 hello

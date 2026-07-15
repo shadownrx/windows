@@ -15,6 +15,8 @@ interface Process {
   icon: string;
   rank?: number;  // 0=low 1=normal 2=high 3=critical (from WASM)
   trend?: number; // -1 | 0 | 1
+  /** When set, Finalizar tarea closes this window in the shell. */
+  windowId?: string;
 }
 
 type Tab = "processes" | "perf" | "services" | "startup" | "details";
@@ -238,7 +240,7 @@ export default function TaskManager() {
     fetchSystem();
   }, []);
 
-  const { windows, focusedWindowId } = useWindowManager();
+  const { windows, focusedWindowId, closeWindow } = useWindowManager();
 
 
 
@@ -270,10 +272,10 @@ export default function TaskManager() {
       const openWindowNames = windows.filter(w => w.isOpen).map(w => w.title);
 
       const appProcesses: Process[] = windows.filter(w => w.isOpen).map((win, index) => {
-        const stats = appStats[win.id.split('-')[0]] || { mem: 50, cpuBase: 1.0, name: win.title, icon: '#767676' };
+        const stats = appStats[win.appId] || appStats[win.id.split('-')[0]] || { mem: 50, cpuBase: 1.0, name: win.title, icon: '#767676' };
         const activeCpu = focusedWindowId === win.id ? (stats.cpuBase * 2.2) : stats.cpuBase;
         return {
-          id: index,
+          id: 100 + index,
           pid: 5000 + index * 12,
           name: stats.name || win.title,
           cpu: activeCpu,
@@ -283,6 +285,7 @@ export default function TaskManager() {
           icon: wasm.isReady ? wasm.processColor(stats.name || win.title) : stats.icon,
           rank: 0,
           trend: 0,
+          windowId: win.id,
         };
       });
 
@@ -337,9 +340,13 @@ export default function TaskManager() {
 
   const handleEndTask = useCallback(() => {
     if (selectedId === null) return;
+    const proc = processes.find((p) => p.id === selectedId);
+    if (proc?.windowId) {
+      closeWindow(proc.windowId);
+    }
     setProcesses((prev) => prev.filter((p) => p.id !== selectedId));
     setSelectedId(null);
-  }, [selectedId]);
+  }, [selectedId, processes, closeWindow]);
 
   // Group processes
   const groups = processes.reduce<Record<string, Process[]>>((acc, p) => {

@@ -30,6 +30,7 @@
     "buffer": "^6.0.3",
     "dotenv": "^17.4.2",
     "framer-motion": "^12.38.0",
+    "html-to-image": "^1.11.13",
     "ioredis": "^5.11.1",
     "isomorphic-git": "^1.38.7",
     "lucide-react": "^1.7.0",

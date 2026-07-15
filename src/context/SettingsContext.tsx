@@ -91,7 +91,20 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.getItem('win11_bluetooth') !== 'false'
   );
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'downloading' | 'up-to-date'>('idle');
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>(() => {
+    try {
+      const raw = localStorage.getItem('win11_notifications');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as Array<Omit<Notification, 'timestamp' | 'icon'> & { timestamp: string }>;
+      return parsed.map((n) => ({
+        ...n,
+        icon: undefined,
+        timestamp: new Date(n.timestamp),
+      }));
+    } catch {
+      return [];
+    }
+  });
   const [isTaskViewOpen, setIsTaskViewOpen] = useState(false);
 
   // Multi-User States
@@ -127,6 +140,16 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     localStorage.setItem('win11_users', JSON.stringify(users));
   }, [users]);
+
+  useEffect(() => {
+    const lean = notifications.map(({ id, title, message, timestamp }) => ({
+      id,
+      title,
+      message,
+      timestamp: timestamp instanceof Date ? timestamp.toISOString() : timestamp,
+    }));
+    localStorage.setItem('win11_notifications', JSON.stringify(lean));
+  }, [notifications]);
 
   // Derived User Settings
   const userName = currentUser?.name || 'Invitado';

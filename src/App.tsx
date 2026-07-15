@@ -1,18 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import Desktop from './components/Desktop';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { WindowManagerProvider } from './context/WindowManager';
-import OffScreen from './components/system/OffScreen';
-import BootScreen from './components/system/BootScreen';
-import LoginScreen from './components/system/LoginScreen';
-import ShutdownScreen from './components/system/ShutdownScreen';
-import RestartScreen from './components/system/restart';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import NotificationContainer from './components/system/NotificationToast';
 import { Info24Regular } from '@fluentui/react-icons';
-import Background3D from './components/system/Background3D';
-import UEFI from './components/system/UEFI';
-import NexDesktop from './components/nexos/NexDesktop';
-import WindowsBoot from './components/system/WindowsBoot';
+import { FileSystemProvider } from './context/FileSystemContext';
+import { DesktopProvider } from './context/DesktopContext';
+import { UIProvider } from './context/UIContext';
+import { NexRuntimeProvider } from './context/NexRuntimeContext';
+import { MusicPlayerProvider } from './context/MusicPlayerContext';
+
+const OffScreen = lazy(() => import('./components/system/OffScreen'));
+const BootScreen = lazy(() => import('./components/system/BootScreen'));
+const LoginScreen = lazy(() => import('./components/system/LoginScreen'));
+const ShutdownScreen = lazy(() => import('./components/system/ShutdownScreen'));
+const RestartScreen = lazy(() => import('./components/system/restart'));
+const Background3D = lazy(() => import('./components/system/Background3D'));
+const UEFI = lazy(() => import('./components/system/UEFI'));
+const WindowsBoot = lazy(() => import('./components/system/WindowsBoot'));
+const Desktop = lazy(() => import('./components/Desktop'));
+const NexDesktop = lazy(() => import('./components/nexos/NexDesktop'));
+
+function ScreenFallback() {
+  return <div className="w-screen h-screen bg-black" aria-hidden />;
+}
 
 function AppContent() {
   const { isNightLightEnabled, systemState, setSystemState, addNotification, playSound, wallpaper, osType, setOsType } = useSettings();
@@ -38,8 +48,6 @@ function AppContent() {
       if (osType === 'windows') {
         playSound('startup');
         addNotification('Bienvenido', 'Nex OS esta listo para usarse', <Info24Regular />);
-      } else {
-        // Sonido o notificación para NEX OS si se desea
       }
       hasLoggedInRef.current = true;
     }
@@ -49,7 +57,7 @@ function AppContent() {
     }
 
     return () => clearTimeout(timeout);
-  }, [systemState, setSystemState, addNotification, playSound]);
+  }, [systemState, setSystemState, addNotification, playSound, osType, setOsType]);
 
 
   return (
@@ -63,46 +71,42 @@ function AppContent() {
         />
       )}
 
-      {/* Global 背景 3D - Solo mostrar en el Escritorio */}
-      {systemState === 'DESKTOP' && <Background3D />}
+      <Suspense fallback={<ScreenFallback />}>
+        {/* Global 3D — solo escritorio; chunk Three.js fuera del critical path */}
+        {systemState === 'DESKTOP' && <Background3D />}
 
-      {/* 1. Ciclo de Vida: Pantallas */}
-      {systemState === 'OFF' && <OffScreen onPowerOn={() => setSystemState('BOOTING')} />}
-      {systemState === 'BOOTING' && <BootScreen />}
-      {systemState === 'WINDOWS_BOOT' && <WindowsBoot />}
-      {systemState === 'UEFI' && (
-        <UEFI
-          onBootWindows={() => setSystemState('WINDOWS_BOOT')}
-          onBootNexOS={() => {
-            setSystemState('LOGIN');
-          }}
-          setOsType={setOsType}
-        />
-      )}
-      {systemState === 'LOGIN' && <LoginScreen onLogin={() => setSystemState('DESKTOP')} wallpaper={wallpaper} />}
-      {systemState === 'DESKTOP' && (
-        osType === 'windows' ? (
-          <Desktop
-            onShutdown={() => setSystemState('SHUTTING_DOWN')}
-            onRestart={() => setSystemState('RESTARTING')}
+        {/* 1. Ciclo de Vida: Pantallas */}
+        {systemState === 'OFF' && <OffScreen onPowerOn={() => setSystemState('BOOTING')} />}
+        {systemState === 'BOOTING' && <BootScreen />}
+        {systemState === 'WINDOWS_BOOT' && <WindowsBoot />}
+        {systemState === 'UEFI' && (
+          <UEFI
+            onBootWindows={() => setSystemState('WINDOWS_BOOT')}
+            onBootNexOS={() => {
+              setSystemState('LOGIN');
+            }}
+            setOsType={setOsType}
           />
-        ) : (
-          <NexDesktop />
-        )
-      )}
-      {systemState === 'SHUTTING_DOWN' && <ShutdownScreen />}
-      {systemState === 'RESTARTING' && <RestartScreen />}
+        )}
+        {systemState === 'LOGIN' && <LoginScreen onLogin={() => setSystemState('DESKTOP')} wallpaper={wallpaper} />}
+        {systemState === 'DESKTOP' && (
+          osType === 'windows' ? (
+            <Desktop
+              onShutdown={() => setSystemState('SHUTTING_DOWN')}
+              onRestart={() => setSystemState('RESTARTING')}
+            />
+          ) : (
+            <NexDesktop />
+          )
+        )}
+        {systemState === 'SHUTTING_DOWN' && <ShutdownScreen />}
+        {systemState === 'RESTARTING' && <RestartScreen />}
+      </Suspense>
 
       <NotificationContainer />
     </div>
   );
 }
-
-import { FileSystemProvider } from './context/FileSystemContext';
-import { DesktopProvider } from './context/DesktopContext';
-import { UIProvider } from './context/UIContext';
-import { NexRuntimeProvider } from './context/NexRuntimeContext';
-import { MusicPlayerProvider } from './context/MusicPlayerContext';
 
 function App() {
   return (

@@ -582,9 +582,9 @@ Vite /hermes proxy  ──►  llamadas REST opcionales sin CORS`,
         blocks: [
           {
             type: 'hero',
-            eyebrow: '@nex-os/sdk · 0.1.0',
+            eyebrow: '@nex-os/sdk · 0.2.0',
             title: 'Creá apps para NEX OS',
-            lead: 'Registrá un manifest con defineApp y tu ventana aparece en Taskbar, Start y Buscar — sin tocar el núcleo del shell.',
+            lead: 'defineApp tipado, useOpenApp, aliases en Win+R, y hooks del host (ventanas, settings, música).',
           },
           {
             type: 'callout',
@@ -641,28 +641,30 @@ Vite /hermes proxy  ──►  llamadas REST opcionales sin CORS`,
             lang: 'tsx',
             code: `// src/community-apps/MiApp.tsx
 import React from 'react';
-import { defineApp, type NexAppProps } from '@nex-os/sdk';
+import { defineApp } from '@nex-os/sdk';
 
-function MiApp(_props: NexAppProps) {
+type Props = { mode?: string };
+
+function MiApp({ mode = 'demo' }: Props) {
   return (
     <div style={{ height: '100%', padding: 24, color: '#e8f0ff', background: '#0b1220' }}>
       <h1 style={{ margin: 0 }}>Mi App</h1>
-      <p style={{ opacity: 0.7 }}>Corriendo dentro de NEX OS.</p>
+      <p style={{ opacity: 0.7 }}>Modo: {mode}</p>
     </div>
   );
 }
 
-export default defineApp({
+export default defineApp<Props>({
   id: 'mi-app',
   appId: 'mi-app',
   title: 'Mi App',
   icon: <span style={{ fontSize: 18 }}>⚡</span>,
   component: MiApp,
-  description: 'Mi primera community app',
-  author: '@vos',
-  version: '0.1.0',
   pinToTaskbar: true,
   category: 'tools',
+  permissions: ['windows', 'settings'],
+  defaultProps: { mode: 'demo' },
+  aliases: ['mia'],
 });`,
           },
           {
@@ -719,9 +721,10 @@ import './MiApp';`,
               ['description', 'string', '', 'Catálogo'],
               ['author', 'string', '', 'Handle'],
               ['version', 'string', '', 'Semver'],
-              ['defaultProps', 'object', '', 'Props al abrir'],
+              ['defaultProps', 'Partial<TProps>', '', 'Props al abrir'],
               ['pinToTaskbar', 'boolean', '', 'Dock aunque cerrada'],
               ['category', 'union', '', 'tools | media | games | dev | social | other'],
+              ['permissions', 'NexAppPermission[]', '', 'Contrato (sandbox roadmap)'],
             ],
           },
           {
@@ -734,7 +737,7 @@ import './MiApp';`,
             items: [
               'Ocupá todo el alto — height 100% / flex 1',
               'No dibujés titlebar propia — NEX la provee',
-              'Props libres (NexAppProps bag)',
+              'Props tipadas con defineApp<TProps>',
               'Evítá trabajo pesado en el top-level del módulo salvo defineApp',
             ],
           },
@@ -747,20 +750,19 @@ import './MiApp';`,
         blocks: [
           {
             type: 'hero',
-            eyebrow: 'Reference',
+            eyebrow: 'Reference · 0.2',
             title: 'API del package',
-            lead: 'Registry + helpers de launcher.',
+            lead: 'Registry tipado, resolve/openApp y host bridge.',
           },
           {
             type: 'code',
             lang: 'ts',
             code: `import {
   defineApp,
-  registerApp,
-  unregisterApp,
-  getRegisteredApp,
+  resolveRegisteredApp,
+  createOpenApp,
+  getAppsByCategory,
   listRegisteredApps,
-  getCommunityLauncherItems,
   subscribeRegistry,
 } from '@nex-os/sdk';`,
           },
@@ -768,12 +770,11 @@ import './MiApp';`,
             type: 'table',
             headers: ['Función', 'Qué hace'],
             rows: [
-              ['defineApp(m)', 'Registra + devuelve el manifest'],
-              ['registerApp(m)', 'Solo registra'],
-              ['unregisterApp(appId)', 'Saca del registry'],
-              ['getRegisteredApp(appId)', 'Lookup (aliases)'],
+              ['defineApp<T>(m)', 'Registra + devuelve (props tipadas)'],
+              ['resolveRegisteredApp(q)', 'id / alias / título'],
+              ['createOpenApp(openWindow)', 'Helper puro para abrir'],
+              ['getAppsByCategory(cat)', 'Filtro por categoría'],
               ['listRegisteredApps()', 'Manifests únicos'],
-              ['getCommunityLauncherItems()', 'Items Taskbar/Search'],
               ['subscribeRegistry(fn)', 'Callback altas/bajas → unsubscribe'],
             ],
           },
@@ -790,12 +791,26 @@ import './MiApp';`,
             type: 'code',
             lang: 'ts',
             code: `import {
+  useOpenApp,
   useWindowManager,
   useSettings,
+  useMusicPlayer,
   useDesktop,
   useFileSystem,
   useUI,
 } from '../sdk/host';`,
+          },
+          {
+            type: 'h3',
+            id: 'open-app',
+            text: 'useOpenApp',
+          },
+          {
+            type: 'code',
+            lang: 'ts',
+            code: `const openApp = useOpenApp();
+openApp('hello');
+openApp('mi-app', { mode: 'pro' });`,
           },
           {
             type: 'h3',
@@ -805,21 +820,20 @@ import './MiApp';`,
           {
             type: 'ul',
             items: [
-              'openWindow / closeWindow / minimizeWindow / maximizeWindow / focusWindow',
+              'openWindow / closeWindow / minimizeWindow / maximizeWindow / snapWindow / focusWindow',
               'windows · focusedWindowId',
             ],
           },
           {
             type: 'h3',
             id: 'settings',
-            text: 'useSettings',
+            text: 'useSettings · useMusicPlayer',
           },
           {
             type: 'ul',
             items: [
-              'accentColor / setAccentColor',
-              'addNotification(title, message, icon?)',
-              'userName · volume · isWifiEnabled',
+              'accentColor / addNotification',
+              'useMusicPlayer — playTrack, queue, favorites',
             ],
           },
           {
@@ -830,8 +844,10 @@ import './MiApp';`,
           {
             type: 'code',
             lang: 'tsx',
-            code: `const { openWindow } = useWindowManager();
-openWindow('notepad', 'notepad', 'Bloc de notas', <span>📝</span>);
+            code: `const openApp = useOpenApp();
+openApp('sdk-docs');
+
+// Win+R → hello | sdk | mia
 
 const { addNotification } = useSettings();
 addNotification('Mi App', 'Listo.');`,

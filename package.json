@@ -14,7 +14,9 @@
     "build": "npm run build:as && tsc -b && vite build",
     "build:as": "asc assembly/index.ts --target release",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sdk:build": "npm run build --workspace=@nex-os/sdk",
+    "sdk:publish": "npm publish --workspace=@nex-os/sdk --access public"
   },
   "dependencies": {
     "@fluentui/react-icons": "^2.0.322",
@@ -25,9 +27,11 @@
     "@socket.io/redis-adapter": "^8.3.0",
     "@supabase/supabase-js": "^2.110.2",
     "@types/three": "^0.183.1",
+    "buffer": "^6.0.3",
     "dotenv": "^17.4.2",
     "framer-motion": "^12.38.0",
     "ioredis": "^5.11.1",
+    "isomorphic-git": "^1.38.7",
     "lucide-react": "^1.7.0",
     "monaco-editor": "^0.55.1",
     "react": "^19.2.4",

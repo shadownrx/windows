@@ -255,9 +255,12 @@ const Window: React.FC<WindowProps> = ({ window: appWindow }) => {
         </div>
       </div>
       <div className="window-content" style={{ pointerEvents: isDragging || isResizing ? 'none' : 'auto' }}>
-        <ErrorBoundary appName={appWindow.title}>
-          <AppRegistry appId={appWindow.appId} appProps={appWindow.appProps} />
-        </ErrorBoundary>
+        {/* Unmount app content while minimized so heavy apps (Monaco, Spotify, DJ) stop work */}
+        {!appWindow.isMinimized && (
+          <ErrorBoundary appName={appWindow.title}>
+            <AppRegistry appId={appWindow.appId} appProps={appWindow.appProps} />
+          </ErrorBoundary>
+        )}
       </div>
 
       <style>{`

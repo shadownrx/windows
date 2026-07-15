@@ -1,13 +1,25 @@
 import type { ComponentType, ReactNode } from 'react';
 
-/** Props bag passed into every windowed app. */
+/** Props bag passed into every windowed app. Specialize with generics on `defineApp`. */
 export type NexAppProps = Record<string, unknown>;
+
+/** Declared capabilities — documented now; sandbox enforcement is roadmap. */
+export type NexAppPermission =
+  | 'windows'
+  | 'settings'
+  | 'fs'
+  | 'desktop'
+  | 'ui'
+  | 'music'
+  | 'notifications';
+
+export type NexAppCategory = 'tools' | 'media' | 'games' | 'dev' | 'social' | 'other';
 
 /**
  * Manifest de una app de NEX OS.
- * Registrala con `registerApp()` y el shell la puede abrir como ventana.
+ * Registrala con `defineApp()` / `registerApp()` y el shell la abre como ventana.
  */
-export interface NexAppManifest {
+export interface NexAppManifest<TProps extends NexAppProps = NexAppProps> {
   /** Id de ventana por defecto (único por escritorio). */
   id: string;
   /** Clave que resuelve AppRegistry (puede coincidir con id). */
@@ -17,8 +29,8 @@ export interface NexAppManifest {
   /** Icono React (Fluent, SVG, emoji wrapper, etc.). */
   icon: ReactNode;
   /** Componente raíz — ocupa el 100% del área de contenido. */
-  component: ComponentType<NexAppProps>;
-  /** Alias adicionales de appId (Run dialog, .nex, etc.). */
+  component: ComponentType<TProps>;
+  /** Alias adicionales (Run dialog, Buscar, etc.). Case-insensitive al resolver. */
   aliases?: string[];
   /** Descripción corta para el catálogo de community apps. */
   description?: string;
@@ -27,11 +39,16 @@ export interface NexAppManifest {
   /** Versión semver informativa. */
   version?: string;
   /** Props por defecto al abrir. */
-  defaultProps?: NexAppProps;
+  defaultProps?: Partial<TProps>;
   /** Mostrar en taskbar aunque esté cerrada. */
   pinToTaskbar?: boolean;
-  /** Categoría libre para filtros futuros. */
-  category?: 'tools' | 'media' | 'games' | 'dev' | 'social' | 'other';
+  /** Categoría para filtros / catálogo. */
+  category?: NexAppCategory;
+  /**
+   * Capacidades que la app usa del host.
+   * Hoy es contrato documental; el sandbox las aplicará más adelante.
+   */
+  permissions?: NexAppPermission[];
 }
 
 export interface NexLauncherItem {
@@ -43,6 +60,29 @@ export interface NexLauncherItem {
   description?: string;
   author?: string;
   community?: boolean;
+  category?: NexAppCategory;
 }
 
 export type RegistryListener = () => void;
+
+/** Signature compatible with the shell `openWindow`. */
+export type NexOpenWindowFn = (
+  id: string,
+  appId: string,
+  title: string,
+  icon: ReactNode,
+  appProps?: NexAppProps,
+) => void;
+
+/** Minimal track shape for music-aware community apps. */
+export interface NexTrack {
+  id: string;
+  title: string;
+  artist: string;
+  cover: string;
+  url: string;
+  embedUrl?: string;
+  service: 'youtube' | 'youtube-music' | 'spotify' | 'local';
+  kind?: 'video' | 'playlist';
+  videoId?: string;
+}

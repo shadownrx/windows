@@ -31,6 +31,23 @@ interface TaskbarProps {
   onSearchClick?: () => void;
 }
 
+/** Isolated so the 1s tick does not re-render the whole taskbar. */
+function TaskbarClock({ onClockClick }: { onClockClick?: () => void }) {
+  const [time, setTime] = React.useState(() => new Date());
+
+  React.useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="taskbar-clock" onClick={(e) => { e.stopPropagation(); onClockClick?.(); }}>
+      <div className="time">{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+      <div className="date">{time.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
+    </div>
+  );
+}
+
 const Taskbar: React.FC<TaskbarProps> = ({ 
   onStartClick, 
   isStartOpen, 
@@ -48,16 +65,11 @@ const Taskbar: React.FC<TaskbarProps> = ({
   const launcherApps = useLauncherApps();
   const [startContextMenu, setStartContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
   const [taskbarContextMenu, setTaskbarContextMenu] = React.useState<{ isOpen: boolean; x: number; y: number }>({ isOpen: false, x: 0, y: 0 });
-  const [time, setTime] = React.useState(new Date());
   const [isHovered, setIsHovered] = React.useState(false);
 
   // El dock es visible si se pasa el ratón por encima, o si hay un menú importante abierto
   const isVisible = isHovered || isStartOpen || isWidgetsOpen || startContextMenu.isOpen || taskbarContextMenu.isOpen;
 
-  React.useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const [allMinimized, setAllMinimized] = React.useState(false);
 
@@ -189,10 +201,7 @@ const Taskbar: React.FC<TaskbarProps> = ({
           </div>
         </div>
 
-        <div className="taskbar-clock" onClick={(e) => { e.stopPropagation(); onClockClick?.(); }}>
-          <div className="time">{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-          <div className="date">{time.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
-        </div>
+        <TaskbarClock onClockClick={onClockClick} />
         
         <div className="show-desktop" onClick={(e) => { e.stopPropagation(); toggleShowDesktop(); }} />
       </div>

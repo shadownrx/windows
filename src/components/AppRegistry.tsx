@@ -148,9 +148,10 @@ const AppRegistry: React.FC<AppRegistryProps> = ({ appId, appProps }) => {
   const community = getRegisteredApp(appId);
   if (community) {
     const Comp = community.component;
+    const props = { ...(community.defaultProps || {}), ...(appProps || {}) };
     return (
       <Suspense fallback={<Fallback />}>
-        <Comp {...(appProps || community.defaultProps || {})} />
+        <Comp {...props} />
       </Suspense>
     );
   }

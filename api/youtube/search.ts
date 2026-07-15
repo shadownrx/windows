@@ -287,7 +287,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const resolved = await resolvePipedStream(streamId);
       if (!resolved) {
-        return res.status(502).json({ error: 'No se pudo resolver el stream de audio' });
+        return res.status(502).json({
+          error: 'No se pudo resolver el stream de audio',
+          hint:
+            'Piped falla en muchos videos. En producción necesitás el music server (yt-dlp) y VITE_MUSIC_SERVER_URL en Vercel, luego redeploy.',
+        });
       }
       res.setHeader('Cache-Control', 's-maxage=180, stale-while-revalidate=420');
       return res.status(200).json(resolved);

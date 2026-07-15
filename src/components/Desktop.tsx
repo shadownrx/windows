@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { resolveRegisteredApp } from '@nex-os/sdk';
 import { useSettings } from '../context/SettingsContext';
 import Taskbar from './Taskbar';
 import StartMenu from './StartMenu';
@@ -100,6 +101,21 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     }
 
     setRunError('');
+
+    // Community apps (@nex-os/sdk) — appId, alias o título
+    const community = resolveRegisteredApp(normalized);
+    if (community) {
+      openWindow(
+        community.id,
+        community.appId,
+        community.title,
+        community.icon,
+        community.defaultProps as Record<string, unknown> | undefined,
+      );
+      setRunDialogOpen(false);
+      setRunCommand('');
+      return;
+    }
 
     // Check .nex execution via runtime registry
     const nexApp = resolveNex(normalized);

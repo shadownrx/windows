@@ -39,37 +39,51 @@ export const Waveform: React.FC<Props> = ({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
-    // Console waveform bed
     const bed = ctx.createLinearGradient(0, 0, 0, h);
-    bed.addColorStop(0, '#060a10');
-    bed.addColorStop(1, '#0b121a');
+    bed.addColorStop(0, '#05080e');
+    bed.addColorStop(0.5, '#0a121c');
+    bed.addColorStop(1, '#060a10');
     ctx.fillStyle = bed;
     ctx.fillRect(0, 0, w, h);
+
+    // Center guide
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.beginPath();
+    ctx.moveTo(0, h / 2);
+    ctx.lineTo(w, h / 2);
+    ctx.stroke();
 
     const data = peaks && peaks.length > 0 ? peaks : null;
     const bars = Math.min(data?.length || 160, Math.floor(w / 2));
     const mid = h / 2;
-    const gap = 0.5;
+    const gap = 0.6;
     const barW = Math.max(1, (w - gap * bars) / bars);
     const progress = duration > 0 ? currentTime / duration : 0;
 
     for (let i = 0; i < bars; i++) {
       const srcIdx = data ? Math.floor((i / bars) * data.length) : i;
-      const amp = data ? data[srcIdx] : 0.18 + 0.28 * Math.sin(i * 0.17);
-      const bh = Math.max(2, amp * (h * 0.88));
+      const amp = data ? data[srcIdx] : 0.12 + 0.2 * Math.sin(i * 0.17);
+      const bh = Math.max(2, amp * (h * 0.9));
       const x = i * (barW + gap);
       const played = i / bars <= progress;
-      ctx.fillStyle = played ? accent : 'rgba(170, 195, 220, 0.22)';
+      if (played) {
+        const g = ctx.createLinearGradient(0, mid - bh / 2, 0, mid + bh / 2);
+        g.addColorStop(0, accent);
+        g.addColorStop(1, 'rgba(255,255,255,0.55)');
+        ctx.fillStyle = g;
+      } else {
+        ctx.fillStyle = 'rgba(160, 185, 210, 0.18)';
+      }
       ctx.fillRect(x, mid - bh / 2, barW, bh);
     }
 
     if (loop && duration > 0 && loop.outTime > loop.inTime) {
       const x1 = (loop.inTime / duration) * w;
       const x2 = (loop.outTime / duration) * w;
-      ctx.fillStyle = loop.enabled ? 'rgba(46, 196, 182, 0.22)' : 'rgba(46, 196, 182, 0.1)';
+      ctx.fillStyle = loop.enabled ? 'rgba(46, 196, 182, 0.2)' : 'rgba(46, 196, 182, 0.08)';
       ctx.fillRect(x1, 0, Math.max(2, x2 - x1), h);
       ctx.strokeStyle = '#2ec4b6';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.25;
       ctx.beginPath();
       ctx.moveTo(x1, 0);
       ctx.lineTo(x1, h);
@@ -84,13 +98,21 @@ export const Waveform: React.FC<Props> = ({
       const color = CUE_COLORS[(cue.id - 1) % CUE_COLORS.length] || accent;
       ctx.fillStyle = color;
       ctx.fillRect(x - 1, 0, 2, h);
-      ctx.fillRect(x - 4, 0, 8, 4);
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + 5, 0);
+      ctx.lineTo(x, 7);
+      ctx.closePath();
+      ctx.fill();
     }
 
     if (duration > 0) {
       const px = (currentTime / duration) * w;
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 8;
       ctx.fillStyle = '#fff';
-      ctx.fillRect(px - 0.75, 0, 1.5, h);
+      ctx.fillRect(px - 1, 0, 2, h);
+      ctx.shadowBlur = 0;
     }
   }, [accent, cues, currentTime, duration, loop, peaks]);
 

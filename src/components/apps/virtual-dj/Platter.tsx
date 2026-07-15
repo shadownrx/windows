@@ -10,6 +10,7 @@ type Props = {
   currentTime: number;
   duration: number;
   onSeek?: (time: number) => void;
+  empty?: boolean;
 };
 
 /** Circular vinyl platter — spins while playing, ring shows progress. */
@@ -23,6 +24,7 @@ export const Platter: React.FC<Props> = ({
   currentTime,
   duration,
   onSeek,
+  empty = false,
 }) => {
   const discRef = useRef<HTMLDivElement>(null);
   const angleRef = useRef(0);
@@ -66,9 +68,10 @@ export const Platter: React.FC<Props> = ({
 
   return (
     <div
-      className="vdj-platter"
+      className={`vdj-platter ${playing ? 'spinning' : ''} ${empty ? 'is-empty' : ''}`}
       style={{ ['--accent' as string]: accent }}
       onMouseDown={(e) => {
+        if (empty) return;
         dragging.current = true;
         seekFromEvent(e.clientX, e.clientY, e.currentTarget);
       }}
@@ -82,7 +85,7 @@ export const Platter: React.FC<Props> = ({
       onMouseLeave={() => {
         dragging.current = false;
       }}
-      title={title || `Deck ${label} platter`}
+      title={title || (empty ? `Soltá audio en deck ${label}` : `Deck ${label} platter`)}
     >
       <div className="vdj-platter-chassis">
         <svg className="vdj-platter-ring" viewBox="0 0 100 100" aria-hidden>
@@ -125,13 +128,14 @@ export const Platter: React.FC<Props> = ({
             ) : (
               <div className="vdj-platter-empty">
                 <span>{label}</span>
+                {empty && <small>DROP</small>}
               </div>
             )}
             <div className="vdj-platter-spindle" />
           </div>
         </div>
 
-        <div className="vdj-platter-tonearm" aria-hidden />
+        <div className={`vdj-platter-tonearm ${playing ? 'down' : ''}`} aria-hidden />
       </div>
     </div>
   );

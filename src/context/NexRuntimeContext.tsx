@@ -1,4 +1,9 @@
-import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback, useMemo } from 'react';
+import { useNexFs } from './FileSystemContext';
+import { createGitService } from '../runtime/git/gitService';
+import { writeNodeModuleStub, writePackageJson, readProjectFromFs } from '../runtime/npm/persist';
+import { resolveExecutable } from '../runtime/resolveExecutable';
+import { normalizePath } from '../runtime/fs/paths';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -29,36 +34,9 @@ export interface NexProject {
   devDependencies: Record<string, string>;
 }
 
-/** 
- * A .nex executable descriptor stored inside FileSystem metadata. 
- * When the runtime executes a .nex it looks up this registry.
- */
-export interface NexExecutable {
-  appId: string;
-  title: string;
-  args?: string[];
-  icon?: string;
-}
-
-// Built-in .nex app registry (maps filename → app)
-export const NEX_EXECUTABLE_REGISTRY: Record<string, NexExecutable> = {
-  'notepad.nex':     { appId: 'notepad',       title: 'Notepad' },
-  'cmd.nex':         { appId: 'cmd',            title: 'Terminal' },
-  'terminal.nex':    { appId: 'terminal',       title: 'Terminal' },
-  'browser.nex':     { appId: 'chrome',         title: 'Navegador' },
-  'chrome.nex':      { appId: 'chrome',         title: 'Google Chrome' },
-  'vscode.nex':      { appId: 'vscode',         title: 'Visual Studio Code' },
-  'explorer.nex':    { appId: 'file-explorer',  title: 'Explorador de archivos' },
-  'paint.nex':       { appId: 'paint',          title: 'Paint' },
-  'calc.nex':        { appId: 'calculator',     title: 'Calculadora' },
-  'taskmanager.nex': { appId: 'taskmanager',    title: 'Administrador de tareas' },
-  'spotify.nex':     { appId: 'spotify',        title: 'Spotify' },
-  'wordpad.nex':     { appId: 'wordpad',        title: 'WordPad' },
-  'defender.nex':    { appId: 'defender',       title: 'Seguridad de Windows' },
-  'settings.nex':    { appId: 'settings',       title: 'Configuración' },
-  'mediaplayer.nex': { appId: 'mediaplayer',    title: 'Reproductor multimedia' },
-  'devcpp.nex':      { appId: 'devcpp-2026',    title: 'Dev-C++ 2026' },
-};
+import type { NexExecutable } from '../runtime/nexRegistry';
+export type { NexExecutable } from '../runtime/nexRegistry';
+export { NEX_EXECUTABLE_REGISTRY } from '../runtime/nexRegistry';
 
 // Well-known npm/pnpm packages with realistic metadata
 export const KNOWN_PACKAGES: Record<string, Omit<NexPackage, 'name'>> = {
@@ -99,26 +77,22 @@ export const KNOWN_PACKAGES: Record<string, Omit<NexPackage, 'name'>> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface NexRuntimeContextType {
-  // Package state per virtual directory (key = path like "C:\projects\myapp")
   packages: Record<string, NexPackage[]>;
   projects: Record<string, NexProject>;
   processes: NexProcess[];
 
-  /** 
-   * Runs npm command. Returns an async generator of output lines.
-   * The consumer (Cmd/Terminal) should iterate and push lines to history.
-   */
   npmRun: (args: string[], cwd: string) => AsyncGenerator<string>;
-
-  /** Same but for pnpm */
   pnpmRun: (args: string[], cwd: string) => AsyncGenerator<string>;
+  gitRun: (args: string[], cwd: string) => AsyncGenerator<string>;
 
-  /** Execute a .nex file — returns the NexExecutable if found */
   resolveNex: (nameOrPath: string) => NexExecutable | null;
 
-  /** Install/query packages */
   getPackages: (cwd: string) => NexPackage[];
   getProject: (cwd: string) => NexProject | null;
+
+  spawnProcess: (name: string, cmd: string) => number;
+  endProcess: (pid: number, status?: 'done' | 'error') => void;
+  listProcesses: () => NexProcess[];
 }
 
 const NexRuntimeContext = createContext<NexRuntimeContextType | undefined>(undefined);
@@ -146,10 +120,39 @@ const pnpmVersion = '9.5.0';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const NexRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const nexFs = useNexFs();
+  const gitService = useMemo(
+    () => createGitService(nexFs, { name: 'NEX User', email: 'nex@local' }),
+    [nexFs],
+  );
+
   const [packages, setPackages] = useState<Record<string, NexPackage[]>>({});
   const [projects, setProjects] = useState<Record<string, NexProject>>({});
   const [processes, setProcesses] = useState<NexProcess[]>([]);
   const pidCounter = useRef(1000);
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+
+  const spawnProcess = useCallback((name: string, cmd: string) => {
+    const pid = pidCounter.current++;
+    const proc: NexProcess = {
+      pid,
+      name,
+      cmd,
+      startedAt: new Date().toISOString(),
+      status: 'running',
+    };
+    setProcesses((prev) => [...prev, proc]);
+    return pid;
+  }, []);
+
+  const endProcess = useCallback((pid: number, status: 'done' | 'error' = 'done') => {
+    setProcesses((prev) =>
+      prev.map((p) => (p.pid === pid ? { ...p, status } : p)),
+    );
+  }, []);
+
+  const listProcesses = useCallback(() => processes, [processes]);
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -176,31 +179,51 @@ export const NexRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return projects[cwd] ?? null;
   }, [projects]);
 
-  const initProject = useCallback((cwd: string, name: string) => {
-    setProjects(prev => ({
-      ...prev,
-      [cwd]: prev[cwd] ?? {
-        name,
+  const initProject = useCallback(async (cwd: string, name: string) => {
+    const key = normalizePath(cwd);
+    const proj: NexProject = projectsRef.current[key] ?? {
+      name,
+      version: '1.0.0',
+      description: '',
+      scripts: {
+        test: 'echo "Error: no test specified" && exit 1',
+        dev: 'vite',
+        build: 'vite build',
+      },
+      dependencies: {},
+      devDependencies: {},
+    };
+    setProjects((prev) => ({ ...prev, [key]: proj }));
+    await writePackageJson(nexFs, key, proj);
+    await nexFs.writeFile(
+      `${key}\\index.js`,
+      `console.log('Hello from ${name}');\n`,
+    );
+  }, [nexFs]);
+
+  const addProjectDep = useCallback(async (cwd: string, pkg: NexPackage, isDev = false) => {
+    const key = normalizePath(cwd);
+    let proj = projectsRef.current[key];
+    if (!proj) {
+      const fromDisk = await readProjectFromFs(nexFs, key);
+      proj = fromDisk ?? {
+        name: key.split('\\').pop() || 'project',
         version: '1.0.0',
         description: '',
         scripts: { test: 'echo "Error: no test specified" && exit 1' },
         dependencies: {},
         devDependencies: {},
-      },
-    }));
-  }, []);
-
-  const addProjectDep = useCallback((cwd: string, pkg: NexPackage, isDev = false) => {
-    setProjects(prev => {
-      const proj = prev[cwd];
-      if (!proj) return prev;
-      const key = isDev ? 'devDependencies' : 'dependencies';
-      return {
-        ...prev,
-        [cwd]: { ...proj, [key]: { ...proj[key], [pkg.name]: `^${pkg.version}` } },
       };
-    });
-  }, []);
+    }
+    const depKey = isDev ? 'devDependencies' : 'dependencies';
+    const next: NexProject = {
+      ...proj,
+      [depKey]: { ...proj[depKey], [pkg.name]: `^${pkg.version}` },
+    };
+    setProjects((prev) => ({ ...prev, [key]: next }));
+    await writePackageJson(nexFs, key, next);
+    await writeNodeModuleStub(nexFs, key, pkg);
+  }, [nexFs]);
 
   // ── npm generator ────────────────────────────────────────────────────────
 
@@ -254,7 +277,9 @@ export const NexRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         yield '';
         yield 'Is this OK? (yes) ';
         await sleep(200);
-        initProject(cwd, folderName);
+        const pid = spawnProcess('npm', `npm init (${folderName})`);
+        await initProject(cwd, folderName);
+        endProcess(pid);
         break;
       }
 
@@ -280,12 +305,16 @@ export const NexRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             break;
           }
           yield '';
+          const pid = spawnProcess('npm', 'npm install');
           for (const name of depNames) {
             const meta = resolvePackageMeta(name);
             await sleep(Math.random() * 300 + 100);
             yield `added ${name}@${meta.version}`;
-            addPkg(cwd, { name, ...meta });
+            const pkg = { name, ...meta };
+            addPkg(cwd, pkg);
+            await writeNodeModuleStub(nexFs, cwd, pkg);
           }
+          endProcess(pid);
           await sleep(400);
           yield '';
           yield `added ${depNames.length} packages, and audited ${depNames.length + 1} packages in ${(Math.random() * 3 + 0.5).toFixed(1)}s`;
@@ -314,9 +343,7 @@ export const NexRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const pkg: NexPackage = { name, ...meta, isDev };
           installed.push(pkg);
           addPkg(cwd, pkg);
-          
-          const proj = getProject(cwd);
-          if (proj) addProjectDep(cwd, pkg, isDev);
+          await addProjectDep(cwd, pkg, isDev);
         }
 
         await sleep(300);
@@ -733,34 +760,74 @@ export const NexRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }
 
-  // ── resolveNex ───────────────────────────────────────────────────────────
+  // ── resolveNex / git ─────────────────────────────────────────────────────
 
   const resolveNex = useCallback((nameOrPath: string): NexExecutable | null => {
-    // Normalize: strip path components, lowercase
-    let filename = nameOrPath.toLowerCase();
-    if (filename.includes('\\')) filename = filename.split('\\').pop()!;
-    if (filename.includes('/')) filename = filename.split('/').pop()!;
-    // Remove leading ./ or .\
-    filename = filename.replace(/^\.[\\/]/, '');
-    // Add .nex if missing
-    if (!filename.endsWith('.nex')) filename = filename + '.nex';
-
-    return NEX_EXECUTABLE_REGISTRY[filename] ?? null;
+    const hit = resolveExecutable(nameOrPath);
+    if (!hit) return null;
+    return { appId: hit.appId, title: hit.title, args: hit.args };
   }, []);
+
+  async function* gitRunImpl(args: string[], cwd: string): AsyncGenerator<string> {
+    const pid = spawnProcess('git', `git ${args.join(' ')}`);
+    try {
+      for await (const line of gitService.run(args, cwd)) {
+        yield line;
+      }
+      endProcess(pid, 'done');
+    } catch (e) {
+      endProcess(pid, 'error');
+      yield e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  // Keep runner identities stable across renders (large generators redefined each pass).
+  const npmRunRef = useRef(npmRun);
+  const pnpmRunRef = useRef(pnpmRun);
+  const gitRunRef = useRef(gitRunImpl);
+  npmRunRef.current = npmRun;
+  pnpmRunRef.current = pnpmRun;
+  gitRunRef.current = gitRunImpl;
+
+  const npmRunStable = useCallback((args: string[], cwd: string) => npmRunRef.current(args, cwd), []);
+  const pnpmRunStable = useCallback((args: string[], cwd: string) => pnpmRunRef.current(args, cwd), []);
+  const gitRunStable = useCallback((args: string[], cwd: string) => gitRunRef.current(args, cwd), []);
+
+  const value = useMemo(
+    () => ({
+      packages,
+      projects,
+      processes,
+      npmRun: npmRunStable,
+      pnpmRun: pnpmRunStable,
+      gitRun: gitRunStable,
+      resolveNex,
+      getPackages,
+      getProject,
+      spawnProcess,
+      endProcess,
+      listProcesses,
+    }),
+    [
+      packages,
+      projects,
+      processes,
+      npmRunStable,
+      pnpmRunStable,
+      gitRunStable,
+      resolveNex,
+      getPackages,
+      getProject,
+      spawnProcess,
+      endProcess,
+      listProcesses,
+    ],
+  );
 
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <NexRuntimeContext.Provider value={{
-      packages,
-      projects,
-      processes,
-      npmRun,
-      pnpmRun,
-      resolveNex,
-      getPackages,
-      getProject,
-    }}>
+    <NexRuntimeContext.Provider value={value}>
       {children}
     </NexRuntimeContext.Provider>
   );

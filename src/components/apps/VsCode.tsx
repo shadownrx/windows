@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import NexMonacoEditor, { type NexMonacoHandle, langFromPath } from './nexcode/NexMonacoEditor';
+import GitScmPanel from './nexcode/GitScmPanel';
 import {
   buildFileTree,
   languageForPath,
@@ -8,6 +9,11 @@ import {
   searchWorkspace,
   type SearchHit,
 } from './nexcode/workspace';
+import { useNexFs } from '../../context/FileSystemContext';
+import { joinPath } from '../../runtime/fs/paths';
+
+/** Project root on the OS VFS — shared with Terminal git/npm. */
+const VFS_PROJECT_ROOT = 'C:\\Documentos\\Proyectos\\nex-app';
 
 /* =====================================================================
    NEX CODE — editor tipo VS Code con Monaco + IA (Groq) + temas
@@ -323,6 +329,9 @@ async function callNexAI(messages: any[], { model = 'llama-3.3-70b-versatile', m
 }
 
 export default function NexCode() {
+  const nexFs = useNexFs();
+  const [scmRefresh, setScmRefresh] = useState(0);
+
   const initialWs = useMemo(
     () =>
       loadWorkspace({
@@ -589,7 +598,50 @@ export default function NexCode() {
   const pushTerm = (lines: string[]) => setTerminalLines(prev => [...prev, ...lines]);
   const clearTerminal = () => { setTerminalLines([]); };
 
-  const saveFile = () => { setDirty(d => ({ ...d, [activeFile]: false })); pushTerm([`Guardado: ${activeFile}`]); };
+  const syncFileToVfs = useCallback(
+    async (relPath: string, content: string) => {
+      const winRel = relPath.replace(/\//g, '\\');
+      const abs = joinPath(VFS_PROJECT_ROOT, winRel);
+      try {
+        await nexFs.writeFile(abs, content);
+      } catch (e) {
+        pushTerm([`VFS sync error: ${e instanceof Error ? e.message : String(e)}`]);
+      }
+    },
+    [nexFs],
+  );
+
+  // Seed workspace files onto NexFs so Terminal git/npm see the same tree
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await nexFs.mkdir(VFS_PROJECT_ROOT);
+        for (const [rel, entry] of Object.entries(files)) {
+          if (cancelled) return;
+          const abs = joinPath(VFS_PROJECT_ROOT, rel.replace(/\//g, '\\'));
+          if (!nexFs.exists(abs)) {
+            await nexFs.writeFile(abs, entry.content);
+          }
+        }
+      } catch {
+        /* ignore seed errors */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveFile = () => {
+    setDirty((d) => ({ ...d, [activeFile]: false }));
+    const entry = files[activeFile];
+    if (entry) void syncFileToVfs(activeFile, entry.content);
+    setScmRefresh((n) => n + 1);
+    pushTerm([`Guardado: ${activeFile} → ${VFS_PROJECT_ROOT}`]);
+  };
   useEffect(() => {
     const onSave = (e: KeyboardEvent) => { if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); saveFile(); } };
     window.addEventListener('keydown', onSave);
@@ -1170,18 +1222,7 @@ export default function NexCode() {
           </div>
         )}
         {activityView === 'git' && (
-          <div style={{ width: 260, background: p.sidebar, borderRight: `1px solid ${p.border}`, flexShrink: 0, padding: 0, fontSize: 12.5 }}>
-            <div style={{
-              fontSize: 11, textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.8,
-              padding: '10px 12px 8px', color: p.text,
-            }}>
-              Control de código fuente
-            </div>
-            <div style={{ padding: '8px 12px', color: p.textDim, lineHeight: 1.5 }}>
-              <div style={{ color: p.text, marginBottom: 6 }}>main</div>
-              Sin cambios pendientes en el workspace local.
-            </div>
-          </div>
+          <GitScmPanel repoPath={VFS_PROJECT_ROOT} palette={p} refreshKey={scmRefresh} />
         )}
 
         {/* ---------- Main ---------- */}

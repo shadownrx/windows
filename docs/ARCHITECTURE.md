@@ -316,9 +316,11 @@ const cyberpunkTheme = {
 
 ---
 
-## ⚡ NEX Runtime: Motor de NPM, PNPM y Ejecutables .nex
+## ⚡ NEX Runtime: NexFs, shell, npm/pnpm y git local
 
-NEX OS incluye un subsistema de ejecución simulado en memoria (`NexRuntimeContext`) que actúa como un entorno de runtime interactivo.
+Documentación detallada: [`docs/RUNTIME.md`](./RUNTIME.md).
+
+El runtime combina CLI simulado con **persistencia real en NexFs** (metadata VFS + blobs IndexedDB) y **git local** (`isomorphic-git`). Terminal/Cmd comparten `runShellCommand`.
 
 ### Arquitectura de NEX Runtime
 
@@ -347,11 +349,10 @@ NEX OS incluye un subsistema de ejecución simulado en memoria (`NexRuntimeConte
 ```
 
 ```
-NexRuntimeProvider (Estado central del runtime)
- ├── packages   ← Mapa de dependencias instaladas por directorio virtual
- ├── projects   ← Estructura de package.json virtuales
- ├── processes  ← PIDs simulados y telemetría de ejecución de subprocesos
- └── Métodos    ← npmRun(), pnpmRun(), resolveNex()
+NexRuntimeProvider
+ ├── packages / projects  ← espejo de package.json en NexFs
+ ├── processes            ← PIDs de jobs (spawn/end)
+ └── npmRun / pnpmRun / gitRun / resolveNex
 ```
 
 ### Ejecución de Archivos .nex
@@ -367,8 +368,8 @@ Los archivos `.nex` son ejecutables virtuales (análogos a `.exe` en Windows) qu
 Cuando el usuario ejecuta un comando en `Terminal.tsx` o `Cmd.tsx`, la petición se procesa como un generador asíncrono (`AsyncGenerator`) que produce líneas de salida simuladas con tiempos de espera realistas:
 
 1. **Resolución**: Se procesan los argumentos (p. ej. `install`, `run`, `create`).
-2. **Mutación VFS**: Los archivos como `package.json`, `package-lock.json` y carpetas `node_modules/` son creados/modificados en el sistema de archivos virtual (`FileSystemContext`).
-3. **Persistencia**: Las dependencias instaladas se registran en el estado local de paquetes del directorio actual.
+2. **Mutación NexFs**: `package.json` y stubs `node_modules/<pkg>/` se escriben de verdad (Explorer/`cat` los ven).
+3. **Git local**: `git init|status|add|commit|log|branch|checkout` (sin remoto todavía).
 
 ---
 

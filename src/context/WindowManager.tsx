@@ -1,4 +1,4 @@
-import React, { type ReactNode, createContext, useContext, useState } from 'react';
+import React, { type ReactNode, createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { useDesktop } from './DesktopContext';
 
 /** Props passed from the desktop/launcher to a specific app instance. */
@@ -38,99 +38,151 @@ const WindowManagerContext = createContext<WindowManagerContextType | undefined>
 
 export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [windows, setWindows] = useState<AppWindow[]>([]);
-  const [nextZIndex, setNextZIndex] = useState(10);
+  const nextZRef = useRef(10);
   const [focusedWindowId, setFocusedWindowId] = useState<string | null>(null);
-  
+  const focusedWindowIdRef = useRef<string | null>(null);
+  focusedWindowIdRef.current = focusedWindowId;
+
   // Usamos el currentDesktopId desde DesktopContext para asociar ventanas
   const { currentDesktopId } = useDesktop();
+  const currentDesktopIdRef = useRef(currentDesktopId);
+  currentDesktopIdRef.current = currentDesktopId;
 
-  const openWindow = (id: string, appId: string, title: string, icon: ReactNode, appProps?: AppProps) => {
+  const bumpZ = useCallback(() => {
+    const z = nextZRef.current;
+    nextZRef.current = z + 1;
+    return z;
+  }, []);
+
+  const openWindow = useCallback((id: string, appId: string, title: string, icon: ReactNode, appProps?: AppProps) => {
+    const desktopId = currentDesktopIdRef.current;
+    const z = bumpZ();
     setWindows((prev) => {
-      const existing = prev.find((w) => w.id === id && w.desktopId === currentDesktopId);
+      const existing = prev.find((w) => w.id === id && w.desktopId === desktopId);
       if (existing) {
-        return prev.map((w) => 
-          w.id === id && w.desktopId === currentDesktopId ? { ...w, appId, appProps, isOpen: true, isMinimized: false, snap: 'none', zIndex: nextZIndex } : w
+        return prev.map((w) =>
+          w.id === id && w.desktopId === desktopId
+            ? { ...w, appId, appProps, isOpen: true, isMinimized: false, snap: 'none', zIndex: z }
+            : w,
         );
       }
-      const filteredPrev = prev.filter((w) => !(w.id === id && w.desktopId === currentDesktopId));
-      return [...filteredPrev, { id, appId, appProps, title, icon, desktopId: currentDesktopId, isOpen: true, isMinimized: false, isMaximized: false, snap: 'none', zIndex: nextZIndex }];
+      const filteredPrev = prev.filter((w) => !(w.id === id && w.desktopId === desktopId));
+      return [
+        ...filteredPrev,
+        {
+          id,
+          appId,
+          appProps,
+          title,
+          icon,
+          desktopId,
+          isOpen: true,
+          isMinimized: false,
+          isMaximized: false,
+          snap: 'none' as const,
+          zIndex: z,
+        },
+      ];
     });
     setFocusedWindowId(id);
-    setNextZIndex((z) => z + 1);
-  };
+  }, [bumpZ]);
 
-  const closeWindow = (id: string) => {
+  const closeWindow = useCallback((id: string) => {
     setWindows((prev) => prev.filter((w) => w.id !== id));
-    if (focusedWindowId === id) {
-      setFocusedWindowId(null);
-      // Opcional: enfocar la siguiente ventana con mayor z-index
-    }
-  };
-
-  const minimizeWindow = (id: string) => {
-    setWindows((prev) => prev.map((w) => w.id === id ? { ...w, isMinimized: true } : w));
-    if (focusedWindowId === id) {
+    if (focusedWindowIdRef.current === id) {
       setFocusedWindowId(null);
     }
-  };
+  }, []);
 
-  const minimizeAllWindows = () => {
+  const minimizeWindow = useCallback((id: string) => {
+    setWindows((prev) => prev.map((w) => (w.id === id ? { ...w, isMinimized: true } : w)));
+    if (focusedWindowIdRef.current === id) {
+      setFocusedWindowId(null);
+    }
+  }, []);
+
+  const minimizeAllWindows = useCallback(() => {
     setWindows((prev) => prev.map((w) => ({ ...w, isMinimized: true })));
     setFocusedWindowId(null);
-  };
+  }, []);
 
-  const closeFocusedWindow = () => {
-    if (!focusedWindowId) return;
-    closeWindow(focusedWindowId);
-  };
+  const closeFocusedWindow = useCallback(() => {
+    const id = focusedWindowIdRef.current;
+    if (!id) return;
+    setWindows((prev) => prev.filter((w) => w.id !== id));
+    setFocusedWindowId(null);
+  }, []);
 
-  const maximizeWindow = (id: string, currentSize?: { width: number; height: number; x: number; y: number }) => {
-    setWindows((prev) => prev.map((w) => {
-      if (w.id !== id) return w;
-      // Going FROM normal → maximized: save current size
-      if (!w.isMaximized) {
-        return { ...w, isMaximized: true, snap: 'none', savedSize: currentSize ?? w.savedSize };
-      }
-      // Going FROM maximized → normal: restore
-      return { ...w, isMaximized: false };
-    }));
-    focusWindow(id);
-  };
-
-  const focusWindow = (id: string) => {
-    setWindows((prev) => prev.map((w) => w.id === id ? { ...w, zIndex: nextZIndex } : w));
+  const focusWindow = useCallback((id: string) => {
+    const z = bumpZ();
+    setWindows((prev) => prev.map((w) => (w.id === id ? { ...w, zIndex: z } : w)));
     setFocusedWindowId(id);
-    setNextZIndex((z) => z + 1);
-  };
+  }, [bumpZ]);
 
-  /** Un-minimize and bring to front without reinitializing */
-  const restoreWindow = (id: string) => {
-    setWindows((prev) => prev.map((w) => w.id === id ? { ...w, isMinimized: false, zIndex: nextZIndex } : w));
-    setFocusedWindowId(id);
-    setNextZIndex((z) => z + 1);
-  };
-
-  const snapWindow = (id: string, direction: 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'none') => {
-    setWindows((prev) => prev.map((w) => 
-      w.id === id ? { ...w, isMaximized: false, isMinimized: false, snap: direction } : w
-    ));
+  const maximizeWindow = useCallback((id: string, currentSize?: { width: number; height: number; x: number; y: number }) => {
+    setWindows((prev) =>
+      prev.map((w) => {
+        if (w.id !== id) return w;
+        if (!w.isMaximized) {
+          return { ...w, isMaximized: true, snap: 'none', savedSize: currentSize ?? w.savedSize };
+        }
+        return { ...w, isMaximized: false };
+      }),
+    );
     focusWindow(id);
-  };
+  }, [focusWindow]);
 
-  return (
-    <WindowManagerContext.Provider value={{ 
-      windows, 
-      openWindow, 
-      closeWindow, 
-      minimizeWindow, 
+  const restoreWindow = useCallback((id: string) => {
+    const z = bumpZ();
+    setWindows((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, isMinimized: false, zIndex: z } : w)),
+    );
+    setFocusedWindowId(id);
+  }, [bumpZ]);
+
+  const snapWindow = useCallback((
+    id: string,
+    direction: 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'none',
+  ) => {
+    setWindows((prev) =>
+      prev.map((w) =>
+        w.id === id ? { ...w, isMaximized: false, isMinimized: false, snap: direction } : w,
+      ),
+    );
+    focusWindow(id);
+  }, [focusWindow]);
+
+  const value = useMemo(
+    () => ({
+      windows,
+      openWindow,
+      closeWindow,
+      minimizeWindow,
       minimizeAllWindows,
-      maximizeWindow, 
+      maximizeWindow,
       snapWindow,
       focusWindow,
       restoreWindow,
       closeFocusedWindow,
-      focusedWindowId
-    }}>
+      focusedWindowId,
+    }),
+    [
+      windows,
+      openWindow,
+      closeWindow,
+      minimizeWindow,
+      minimizeAllWindows,
+      maximizeWindow,
+      snapWindow,
+      focusWindow,
+      restoreWindow,
+      closeFocusedWindow,
+      focusedWindowId,
+    ],
+  );
+
+  return (
+    <WindowManagerContext.Provider value={value}>
       {children}
     </WindowManagerContext.Provider>
   );

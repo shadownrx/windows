@@ -176,9 +176,13 @@ export async function resolveYoutubeStream(
     return await resolveFromNexYoutubeApi(videoId, ac);
   } catch (err) {
     errors.push(`api:${(err as Error).message}`);
+    const needsServer = !hasMusicServer();
     throw new Error(
-      errors.join(' | ') ||
-        'No se pudo resolver el stream vía /api/youtube (la misma API que NEX Music).',
+      (needsServer
+        ? 'Falta music server en producción (VITE_MUSIC_SERVER_URL). Piped/API no alcanzan para este video. '
+        : '') +
+        (errors.join(' | ') ||
+          'No se pudo resolver el stream vía /api/youtube (la misma API que NEX Music).'),
     );
   }
 }

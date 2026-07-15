@@ -1,9 +1,15 @@
+export type DjTrackSource = 'youtube' | 'local';
+
 export type DjTrackRef = {
+  /** YouTube video id, or stable `local:…` key for files. */
   videoId: string;
   title: string;
   artist: string;
   cover: string;
   durationSec?: number;
+  source?: DjTrackSource;
+  /** Blob/object URL for local files — skips YouTube resolve. */
+  playUrl?: string;
 };
 
 export type DjCuePoint = {

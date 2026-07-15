@@ -1,38 +1,38 @@
 # `@nex-os/sdk`
 
+**v0.2.0** — API oficial para community apps en NEX OS.
+
 ```
- ┌─────────────────────────────────────────┐
- │  NEX OS                                 │
- │   ┌──────────┐  ┌──────────┐            │
- │   │ Tu app   │  │ Hello NEX│  ← defineApp()
- │   └──────────┘  └──────────┘            │
- │         ▲              ▲                │
- │         └──── registry ┘                │
- │              @nex-os/sdk                │
- └─────────────────────────────────────────┘
+defineApp(manifest)  →  registry  →  Taskbar / Start / Search / Run
+useOpenApp()         →  abre por id · alias · título
 ```
 
-**La API oficial para crear apps dentro de NEX OS.**  
-Registrás un manifest. El shell te da ventana, taskbar, Start y Buscar.
+```bash
+npm install @nex-os/sdk
+```
 
-[Guía completa → `docs/SDK.md`](../../docs/SDK.md) · Versión **0.1.0**
+Peer: `react >= 18`. En el monorepo NEX OS el package ya está linkeado; fuera, instalalo desde npm.
+
+Guía completa en el repo: [`docs/SDK.md`](https://github.com/shadownrx/windows/blob/main/docs/SDK.md)
 
 ---
 
 ## 30 segundos
 
 ```tsx
-import { defineApp, type NexAppProps } from '@nex-os/sdk';
+import { defineApp } from '@nex-os/sdk';
 
-function MiApp(_props: NexAppProps) {
+type Props = { mode?: string };
+
+function MiApp({ mode = 'demo' }: Props) {
   return (
     <div style={{ height: '100%', padding: 24, color: '#fff', background: '#0b1220' }}>
-      <h1>Hola NEX</h1>
+      <h1>Hola NEX — {mode}</h1>
     </div>
   );
 }
 
-export default defineApp({
+export default defineApp<Props>({
   id: 'mi-app',
   appId: 'mi-app',
   title: 'Mi App',
@@ -40,52 +40,74 @@ export default defineApp({
   component: MiApp,
   pinToTaskbar: true,
   category: 'tools',
+  permissions: ['windows', 'settings'],
+  defaultProps: { mode: 'demo' },
+  aliases: ['mia'],
 });
 ```
 
-1. Guardá el archivo en `src/community-apps/`
-2. `import './MiApp'` en `src/community-apps/index.ts`
-3. `npm run dev` → Buscar → **Mi App**
+1. Guardá en `src/community-apps/`
+2. `import './MiApp'` en `index.ts`
+3. `npm run dev` → Buscar **Mi App** o Win+R → `mia`
 
 ---
 
-## API
+## API 0.2
 
 | | |
 | :--- | :--- |
-| `defineApp(manifest)` | Registra y devuelve |
+| `defineApp<TProps>(manifest)` | Registra con props tipadas |
+| `resolveRegisteredApp(query)` | Lookup id / alias / título |
+| `createOpenApp(openWindow)` | Helper puro para abrir |
+| `getAppsByCategory(cat)` | Filtro por categoría |
 | `registerApp` / `unregisterApp` | Alta / baja manual |
-| `getRegisteredApp` / `listRegisteredApps` | Lookup |
-| `getCommunityLauncherItems` | Items para dock / search |
+| `listRegisteredApps` | Manifests únicos |
+| `getCommunityLauncherItems` | Items dock / search |
 | `subscribeRegistry` | Escuchar cambios |
 
-Tipos: `NexAppManifest`, `NexAppProps`, `NexLauncherItem`.
+Tipos: `NexAppManifest`, `NexAppProps`, `NexAppPermission`, `NexTrack`, `NexLauncherItem`.
 
 ---
 
 ## Host hooks
 
 ```ts
-import { useWindowManager, useSettings } from '../sdk/host';
-```
+import {
+  useOpenApp,
+  useWindowManager,
+  useSettings,
+  useMusicPlayer,
+  useFileSystem,
+  useDesktop,
+  useUI,
+} from '../sdk/host';
 
-Abrí ventanas, leé el acento del SO, mandá notificaciones. Detalle en la [guía](../../docs/SDK.md#hooks-del-host).
+const openApp = useOpenApp();
+openApp('hello');
+openApp('mi-app', { mode: 'pro' });
+```
 
 ---
 
-## En el monorepo
+## Changelog 0.2
+
+- `defineApp<TProps>` genérico
+- `resolveRegisteredApp` + `createOpenApp`
+- `permissions` en el manifest
+- `getAppsByCategory`
+- Host: `useOpenApp`, `useMusicPlayer`
+- Win+R resuelve aliases community
+
+---
+
+## Publish (maintainers)
 
 ```bash
-# ya linkeado
-import { defineApp } from '@nex-os/sdk';
+npm run sdk:build
+npm run sdk:publish
+# si npm pide 2FA: completar el link del browser / security key
 ```
-
-Workspace: `packages/*` · alias Vite/TS → `packages/nex-os-sdk/src`
-
-Demos in-OS: **SDK Docs** · **Hello NEX**
 
 ---
 
-## Licencia
-
-MIT · Hecho para [NEX OS](https://github.com/shadownrx/windows)
+MIT · [NEX OS](https://github.com/shadownrx/windows)

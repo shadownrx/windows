@@ -1,13 +1,14 @@
 # NEX OS SDK
 
-**`@nex-os/sdk`** — la API oficial para crear apps que viven dentro de NEX OS.
+**`@nex-os/sdk` v0.2.0** — la API oficial para crear apps que viven dentro de NEX OS.
 
-Abrí una ventana, anclala a la taskbar, aparecé en Buscar y en el Menú Inicio. Sin tocar el núcleo del shell: registrás un manifest y listo.
+Abrí una ventana, anclala a la taskbar, aparecé en Buscar, Start y **Win+R**. Sin tocar el núcleo del shell: registrás un manifest y listo.
 
 | | |
 | :--- | :--- |
-| **Package** | [`packages/nex-os-sdk`](../packages/nex-os-sdk) |
-| **Versión** | `0.1.0` |
+| **Package** | [`packages/nex-os-sdk`](../packages/nex-os-sdk) · npm [`@nex-os/sdk`](https://www.npmjs.com/package/@nex-os/sdk) |
+| **Versión** | `0.2.0` |
+| **Install** | `npm install @nex-os/sdk` |
 | **Demo in-OS** | App **SDK Docs** / **Hello NEX** |
 | **Ejemplo** | [`src/community-apps/HelloNex.tsx`](../src/community-apps/HelloNex.tsx) |
 
@@ -23,7 +24,7 @@ El SDK abre un **registro en runtime**:
 defineApp(manifest)
         │
         ▼
-  community registry  ──►  AppRegistry / Taskbar / Start / Search
+  community registry  ──►  AppRegistry / Taskbar / Start / Search / Run
 ```
 
 Vos escribís React. El host se encarga de ventanas, focus, minimize y chrome.
@@ -37,18 +38,20 @@ Vos escribís React. El host se encarga de ventanas, focus, minimize y chrome.
 ```tsx
 // src/community-apps/MiApp.tsx
 import React from 'react';
-import { defineApp, type NexAppProps } from '@nex-os/sdk';
+import { defineApp } from '@nex-os/sdk';
 
-function MiApp(_props: NexAppProps) {
+type Props = { mode?: string };
+
+function MiApp({ mode = 'demo' }: Props) {
   return (
     <div style={{ height: '100%', padding: 24, color: '#e8f0ff', background: '#0b1220' }}>
       <h1 style={{ margin: 0 }}>Mi App</h1>
-      <p style={{ opacity: 0.7 }}>Corriendo dentro de NEX OS.</p>
+      <p style={{ opacity: 0.7 }}>Modo: {mode}</p>
     </div>
   );
 }
 
-export default defineApp({
+export default defineApp<Props>({
   id: 'mi-app',
   appId: 'mi-app',
   title: 'Mi App',
@@ -59,6 +62,9 @@ export default defineApp({
   version: '0.1.0',
   pinToTaskbar: true,
   category: 'tools',
+  permissions: ['windows', 'settings'],
+  defaultProps: { mode: 'demo' },
+  aliases: ['mia'],
 });
 ```
 
@@ -79,11 +85,13 @@ import './MiApp'; // ← tu app
 npm run dev
 ```
 
-Abrí **Buscar** → escribí el título → Enter. Si `pinToTaskbar: true`, también aparece en el dock.
+- **Buscar** → título → Enter  
+- **Win+R** → `mia` (alias)  
+- Si `pinToTaskbar: true`, también aparece en el dock
 
 ---
 
-## Manifest (`NexAppManifest`)
+## Manifest (`NexAppManifest<TProps>`)
 
 | Campo | Tipo | Obligatorio | Descripción |
 | :--- | :--- | :---: | :--- |
@@ -91,16 +99,17 @@ Abrí **Buscar** → escribí el título → Enter. Si `pinToTaskbar: true`, tam
 | `appId` | `string` | ✓ | Clave que resuelve `AppRegistry` |
 | `title` | `string` | ✓ | Título en chrome / taskbar / Start |
 | `icon` | `ReactNode` | ✓ | Fluent icon, SVG o emoji |
-| `component` | `ComponentType` | ✓ | UI raíz (`height: 100%`) |
-| `aliases` | `string[]` | | Alias extras de `appId` |
+| `component` | `ComponentType<TProps>` | ✓ | UI raíz (`height: 100%`) |
+| `aliases` | `string[]` | | Alias (Run / Buscar), case-insensitive |
 | `description` | `string` | | Texto de catálogo |
 | `author` | `string` | | Handle del creador |
 | `version` | `string` | | Semver informativa |
-| `defaultProps` | `object` | | Props al abrir |
+| `defaultProps` | `Partial<TProps>` | | Props al abrir (merge con las del launcher) |
 | `pinToTaskbar` | `boolean` | | Visible en dock aunque esté cerrada |
 | `category` | union | | `tools` \| `media` \| `games` \| `dev` \| `social` \| `other` |
+| `permissions` | `NexAppPermission[]` | | Contrato documental (sandbox roadmap) |
 
-`id` y `appId` suelen coincidir. Separalos si necesitás varias ventanas del mismo componente.
+`permissions` acepta: `windows` · `settings` · `fs` · `desktop` · `ui` · `music` · `notifications`.
 
 ---
 
@@ -112,21 +121,27 @@ import {
   registerApp,
   unregisterApp,
   getRegisteredApp,
+  resolveRegisteredApp,
   listRegisteredApps,
+  getAppsByCategory,
   getCommunityLauncherItems,
   subscribeRegistry,
+  createOpenApp,
 } from '@nex-os/sdk';
 ```
 
 | Función | Qué hace |
 | :--- | :--- |
-| `defineApp(m)` | Registra + devuelve el manifest (lo habitual) |
+| `defineApp<TProps>(m)` | Registra + devuelve el manifest (tipado) |
 | `registerApp(m)` | Solo registra |
 | `unregisterApp(appId)` | Saca del registry dinámico |
-| `getRegisteredApp(appId)` | Lookup (respeta aliases) |
+| `getRegisteredApp(appId)` | Lookup directo (aliases normalizados) |
+| `resolveRegisteredApp(q)` | id / alias / título (case-insensitive) |
 | `listRegisteredApps()` | Manifests únicos |
+| `getAppsByCategory(cat)` | Filtro por categoría |
 | `getCommunityLauncherItems()` | Items listos para Taskbar/Search |
-| `subscribeRegistry(fn)` | Callback en altas/bajas → `() => void` unsubscribe |
+| `createOpenApp(openWindow)` | Helper puro: abre desde el registry |
+| `subscribeRegistry(fn)` | Callback en altas/bajas → unsubscribe |
 
 ---
 
@@ -136,24 +151,34 @@ Las community apps corren **dentro** del árbol de providers de NEX. Desde `src/
 
 ```ts
 import {
+  useOpenApp,
   useWindowManager,
   useSettings,
+  useMusicPlayer,
   useDesktop,
   useFileSystem,
   useUI,
 } from '../sdk/host';
 ```
 
+### `useOpenApp` (nuevo en 0.2)
+
+```ts
+const openApp = useOpenApp();
+openApp('hello');                 // alias
+openApp('mi-app', { mode: 'pro' }); // props
+```
+
+Devuelve `false` si no hay match en el registry community.
+
 ### `useWindowManager`
 
 | Método / valor | Uso |
 | :--- | :--- |
 | `openWindow(id, appId, title, icon, props?)` | Abrir / restaurar ventana |
-| `closeWindow(id)` | Cerrar |
-| `minimizeWindow(id)` | Minimizar |
-| `maximizeWindow(id, size?)` | Maximizar |
-| `focusWindow(id)` | Traer al frente |
-| `windows` / `focusedWindowId` | Estado actual |
+| `closeWindow` / `minimizeWindow` / `maximizeWindow` | Chrome |
+| `snapWindow` / `restoreWindow` / `focusWindow` | Layout |
+| `windows` / `focusedWindowId` | Estado |
 
 ### `useSettings`
 
@@ -163,61 +188,56 @@ import {
 | `addNotification(title, message, icon?)` | Toast del sistema |
 | `userName` / `volume` / `isWifiEnabled` | Preferencias |
 
-También: `useDesktop`, `useFileSystem`, `useUI` para escritorios virtuales, FS virtual y widgets.
+### `useMusicPlayer`
+
+Cola global de NEX Music: `playTrack`, `togglePlay`, `queue`, `favorites`, etc.
+
+También: `useDesktop`, `useFileSystem`, `useUI`.
 
 ---
 
 ## Contrato de la UI
 
-1. **Ocupá todo el alto** — `height: '100%'` / `flex: 1`. El chrome de ventana ya está.
+1. **Ocupá todo el alto** — `height: '100%'` / `flex: 1`.
 2. **No dibujés titlebar propia** — NEX lo provee.
-3. **Props libres** — `NexAppProps` es un bag (`fileId`, URLs, etc.).
-4. **Lazy mental** — el component se monta al abrir la ventana; evitá trabajo pesado en el top-level del módulo salvo el `defineApp`.
+3. **Props tipadas** — `defineApp<Props>({ …, defaultProps })`.
+4. **Lazy mental** — evitá trabajo pesado en el top-level salvo `defineApp`.
 
 ---
 
 ## Recetas
 
-### Abrir otra app desde la tuya
+### Abrir otra community app
 
 ```tsx
-const { openWindow } = useWindowManager();
-
-openWindow('notepad', 'notepad', 'Bloc de notas', <span>📝</span>);
+const openApp = useOpenApp();
+openApp('sdk-docs');
 ```
 
-### Notificación del sistema
+### Win+R
+
+```
+hello
+sdk
+sdk-demo
+```
+
+Los aliases del manifest se resuelven en el Run dialog.
+
+### Notificación
 
 ```tsx
 const { addNotification, accentColor } = useSettings();
-
-addNotification('Mi App', `Listo. Acento: ${accentColor}`);
+addNotification('Mi App', `Acento: ${accentColor}`);
 ```
 
-### Props al abrir
+### Props tipadas
 
 ```tsx
-defineApp({
+defineApp<{ mode: string }>({
   // ...
   defaultProps: { mode: 'demo' },
-  component: ({ mode }) => <div>Modo: {String(mode)}</div>,
-});
-```
-
-Desde el host / otra app:
-
-```ts
-openWindow('mi-app', 'mi-app', 'Mi App', icon, { mode: 'pro' });
-```
-
-### Alias para Buscar / Run
-
-```tsx
-defineApp({
-  id: 'stats',
-  appId: 'stats',
-  aliases: ['analytics', 'metrics'],
-  // ...
+  component: ({ mode }) => <div>Modo: {mode}</div>,
 });
 ```
 
@@ -226,25 +246,18 @@ defineApp({
 ## Layout del monorepo
 
 ```
-packages/nex-os-sdk/          ← package @nex-os/sdk
+packages/nex-os-sdk/          ← @nex-os/sdk
   src/types.ts
   src/registry.ts
+  src/openApp.ts
   src/index.ts
-  README.md
 
-src/sdk/host.ts               ← re-exports de contextos del shell
+src/sdk/host.ts               ← re-exports de contextos + useOpenApp
+src/sdk/useOpenApp.ts
 src/community-apps/           ← tus apps (side-effect register)
-src/hooks/useLauncherApps.ts  ← merge built-in + community
-src/components/AppRegistry.tsx
 ```
 
-Alias Vite/TS:
-
-```ts
-'@nex-os/sdk' → packages/nex-os-sdk/src
-```
-
-Workspace npm: `"@nex-os/sdk": "*"` en el root.
+Alias Vite/TS: `'@nex-os/sdk' → packages/nex-os-sdk/src`
 
 ---
 
@@ -253,22 +266,25 @@ Workspace npm: `"@nex-os/sdk": "*"` en el root.
 | | Built-in | Community (`@nex-os/sdk`) |
 | :--- | :--- | :--- |
 | Registro | `AppRegistry` + `constants/apps` | `defineApp` |
-| Lazy load | `React.lazy` | Componente en el bundle de community |
-| Catálogo | Hardcode Start/Taskbar | Registry dinámico |
+| Lazy load | `React.lazy` | Bundle de community |
+| Run / aliases | Hardcode parcial | `resolveRegisteredApp` |
 | Ideal para | Apps del sistema | Experimentos, forks, demos |
-
-Cuando una community app madure, podés “promocionarla” a built-in lazy.
 
 ---
 
 ## Roadmap
 
-- [ ] Publicar `@nex-os/sdk` en npm
+- [x] Props tipadas (`defineApp<T>`)
+- [x] `useOpenApp` + Run dialog
+- [x] `permissions` en manifest (contrato)
+- [x] `useMusicPlayer` en host bridge
+- [x] Publicar `@nex-os/sdk` en npm (`0.2.0` → https://www.npmjs.com/package/@nex-os/sdk)
 - [ ] Catálogo remoto / install de apps
-- [ ] Sandbox / permisos por app
+- [ ] Sandbox que aplique `permissions` (incl. futuro `git` / `fs`)
 - [ ] Plantilla `create-nex-app`
-
-Versión actual: **0.1.0** — API de registro estable; hooks de host viven en el shell (`src/sdk/host.ts`).
+- [ ] Lazy community (`lazy: () => import(...)`)
+- [x] Runtime: NexFs + git local (ver [`docs/RUNTIME.md`](./RUNTIME.md))
+- [ ] Git remoto (clone/push vía proxy)
 
 ---
 

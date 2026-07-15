@@ -39,19 +39,26 @@ If yt-dlp still fails, the server tries Piped as a fallback automatically.
 
 ### Render — YouTube bot-wall (cookies)
 
-1. En Chrome (logueado en YouTube), exportá cookies con la extensión **Get cookies.txt LOCALLY**.
-2. En Render → tu Web Service → **Environment** → **Secret Files**:
+Las IPs de Render suelen disparar el bot-wall. El archivo tiene que ser una **sesión YouTube válida** (no guest).
+
+**Mejor forma de exportar** (en tu PC, Chrome cerrado después):
+
+```bash
+# Logueate en youtube.com en Chrome, cerrá Chrome, luego:
+yt-dlp --cookies-from-browser chrome --cookies youtube-cookies.txt --skip-download "https://www.youtube.com"
+```
+
+Ese `youtube-cookies.txt` es el que yt-dlp acepta (mejor que muchas extensiones).
+
+1. Pegá el contenido en Render → **Environment** → **Secret Files**:
    - Filename: `youtube-cookies.txt`
-   - Contents: pegá el archivo exportado
-3. Variable de entorno:
-   - `YT_DLP_COOKIES` = `/etc/secrets/youtube-cookies.txt`
-4. También asegurate:
-   - `MUSIC_PUBLIC_URL` = `https://tu-servicio.onrender.com`
-5. **Manual Deploy** → Clear build cache / Redeploy.
+2. Env: `YT_DLP_COOKIES` = `/etc/secrets/youtube-cookies.txt`
+3. `MUSIC_PUBLIC_URL` = `https://tu-servicio.onrender.com`
+4. **Manual Deploy** / Redeploy.
 
-En los logs debería aparecer: `[cookies] usando archivo /etc/secrets/youtube-cookies.txt`
+Logs esperados: `[cookies] listo → /tmp/...` y `[cookies] sesión detectada: __Secure-1PSID, ...`.
 
-Las cookies caducan; si vuelve el bot-wall, reexportá y actualizá el Secret File.
+Si sigue el bot-wall con cookies montadas: la sesión se invalidó al usarla desde datacenter — reexportá cookies frescas (o usá un VPS residencial / Railway con mejor IP). Caducan en horas/días.
 
 ---
 

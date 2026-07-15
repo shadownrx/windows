@@ -16,7 +16,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@nex-os/sdk': path.resolve(rootDir, 'packages/nex-os-sdk/src'),
+      buffer: 'buffer/',
     },
+  },
+  optimizeDeps: {
+    include: ['buffer', 'isomorphic-git', '@monaco-editor/react'],
+  },
+  define: {
+    'global': 'globalThis',
   },
   server: {
     port: 5173,
@@ -42,15 +49,21 @@ export default defineConfig({
       allow: ['..'],
     },
   },
-  optimizeDeps: {
-    include: ['@monaco-editor/react'],
-  },
   build: {
     rollupOptions: {
       input: {
         main: './index.html',
         spotify: './nex-music.html',
         docs: './docs.html',
+      },
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('three') || id.includes('@react-three')) return 'three';
+            if (id.includes('isomorphic-git') || id.includes('buffer')) return 'git';
+            if (id.includes('framer-motion')) return 'motion';
+          }
+        },
       },
     },
   },

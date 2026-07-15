@@ -264,7 +264,22 @@ export function useDjDeck(deckId: DjDeckId, getMaster: () => Promise<DjMasterApi
       try {
         const master = await getMaster();
         masterApiRef.current = master;
-        const stream = await resolveDjStream(track.videoId, ac.signal);
+
+        const isLocal = track.source === 'local' || Boolean(track.playUrl?.startsWith('blob:'));
+        let mediaUrl: string;
+        let resolvedTitle = track.title;
+        let resolvedDuration = track.durationSec;
+
+        if (isLocal) {
+          if (!track.playUrl) throw new Error('Archivo local sin URL de reproducción.');
+          mediaUrl = track.playUrl;
+        } else {
+          const stream = await resolveDjStream(track.videoId, ac.signal);
+          if (ac.signal.aborted) return;
+          mediaUrl = stream.url;
+          resolvedTitle = stream.title || track.title;
+          resolvedDuration = stream.duration || track.durationSec;
+        }
         if (ac.signal.aborted) return;
 
         if (graphRef.current) {
@@ -292,7 +307,10 @@ export function useDjDeck(deckId: DjDeckId, getMaster: () => Promise<DjMasterApi
         }
 
         const media = ensureMedia();
-        media.src = stream.url;
+        // Blob URLs don't need CORS; anonymous can block some local decode paths.
+        if (isLocal) media.removeAttribute('crossorigin');
+        else media.crossOrigin = 'anonymous';
+        media.src = mediaUrl;
         media.load();
         await waitForMedia(media, ac.signal);
         if (ac.signal.aborted) return;
@@ -301,19 +319,21 @@ export function useDjDeck(deckId: DjDeckId, getMaster: () => Promise<DjMasterApi
         media.playbackRate = rateRef.current;
         media.currentTime = 0;
 
-        const decoded = await tryDecodePeaks(stream.url, master.ctx, ac.signal);
+        const decoded = await tryDecodePeaks(mediaUrl, master.ctx, ac.signal);
+        const duration =
+          Number.isFinite(media.duration) && media.duration > 0
+            ? media.duration
+            : resolvedDuration || 0;
         setState((s) => ({
           ...s,
           loading: false,
           error: null,
-          duration: Number.isFinite(media.duration) && media.duration > 0
-            ? media.duration
-            : stream.duration || s.duration,
+          duration,
           peaks: decoded || proceduralPeaks(track.videoId),
           track: {
             ...track,
-            title: stream.title || track.title,
-            durationSec: stream.duration || track.durationSec,
+            title: resolvedTitle,
+            durationSec: duration || track.durationSec,
           },
         }));
       } catch (err) {
@@ -323,7 +343,9 @@ export function useDjDeck(deckId: DjDeckId, getMaster: () => Promise<DjMasterApi
           loading: false,
           error:
             (err as Error).message ||
-            'No se pudo cargar el stream. Necesitás music server o un proxy Piped válido.',
+            (track.source === 'local' || track.playUrl
+              ? 'No se pudo cargar el archivo local.'
+              : 'No se pudo cargar el stream. Usá archivos locales o un music server.'),
           playing: false,
         }));
       }

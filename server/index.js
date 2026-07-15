@@ -88,6 +88,24 @@ function materializeCookiesFile() {
     );
   }
 
+  // Auth cookies YouTube usually needs for bot-wall bypass
+  const names = new Set();
+  for (const line of body.split(/\r?\n/)) {
+    if (!line || line.startsWith('#')) continue;
+    const cols = line.split('\t');
+    if (cols.length >= 7) names.add(cols[5]);
+  }
+  const needAny = ['__Secure-1PSID', '__Secure-3PSID', 'SID', 'LOGIN_INFO'];
+  const found = needAny.filter((n) => names.has(n));
+  if (found.length === 0) {
+    console.warn(
+      '[cookies] faltan cookies de sesión YouTube (SID / __Secure-*PSID / LOGIN_INFO).',
+      'Exportá logueado en youtube.com — ideal: yt-dlp --cookies-from-browser chrome --cookies youtube-cookies.txt --skip-download "https://www.youtube.com"',
+    );
+  } else {
+    console.log('[cookies] sesión detectada:', found.join(', '));
+  }
+
   const dir = process.env.YT_DLP_COOKIES_DIR || '/tmp';
   try {
     mkdirSync(dir, { recursive: true });

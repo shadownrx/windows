@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { DjDeckApi } from './useDjDeck';
 import { CUE_COLORS } from './types';
 import Platter from './Platter';
@@ -14,6 +14,8 @@ type Props = {
   cuePreview: boolean;
   /** Mirror layout for deck B (pitch fader on the left). */
   mirror?: boolean;
+  /** Drop a local audio file straight onto this deck. */
+  onLocalFile?: (file: File) => void;
 };
 
 function fmt(t: number) {
@@ -21,6 +23,11 @@ function fmt(t: number) {
   const m = Math.floor(t / 60);
   const s = Math.floor(t % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function isAudioFile(file: File) {
+  if (file.type.startsWith('audio/')) return true;
+  return /\.(mp3|wav|flac|ogg|m4a|aac|webm|opus|aiff?)$/i.test(file.name);
 }
 
 export const DeckPanel: React.FC<Props> = ({
@@ -32,22 +39,62 @@ export const DeckPanel: React.FC<Props> = ({
   onCuePreview,
   cuePreview,
   mirror = false,
+  onLocalFile,
 }) => {
   const { state } = deck;
   const pitchPct = (state.rate - 1) * 100;
+  const [dragOver, setDragOver] = useState(false);
+  const remain = Math.max(0, (state.duration || 0) - (state.currentTime || 0));
+  const isLocal = state.track?.source === 'local' || Boolean(state.track?.playUrl?.startsWith('blob:'));
+  const loadingMsg = isLocal || !state.track ? 'Cargando audio…' : 'Resolviendo stream…';
 
   return (
-    <div className={`vdj-deck ${mirror ? 'mirror' : ''}`} style={{ ['--a' as string]: accent }}>
+    <div
+      className={`vdj-deck ${mirror ? 'mirror' : ''} ${dragOver ? 'drag-over' : ''} ${state.playing ? 'playing' : ''} ${!state.track ? 'empty' : ''}`}
+      style={{ ['--a' as string]: accent }}
+      onDragEnter={(e) => {
+        if (!onLocalFile) return;
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragOver={(e) => {
+        if (!onLocalFile) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setDragOver(false);
+      }}
+      onDrop={(e) => {
+        if (!onLocalFile) return;
+        e.preventDefault();
+        setDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file && isAudioFile(file)) onLocalFile(file);
+      }}
+    >
       <div className="vdj-deck-head">
         <div className="vdj-deck-badge">{label}</div>
         <div className="vdj-deck-meta">
           {state.track ? (
             <>
-              <div className="vdj-track-title">{state.track.title}</div>
-              <div className="vdj-track-artist">{state.track.artist}</div>
+              <div className="vdj-track-title" title={state.track.title}>
+                {state.track.title}
+              </div>
+              <div className="vdj-track-artist">
+                <span className={`vdj-src-chip ${isLocal ? 'local' : 'yt'}`}>
+                  {isLocal ? 'LOCAL' : 'YT'}
+                </span>
+                {state.track.artist}
+              </div>
             </>
           ) : (
-            <div className="vdj-track-artist">Vacío — cargá un tema desde Library</div>
+            <div className="vdj-track-empty">
+              <strong>Deck vacío</strong>
+              <span>Soltá un audio o cargá desde Library</span>
+            </div>
           )}
         </div>
         <div className="vdj-deck-leds">
@@ -81,8 +128,15 @@ export const DeckPanel: React.FC<Props> = ({
           onSeek={deck.seek}
         />
         {(state.loading || state.error) && (
-          <div className="vdj-wave-overlay">
-            {state.loading ? 'Resolviendo stream…' : state.error}
+          <div className={`vdj-wave-overlay ${state.error ? 'err' : ''}`}>
+            {state.loading ? (
+              <span className="vdj-wave-loading">
+                <i />
+                {loadingMsg}
+              </span>
+            ) : (
+              state.error
+            )}
           </div>
         )}
       </div>
@@ -99,14 +153,17 @@ export const DeckPanel: React.FC<Props> = ({
             currentTime={state.currentTime}
             duration={state.duration}
             onSeek={deck.seek}
+            empty={!state.track}
           />
           <div className="vdj-time-row">
             <span>{fmt(state.currentTime)}</span>
-            <span className="vdj-pitch">
+            <span className="vdj-pitch" title="Pitch">
               {pitchPct >= 0 ? '+' : ''}
               {pitchPct.toFixed(1)}%
             </span>
-            <span>{fmt(state.duration)}</span>
+            <span className="vdj-remain" title="Restante">
+              −{fmt(remain)}
+            </span>
           </div>
         </div>
 
@@ -129,19 +186,29 @@ export const DeckPanel: React.FC<Props> = ({
       </div>
 
       <div className="vdj-transport">
-        <button type="button" className="vdj-pad cue" onClick={() => deck.cueJump()}>
+        <button type="button" className="vdj-pad cue" onClick={() => deck.cueJump()} title="Jump to cue / set if empty">
           CUE
         </button>
-        <button type="button" className={`vdj-pad play ${state.playing ? 'active' : ''}`} onClick={() => void deck.toggle()}>
+        <button
+          type="button"
+          className={`vdj-pad play ${state.playing ? 'active' : ''}`}
+          onClick={() => void deck.toggle()}
+          disabled={state.loading || !state.track}
+        >
           {state.playing ? '❚❚' : '▶'}
         </button>
-        <button type="button" className="vdj-pad" onClick={deck.setLoopIn}>
+        <button type="button" className="vdj-pad" onClick={deck.setLoopIn} title="Loop in">
           IN
         </button>
-        <button type="button" className="vdj-pad" onClick={deck.setLoopOut}>
+        <button type="button" className="vdj-pad" onClick={deck.setLoopOut} title="Loop out">
           OUT
         </button>
-        <button type="button" className={`vdj-pad ${state.loop?.enabled ? 'active' : ''}`} onClick={deck.toggleLoop}>
+        <button
+          type="button"
+          className={`vdj-pad ${state.loop?.enabled ? 'active' : ''}`}
+          onClick={deck.toggleLoop}
+          title="Toggle loop"
+        >
           LOOP
         </button>
       </div>
@@ -168,11 +235,13 @@ export const DeckPanel: React.FC<Props> = ({
                 deck.jumpHotCue(slot);
               }}
             >
-              {slot}
+              <span>{slot}</span>
+              {has && <i />}
             </button>
           );
         })}
       </div>
+      <div className="vdj-cue-hint">Hot cues · Shift limpia · Alt fija</div>
     </div>
   );
 };

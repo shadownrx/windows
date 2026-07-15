@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 
 // --- TYPES ---
 export interface Track {
@@ -154,39 +154,49 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setProgress(percent);
   }, []);
 
+  const clearHistory = useCallback(() => setHistory([]), []);
+
+  const value = useMemo(
+    () => ({
+      currentTrack,
+      isPlaying,
+      volume,
+      progress,
+      duration,
+      queue,
+      favorites,
+      history,
+      currentPlaylist,
+      showLyrics,
+      isGlobalMiniPlayerVisible,
+      playTrack,
+      togglePlay,
+      nextTrack,
+      prevTrack,
+      setVolume,
+      seekTo,
+      addToQueue,
+      removeFromQueue,
+      toggleFavorite,
+      isFavorite,
+      clearHistory,
+      setShowLyrics,
+      toggleGlobalMiniPlayer,
+      setCurrentPlaylist,
+      setIsPlaying,
+      setDuration,
+      setProgress,
+    }),
+    [
+      currentTrack, isPlaying, volume, progress, duration, queue, favorites, history,
+      currentPlaylist, showLyrics, isGlobalMiniPlayerVisible, playTrack, togglePlay,
+      nextTrack, prevTrack, seekTo, addToQueue, removeFromQueue, toggleFavorite,
+      isFavorite, clearHistory, toggleGlobalMiniPlayer,
+    ],
+  );
+
   return (
-    <MusicPlayerContext.Provider
-      value={{
-        currentTrack,
-        isPlaying,
-        volume,
-        progress,
-        duration,
-        queue,
-        favorites,
-        history,
-        currentPlaylist,
-        showLyrics,
-        isGlobalMiniPlayerVisible,
-        playTrack,
-        togglePlay,
-        nextTrack,
-        prevTrack,
-        setVolume,
-        seekTo,
-        addToQueue,
-        removeFromQueue,
-        toggleFavorite,
-        isFavorite,
-        clearHistory: () => setHistory([]),
-        setShowLyrics,
-        toggleGlobalMiniPlayer,
-        setCurrentPlaylist,
-        setIsPlaying,
-        setDuration,
-        setProgress,
-      }}
-    >
+    <MusicPlayerContext.Provider value={value}>
       {children}
     </MusicPlayerContext.Provider>
   );

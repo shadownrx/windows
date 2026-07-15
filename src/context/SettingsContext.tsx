@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { genId } from '../utils/id';
 
 export type SystemState = 'OFF' | 'BOOTING' | 'UEFI' | 'WINDOWS_BOOT' | 'LOGIN' | 'DESKTOP' | 'SHUTTING_DOWN' | 'RESTARTING';
@@ -169,12 +169,17 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setCurrentUserId(newUser.id);
   }, []);
 
-  const setWallpaper = (url: string) => updateUserSetting('wallpaper', url);
-  const setTheme = (t: 'light' | 'dark') => updateUserSetting('theme', t);
-  const toggleTheme = () => updateUserSetting('theme', theme === 'dark' ? 'light' : 'dark');
-  const setNeonTheme = (nt: any) => updateUserSetting('neonTheme', nt);
-  const setAccentColor = (color: string) => updateUserSetting('accentColor', color);
-  const setIsNightLightEnabled = (enabled: boolean) => updateUserSetting('isNightLightEnabled', enabled);
+  const setWallpaper = useCallback((url: string) => updateUserSetting('wallpaper', url), [updateUserSetting]);
+  const toggleTheme = useCallback(
+    () => updateUserSetting('theme', theme === 'dark' ? 'light' : 'dark'),
+    [updateUserSetting, theme],
+  );
+  const setNeonTheme = useCallback((nt: any) => updateUserSetting('neonTheme', nt), [updateUserSetting]);
+  const setAccentColor = useCallback((color: string) => updateUserSetting('accentColor', color), [updateUserSetting]);
+  const setIsNightLightEnabled = useCallback(
+    (enabled: boolean) => updateUserSetting('isNightLightEnabled', enabled),
+    [updateUserSetting],
+  );
 
   // Apply visual changes when current user settings change
   useEffect(() => {
@@ -250,14 +255,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     playSoundRef.current = playSound;
   }, [playSound]);
 
-  const lockSystem = () => {
+  const lockSystem = useCallback(() => {
     if (systemState === 'DESKTOP') {
       setSystemState('LOGIN');
     }
-  };
+  }, [systemState, setSystemState]);
 
-  return (
-    <SettingsContext.Provider value={{
+  const value = useMemo(
+    () => ({
       brightness, setBrightness,
       volume, setVolume,
       isWifiEnabled, setIsWifiEnabled,
@@ -269,15 +274,25 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       notifications, addNotification, removeNotification,
       isTaskViewOpen, setIsTaskViewOpen,
       playSound,
-      
       users, currentUserId, setCurrentUserId, addUser,
       userName, setUserName,
       accentColor, setAccentColor,
       isNightLightEnabled, setIsNightLightEnabled,
       theme, toggleTheme,
       neonTheme, setNeonTheme,
-      wallpaper, setWallpaper
-    }}>
+      wallpaper, setWallpaper,
+    }),
+    [
+      brightness, volume, isWifiEnabled, isBluetoothEnabled, systemState, osType,
+      updateStatus, lockSystem, notifications, addNotification, removeNotification,
+      isTaskViewOpen, playSound, users, currentUserId, addUser, userName, setUserName,
+      accentColor, setAccentColor, isNightLightEnabled, setIsNightLightEnabled,
+      theme, toggleTheme, neonTheme, setNeonTheme, wallpaper, setWallpaper,
+    ],
+  );
+
+  return (
+    <SettingsContext.Provider value={value}>
       {children}
     </SettingsContext.Provider>
   );

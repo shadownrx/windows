@@ -24,8 +24,17 @@ function findYtDlpBinary() {
   return null;
 }
 
+/** Clients that honor Netscape cookies (avoid ios — it ignores them). */
+const DEFAULT_PLAYER_CLIENTS = 'web,mweb,tv,android';
+const FALLBACK_PLAYER_CLIENTS = [
+  'web,mweb',
+  'mweb',
+  'tv',
+  'web',
+];
+
 /** Cookie / JS-runtime flags for YouTube bot walls. */
-function ytDlpAuthArgs() {
+function ytDlpAuthArgs(playerClients) {
   const args = [];
 
   // Signature / n-challenge solver (required by recent yt-dlp)
@@ -58,6 +67,11 @@ function ytDlpAuthArgs() {
   const extractorArgs = (process.env.YT_DLP_EXTRACTOR_ARGS || '').trim();
   if (extractorArgs) {
     args.push('--extractor-args', extractorArgs);
+  } else {
+    const clients = (playerClients || DEFAULT_PLAYER_CLIENTS).trim();
+    if (clients) {
+      args.push('--extractor-args', `youtube:player_client=${clients}`);
+    }
   }
 
   return args;
@@ -177,47 +191,63 @@ export async function resolveAudioUrl(videoId) {
   if (cached && cached.expires > Date.now()) return cached;
 
   const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const auth = ytDlpAuthArgs();
+  const customExtractor = Boolean((process.env.YT_DLP_EXTRACTOR_ARGS || '').trim());
+  const clientAttempts = customExtractor
+    ? [undefined]
+    : [DEFAULT_PLAYER_CLIENTS, ...FALLBACK_PLAYER_CLIENTS];
   let lastErr = null;
 
-  try {
-    const raw = await runYtDlp([
-      ...auth,
-      '-f',
-      'ba/bestaudio/best',
-      '-g',
-      '--no-playlist',
-      '--no-warnings',
-      watchUrl,
-    ]);
-    const url = raw.split(/\r?\n/).map((l) => l.trim()).find((l) => l.startsWith('http'));
-    if (!url) throw new Error('yt-dlp no devolvió URL');
-
-    let title;
+  for (const clients of clientAttempts) {
+    const auth = ytDlpAuthArgs(clients);
     try {
-      title = await runYtDlp(
-        [...auth, '--print', '%(title)s', '--no-playlist', '--no-warnings', watchUrl],
-        15000,
+      const raw = await runYtDlp([
+        ...auth,
+        '-f',
+        'ba/bestaudio/best',
+        '-g',
+        '--no-playlist',
+        '--no-warnings',
+        watchUrl,
+      ]);
+      const url = raw.split(/\r?\n/).map((l) => l.trim()).find((l) => l.startsWith('http'));
+      if (!url) throw new Error('yt-dlp no devolvió URL');
+
+      let title;
+      try {
+        title = await runYtDlp(
+          [...auth, '--print', '%(title)s', '--no-playlist', '--no-warnings', watchUrl],
+          15000,
+        );
+      } catch {
+        title = undefined;
+      }
+
+      const mimeType =
+        url.includes('mime=audio%2Fwebm') || url.includes('webm') ? 'audio/webm' : 'audio/mp4';
+
+      const entry = {
+        url,
+        mimeType,
+        title: title || undefined,
+        source: 'yt-dlp',
+        expires: Date.now() + CACHE_TTL_MS,
+      };
+      cache.set(videoId, entry);
+      if (clients && clients !== DEFAULT_PLAYER_CLIENTS) {
+        console.log('[stream] yt-dlp OK via player_client=', clients, videoId);
+      }
+      return entry;
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+      const bot = isBotWallError(lastErr.message);
+      console.warn(
+        '[stream] yt-dlp failed',
+        videoId,
+        clients ? `(${clients})` : '',
+        lastErr.message.slice(0, 200),
       );
-    } catch {
-      title = undefined;
+      if (!bot || customExtractor) break;
     }
-
-    const mimeType =
-      url.includes('mime=audio%2Fwebm') || url.includes('webm') ? 'audio/webm' : 'audio/mp4';
-
-    const entry = {
-      url,
-      mimeType,
-      title: title || undefined,
-      source: 'yt-dlp',
-      expires: Date.now() + CACHE_TTL_MS,
-    };
-    cache.set(videoId, entry);
-    return entry;
-  } catch (err) {
-    lastErr = err instanceof Error ? err : new Error(String(err));
-    console.warn('[stream] yt-dlp failed', videoId, lastErr.message);
   }
 
   try {
@@ -231,9 +261,11 @@ export async function resolveAudioUrl(videoId) {
     return entry;
   } catch (pipedErr) {
     const pipedMsg = pipedErr instanceof Error ? pipedErr.message : String(pipedErr);
-    const authHint = cookiesConfigured().mode === 'none'
-      ? ' Configurá YT_DLP_COOKIES (cookies.txt) o YT_DLP_COOKIES_FROM_BROWSER=chrome (cerrá Chrome antes).'
-      : '';
+    const cookies = cookiesConfigured();
+    const authHint =
+      cookies.mode === 'none'
+        ? ' Configurá YT_DLP_COOKIES (cookies.txt) o YT_DLP_COOKIES_FROM_BROWSER=chrome (cerrá Chrome antes).'
+        : ' Cookies montadas pero YouTube las rechazó (sesión inválida/IP de datacenter). Reexportá con: yt-dlp --cookies-from-browser chrome --cookies youtube-cookies.txt --skip-download "https://www.youtube.com"';
     const bot = lastErr && isBotWallError(lastErr.message);
     const ytdlpBit = (lastErr?.message || 'fail').slice(0, 900);
     throw new Error(

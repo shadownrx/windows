@@ -56,19 +56,25 @@ export const ClipboardHistoryProvider: React.FC<{ children: React.ReactNode }> =
     if (!trimmed) return;
     setItems((prev) => {
       if (prev[0]?.kind === 'text' && prev[0].text === trimmed) return prev;
-      return [
-        { id: crypto.randomUUID(), kind: 'text', text: trimmed, createdAt: Date.now() },
-        ...prev.filter((i) => !(i.kind === 'text' && i.text === trimmed)),
-      ].slice(0, MAX);
+      const item: ClipboardItem = {
+        id: crypto.randomUUID(),
+        kind: 'text',
+        text: trimmed,
+        createdAt: Date.now(),
+      };
+      return [item, ...prev.filter((i) => !(i.kind === 'text' && i.text === trimmed))].slice(0, MAX);
     });
   }, []);
 
   const pushImage = useCallback((dataUrl: string) => {
     if (!dataUrl.startsWith('data:image')) return;
-    setItems((prev) => [
-      { id: crypto.randomUUID(), kind: 'image', imageUrl: dataUrl, createdAt: Date.now() },
-      ...prev,
-    ].slice(0, MAX));
+    const item: ClipboardItem = {
+      id: crypto.randomUUID(),
+      kind: 'image',
+      imageUrl: dataUrl,
+      createdAt: Date.now(),
+    };
+    setItems((prev) => [item, ...prev].slice(0, MAX));
   }, []);
 
   // Capture system copy events inside NEX OS

@@ -14,7 +14,8 @@ const Background3D: React.FC = () => {
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const lowEnd = (navigator.hardwareConcurrency ?? 4) <= 2;
-    setShouldRender3D(!reduced && !lowEnd);
+    const phone = window.matchMedia('(max-width: 768px)').matches;
+    setShouldRender3D(!reduced && !lowEnd && !phone);
   }, []);
 
   // No renderizar nada si no hay tema neon activo para ahorrar recursos

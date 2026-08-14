@@ -41,6 +41,8 @@ import {
   Globe24Regular,
 } from '@fluentui/react-icons';
 import { Code24Regular, Person24Regular } from '@fluentui/react-icons';
+import { useIsPhone } from '../hooks/useMobileAppShell';
+import MobileShell from './mobile/MobileShell';
 
 const NEX_ICONS: Record<string, React.ReactNode> = {
   notepad:       <Document24Regular />,
@@ -74,6 +76,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
   const { resolveNex } = useNexRuntime();
 
   const { isTaskViewOpen, setIsTaskViewOpen, addNotification, userName, wallpaper, neonTheme } = useSettings();
+  const isPhone = useIsPhone();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -356,6 +359,10 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     setIsNotificationsOpen(false);
     closeWidgets();
   };
+
+  if (isPhone) {
+    return <MobileShell onShutdown={onShutdown} onRestart={onRestart} />;
+  }
 
   return (
     <div 

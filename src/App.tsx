@@ -12,7 +12,6 @@ import { ClipboardHistoryProvider } from './context/ClipboardHistoryContext';
 import ClipboardHistoryPanel from './components/system/ClipboardHistoryPanel';
 import SnippingOverlay from './components/system/SnippingOverlay';
 import { useNexPhoneShell } from './hooks/useMobileAppShell';
-import './components/mobile/mobile.css';
 
 const OffScreen = lazy(() => import('./components/system/OffScreen'));
 const BootScreen = lazy(() => import('./components/system/BootScreen'));

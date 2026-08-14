@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowClockwise24Regular, Power24Regular } from '@fluentui/react-icons';
 import { useSettings } from '../../context/SettingsContext';
 import MobileStatusBar from './MobileStatusBar';
+import './mobile.css';
 
 interface MobileLockScreenProps {
   onLogin: () => void;

@@ -12,6 +12,7 @@ import MobileNavBar from './MobileNavBar';
 import MobileShade from './MobileShade';
 import MobileAppSwitcher from './MobileAppSwitcher';
 import MobileAppWindow from './MobileAppWindow';
+import './mobile.css';
 
 const DOCK_IDS = ['files', 'chrome', 'nexreproductor', 'control-panel'];
 

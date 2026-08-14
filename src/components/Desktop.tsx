@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { resolveRegisteredApp } from '@nex-os/sdk';
 import { useSettings } from '../context/SettingsContext';
@@ -42,7 +42,8 @@ import {
 } from '@fluentui/react-icons';
 import { Code24Regular, Person24Regular } from '@fluentui/react-icons';
 import { useIsPhone } from '../hooks/useMobileAppShell';
-import MobileShell from './mobile/MobileShell';
+
+const MobileShell = lazy(() => import('./mobile/MobileShell'));
 
 const NEX_ICONS: Record<string, React.ReactNode> = {
   notepad:       <Document24Regular />,
@@ -361,7 +362,11 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
   };
 
   if (isPhone) {
-    return <MobileShell onShutdown={onShutdown} onRestart={onRestart} />;
+    return (
+      <Suspense fallback={<div className="w-full h-full bg-black" />}>
+        <MobileShell onShutdown={onShutdown} onRestart={onRestart} />
+      </Suspense>
+    );
   }
 
   return (

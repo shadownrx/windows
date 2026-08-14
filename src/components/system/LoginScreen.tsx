@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import { ArrowRight24Regular, Globe24Regular, Speaker224Regular, Power24Regular, PersonAdd24Regular, Dismiss24Regular } from '@fluentui/react-icons';
 import { useSettings } from '../../context/SettingsContext';
+import { useIsPhone } from '../../hooks/useMobileAppShell';
+
+const MobileLockScreen = lazy(() => import('../mobile/MobileLockScreen'));
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -8,6 +11,7 @@ interface LoginScreenProps {
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, wallpaper }) => {
+  const isPhone = useIsPhone();
   const { osType, users, currentUserId, setCurrentUserId, addUser } = useSettings();
   const [showLogin, setShowLogin] = useState(false);
   const [time, setTime] = useState(new Date());
@@ -84,6 +88,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, wallpaper }) => {
     setError('');
     setIsAddingUser(false);
   };
+
+  if (isPhone) {
+    return (
+      <Suspense fallback={<div style={{ width: '100%', height: '100%', background: '#000' }} />}>
+        <MobileLockScreen onLogin={onLogin} wallpaper={wallpaper} />
+      </Suspense>
+    );
+  }
 
   return (
     <div 

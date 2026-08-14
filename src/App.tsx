@@ -11,6 +11,7 @@ import { MusicPlayerProvider } from './context/MusicPlayerContext';
 import { ClipboardHistoryProvider } from './context/ClipboardHistoryContext';
 import ClipboardHistoryPanel from './components/system/ClipboardHistoryPanel';
 import SnippingOverlay from './components/system/SnippingOverlay';
+import { useNexPhoneShell } from './hooks/useMobileAppShell';
 
 const OffScreen = lazy(() => import('./components/system/OffScreen'));
 const BootScreen = lazy(() => import('./components/system/BootScreen'));
@@ -44,7 +45,13 @@ function WelcomeBackEffect() {
             <ArrowClockwise24Regular />,
           );
         } else {
-          addNotification('Bienvenido', 'NEX OS listo · Ctrl+Alt+V portapapeles · Ctrl+Alt+S recorte', <Info24Regular />);
+          addNotification(
+            'Bienvenido',
+            window.matchMedia('(max-width: 768px)').matches
+              ? 'NEX OS Mobile · deslizá desde arriba para el centro de control'
+              : 'NEX OS listo · Ctrl+Alt+V portapapeles · Ctrl+Alt+S recorte',
+            <Info24Regular />,
+          );
         }
       }
       hasLoggedInRef.current = true;
@@ -58,6 +65,7 @@ function WelcomeBackEffect() {
 }
 
 function AppContent() {
+  const isPhone = useNexPhoneShell();
   const { isNightLightEnabled, systemState, setSystemState, wallpaper, osType, setOsType } = useSettings();
 
   useEffect(() => {
@@ -90,7 +98,7 @@ function AppContent() {
       <WelcomeBackEffect />
 
       <Suspense fallback={<ScreenFallback />}>
-        {systemState === 'DESKTOP' && <Background3D />}
+        {systemState === 'DESKTOP' && !isPhone && <Background3D />}
 
         {systemState === 'OFF' && <OffScreen onPowerOn={() => setSystemState('BOOTING')} />}
         {systemState === 'BOOTING' && <BootScreen />}
@@ -106,7 +114,7 @@ function AppContent() {
         )}
         {systemState === 'LOGIN' && <LoginScreen onLogin={() => setSystemState('DESKTOP')} wallpaper={wallpaper} />}
         {systemState === 'DESKTOP' && (
-          osType === 'windows' ? (
+          isPhone || osType === 'windows' ? (
             <Desktop
               onShutdown={() => setSystemState('SHUTTING_DOWN')}
               onRestart={() => setSystemState('RESTARTING')}

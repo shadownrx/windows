@@ -43,8 +43,8 @@ const NotificationToast: React.FC<{ notification: Notification, onClose: () => v
   return (
     <motion.div
       layout
-      initial={{ x: 400, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
+      initial={{ x: 400, y: -24, opacity: 0 }}
+      animate={{ x: 0, y: 0, opacity: 1 }}
       exit={{ x: 400, opacity: 0, scale: 0.8 }}
       transition={{ type: 'spring', damping: 20, stiffness: 200 }}
       className="notification-toast mica-strong"

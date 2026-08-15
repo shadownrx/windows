@@ -14,7 +14,7 @@ import MobileAppSwitcher from './MobileAppSwitcher';
 import MobileAppWindow from './MobileAppWindow';
 import './mobile.css';
 
-const DOCK_IDS = ['files', 'chrome', 'nexreproductor', 'control-panel'];
+const DOCK_IDS = ['games', 'chrome', 'nexreproductor', 'control-panel'];
 
 interface MobileShellProps {
   onShutdown: () => void;
@@ -135,7 +135,7 @@ const MobileShell: React.FC<MobileShellProps> = ({ onShutdown, onRestart }) => {
 
       <MobileStatusBar onPullDown={() => { setRecentsOpen(false); setShadeOpen(true); }} />
 
-      {!hasApp && (
+      <div className="nex-m-home-stage" data-dimmed={hasApp ? '1' : '0'} aria-hidden={hasApp}>
         <MobileHome
           apps={homeApps}
           query={query}
@@ -144,9 +144,7 @@ const MobileShell: React.FC<MobileShellProps> = ({ onShutdown, onRestart }) => {
           userName={userName}
           now={now}
         />
-      )}
 
-      {!hasApp && (
         <div className="nex-m-dock">
           {dockApps.map((app) => (
             <button
@@ -160,39 +158,41 @@ const MobileShell: React.FC<MobileShellProps> = ({ onShutdown, onRestart }) => {
             </button>
           ))}
         </div>
-      )}
 
-      <AnimatePresence>
-        {visibleWindows.map((win) => (
-          <MobileAppWindow key={win.id} window={win} />
-        ))}
-      </AnimatePresence>
+        {currentTrack && (
+          <div className="nex-m-mini">
+            <button
+              type="button"
+              style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, background: 'transparent', border: 'none', color: 'inherit', textAlign: 'left' }}
+              onClick={() => {
+                const music = homeApps.find((a) => a.id === 'nexreproductor');
+                if (music) launch(music);
+              }}
+            >
+              <img src={currentTrack.cover} alt="" />
+              <div className="nex-m-mini-info">
+                <strong>{currentTrack.title}</strong>
+                <span>{currentTrack.artist}</span>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={togglePlay}
+              aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
+            >
+              {isPlaying ? <Pause24Filled /> : <Play24Filled />}
+            </button>
+          </div>
+        )}
+      </div>
 
-      {currentTrack && !hasApp && (
-        <div className="nex-m-mini">
-          <button
-            type="button"
-            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, background: 'transparent', border: 'none', color: 'inherit', textAlign: 'left' }}
-            onClick={() => {
-              const music = homeApps.find((a) => a.id === 'nexreproductor');
-              if (music) launch(music);
-            }}
-          >
-            <img src={currentTrack.cover} alt="" />
-            <div className="nex-m-mini-info">
-              <strong>{currentTrack.title}</strong>
-              <span>{currentTrack.artist}</span>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={togglePlay}
-            aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
-          >
-            {isPlaying ? <Pause24Filled /> : <Play24Filled />}
-          </button>
-        </div>
-      )}
+      <div className="nex-m-app-stage">
+        <AnimatePresence>
+          {visibleWindows.map((win) => (
+            <MobileAppWindow key={win.id} window={win} />
+          ))}
+        </AnimatePresence>
+      </div>
 
       <AnimatePresence>
         {shadeOpen && (
@@ -254,6 +254,7 @@ const MobileShell: React.FC<MobileShellProps> = ({ onShutdown, onRestart }) => {
         onHome={goHome}
         onRecents={openRecents}
         recentsOpen={recentsOpen}
+        overlay={hasApp}
       />
     </div>
   );

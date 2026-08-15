@@ -3,6 +3,34 @@ import { Search24Regular } from '@fluentui/react-icons';
 import type { AppItem } from '../../constants/apps';
 import { colorForApp } from './appColors';
 
+const SHORT_LABELS: Record<string, string> = {
+  files: 'Archivos',
+  chrome: 'Chrome',
+  vscode: 'VS Code',
+  hermes: 'Hermes',
+  paint: 'Paint',
+  'control-panel': 'Ajustes',
+  wordpad: 'WordPad',
+  'task-manager': 'Tareas',
+  calendar: 'Agenda',
+  defender: 'Seguridad',
+  calculator: 'Calc',
+  notepad: 'Notas',
+  terminal: 'Consola',
+  clock: 'Reloj',
+  photos: 'Fotos',
+  nexreproductor: 'Música',
+  'virtual-dj': 'DJ',
+  spotify: 'Spotify',
+  'nex-store': 'Store',
+  tetris: 'Tetris',
+  games: 'Juegos',
+};
+
+function homeLabel(app: AppItem) {
+  return SHORT_LABELS[app.id] ?? app.label;
+}
+
 export function AppGlyph({ app }: { app: AppItem }) {
   return (
     <span className="nex-m-icon" style={{ background: colorForApp(app.id) }}>
@@ -21,9 +49,11 @@ interface MobileHomeProps {
 }
 
 const MobileHome: React.FC<MobileHomeProps> = ({ apps, query, onQuery, onLaunch, userName, now }) => {
-  const filtered = apps.filter((a) =>
-    a.label.toLowerCase().includes(query.trim().toLowerCase()),
-  );
+  const q = query.trim().toLowerCase();
+  const filtered = apps.filter((a) => {
+    const label = homeLabel(a);
+    return !q || label.toLowerCase().includes(q) || a.label.toLowerCase().includes(q);
+  });
 
   return (
     <div className="nex-m-home">
@@ -42,7 +72,7 @@ const MobileHome: React.FC<MobileHomeProps> = ({ apps, query, onQuery, onLaunch,
         <input
           type="search"
           enterKeyHint="search"
-          placeholder="Buscar apps en NEX"
+          placeholder="Buscar"
           value={query}
           onChange={(e) => onQuery(e.target.value)}
         />
@@ -61,7 +91,7 @@ const MobileHome: React.FC<MobileHomeProps> = ({ apps, query, onQuery, onLaunch,
                 onClick={() => onLaunch(app)}
               >
                 <AppGlyph app={app} />
-                <span className="nex-m-app-label">{app.label}</span>
+                <span className="nex-m-app-label">{homeLabel(app)}</span>
               </button>
             ))}
           </div>

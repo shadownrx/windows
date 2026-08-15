@@ -24,4 +24,5 @@ export const NEX_EXECUTABLE_REGISTRY: Record<string, NexExecutable> = {
   'mediaplayer.nex': { appId: 'mediaplayer', title: 'Reproductor multimedia' },
   'devcpp.nex': { appId: 'devcpp-2026', title: 'Dev-C++ 2026' },
   'tetris.nex': { appId: 'tetris', title: 'Tetris' },
+  'games.nex': { appId: 'games', title: 'Games' },
 };

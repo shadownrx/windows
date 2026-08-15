@@ -75,6 +75,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ isOpen, onClose, onShutdown, onRe
       { id: 'nexreproductor', appId: 'nexreproductor', icon: <span style={{ fontSize: 20 }}>🎵</span>, name: 'NexReproductor', color: '#1db954' },
       { id: 'virtual-dj', appId: 'virtual-dj', icon: <span style={{ fontSize: 20 }}>🎧</span>, name: 'NEX DJ', color: '#ff6b4a' },
       { id: 'tetris', appId: 'tetris', icon: <span style={{ fontSize: 20 }}>🧱</span>, name: 'Tetris', color: '#22d3ee' },
+      { id: 'games', appId: 'games', icon: <span style={{ fontSize: 20 }}>🎮</span>, name: 'Games', color: '#22d3ee' },
     ];
     const builtinIds = new Set(builtins.map((a) => a.id));
     const community = getCommunityLauncherItems()

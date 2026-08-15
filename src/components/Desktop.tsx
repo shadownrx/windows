@@ -144,6 +144,8 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
       openWindow('calculator', 'calculator', 'Calculadora', <Calculator24Regular />);
     } else if (normalized === 'tetris') {
       openWindow('tetris', 'tetris', 'Tetris', <span style={{ fontSize: 18 }}>🧱</span>);
+    } else if (normalized === 'games') {
+      openWindow('games', 'games', 'Games', <span style={{ fontSize: 18 }}>🎮</span>);
     } else if (normalized === 'defender' || normalized === 'ms-settings:windowsdefender') {
       openWindow('defender', 'defender', 'Seguridad de Windows', <ShieldCheckmark24Regular />);
     } else if (normalized === 'devcpp' || normalized === 'dev-cpp') {

@@ -47,6 +47,7 @@ const APP_LAUNCHERS: Record<string, { appId: string; title: string }> = {
   clock: { appId: 'clock', title: 'Reloj' },
   photos: { appId: 'photos', title: 'Fotos' },
   store: { appId: 'nex-store', title: 'NEX Store' },
+  games: { appId: 'games', title: 'Games' },
 };
 
 function walkFiles(files: FileItem[], rootId: string, prefix: string): { path: string; item: FileItem }[] {

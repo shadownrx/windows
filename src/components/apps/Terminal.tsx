@@ -27,6 +27,7 @@ const NEX_ICONS: Record<string, React.ReactNode> = {
   'hello-nex': <span style={{ fontSize: 16 }}>🚀</span>,
   'sdk-docs': <span style={{ fontSize: 16 }}>⬡</span>,
   tetris: <span style={{ fontSize: 16 }}>🧱</span>,
+  games: <span style={{ fontSize: 16 }}>🎮</span>,
 };
 
 type Line = { text: string; color?: string };

@@ -309,7 +309,7 @@ export async function* runShellCommand(
       yield line('  Archivos   ls dir cd mkdir touch rm cp mv cat head tail wc grep find tree');
       yield line('  Sistema    pwd whoami uname date uptime hostname df du free ps top neofetch');
       yield line('  Red        ping ipconfig traceroute nslookup curl wget');
-      yield line('  Apps       tetris calc notepad explorer paint chrome code open <app>');
+      yield line('  Apps       games tetris calc notepad explorer paint chrome code open <app>');
       yield line('  Fun        cowsay fortune sl cmatrix cal factor expr');
       yield line('  Runtime    node python env which clear help');
       yield line('');

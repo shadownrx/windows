@@ -13,6 +13,7 @@ import {
   MusicNote2Regular,
   Calculator24Regular,
   Globe24Regular,
+  Games24Regular,
 } from '@fluentui/react-icons';
 
 /**
@@ -82,4 +83,5 @@ export const APPS: AppItem[] = [
     isPinned: true,
   },
   { id: 'tetris', appId: 'tetris', icon: <span style={{ fontSize: 18 }}>🧱</span>, label: 'Tetris' },
+  { id: 'games', appId: 'games', icon: <Games24Regular primaryFill="#22d3ee" />, label: 'Games' },
 ];

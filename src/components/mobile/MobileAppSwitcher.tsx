@@ -17,9 +17,10 @@ const MobileAppSwitcher: React.FC<MobileAppSwitcherProps> = ({ windows, onOpen, 
   return (
     <motion.div
       className="nex-m-switcher"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      initial={{ opacity: 0, scale: 1.04 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 1.02 }}
+      transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
       onClick={onHome}
     >
       <h2>Recientes</h2>

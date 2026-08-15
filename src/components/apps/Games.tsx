@@ -21,7 +21,7 @@ const CATALOG: GameCard[] = [
     appId: 'tetris',
     title: 'Tetris',
     genre: 'Puzzle',
-    blurb: 'Encajá líneas, subí de nivel y rompé tu récord. Controles táctiles en el celular.',
+    blurb: 'Encajá líneas, subí de nivel y rompé tu récord.',
     accent: '#22d3ee',
     icon: <span aria-hidden>🧱</span>,
     featured: true,
@@ -38,71 +38,7 @@ const CATALOG: GameCard[] = [
   },
 ];
 
-const Games: React.FC = () => {
-  const { openWindow } = useWindowManager();
-  const isPhone = useIsPhone();
-  const [query, setQuery] = useState('');
-
-  const games = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return CATALOG.filter(
-      (g) => !q || g.title.toLowerCase().includes(q) || g.genre.toLowerCase().includes(q),
-    );
-  }, [query]);
-
-  const play = (game: GameCard) => {
-    openWindow(game.id, game.appId, game.title, game.icon);
-  };
-
-  return (
-    <div className={`nx-games ${isPhone ? 'is-phone' : ''}`}>
-      <header className="nx-games-hero">
-        <div>
-          <div className="nx-games-kicker">NEX Arcade</div>
-          <h1>Games</h1>
-          <p>Tus juegos del sistema. Tocá Jugar y se abre en su propia ventana.</p>
-        </div>
-        <label className="nx-games-search">
-          <input
-            type="search"
-            placeholder="Buscar juegos"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-      </header>
-
-      <div className="nx-games-grid">
-        {games.map((game) => {
-          const best = game.scoreKey ? Number(localStorage.getItem(game.scoreKey) || 0) : 0;
-          return (
-            <article
-              key={game.id}
-              className={`nx-games-card ${game.featured ? 'featured' : ''}`}
-              style={{ ['--g-accent' as string]: game.accent }}
-            >
-              <div className="nx-games-icon">{game.icon}</div>
-              <div className="nx-games-body">
-                <div className="nx-games-meta">
-                  <h2>{game.title}</h2>
-                  <span>{game.genre}</span>
-                </div>
-                <p>{game.blurb}</p>
-                {game.scoreKey != null && (
-                  <div className="nx-games-score">Mejor: {best.toLocaleString()}</div>
-                )}
-              </div>
-              <button type="button" onClick={() => play(game)}>
-                <Play24Filled />
-                Jugar
-              </button>
-            </article>
-          );
-        })}
-        {games.length === 0 && <div className="nx-games-empty">No hay juegos con “{query}”</div>}
-      </div>
-
-      <style>{`
+const GAMES_CSS = `
         .nx-games {
           height: 100%;
           min-height: 0;
@@ -213,12 +149,164 @@ const Games: React.FC = () => {
         }
         .nx-games-card button:active { transform: scale(0.96); }
         .nx-games-empty { opacity: 0.6; padding: 24px 4px; }
-        .nx-games.is-phone .nx-games-hero { flex-direction: column; align-items: stretch; }
-        .nx-games.is-phone .nx-games-search input { width: 100%; }
-        .nx-games.is-phone .nx-games-card.featured { flex-direction: column; align-items: stretch; }
-        .nx-games.is-phone .nx-games-card button { width: 100%; height: 48px; }
-        .nx-games.is-phone .nx-games-hero h1 { font-size: 28px; }
-      `}</style>
+        .nx-games.is-phone {
+          padding: 16px 16px 20px;
+          display: flex;
+          flex-direction: column;
+        }
+        .nx-games.is-phone .nx-games-hero {
+          flex-direction: column;
+          align-items: stretch;
+          margin-bottom: 16px;
+        }
+        .nx-games.is-phone .nx-games-hero h1 { font-size: 28px; margin: 2px 0 4px; }
+        .nx-games-posters {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .nx-games-poster {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          width: 100%;
+          text-align: left;
+          padding: 16px;
+          border: 1px solid color-mix(in srgb, var(--g-accent) 28%, rgba(255,255,255,0.08));
+          border-radius: 22px;
+          background:
+            linear-gradient(135deg, color-mix(in srgb, var(--g-accent) 22%, transparent), rgba(255,255,255,0.04));
+          color: inherit;
+          min-height: 0;
+        }
+        .nx-games-poster:active { transform: scale(0.98); }
+        .nx-games-poster.featured { min-height: 108px; }
+        .nx-games-poster .nx-games-icon {
+          width: 72px;
+          height: 72px;
+          border-radius: 20px;
+          font-size: 36px;
+        }
+        .nx-games-poster .nx-games-meta { flex-direction: column; align-items: flex-start; gap: 2px; }
+        .nx-games-poster .nx-games-meta h2 { font-size: 22px; }
+        .nx-games-poster .nx-games-score { margin-top: 6px; }
+        .nx-games-play {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          background: var(--g-accent);
+          color: #041016;
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
+        }
+`;
+
+const Games: React.FC = () => {
+  const { openWindow } = useWindowManager();
+  const isPhone = useIsPhone();
+  const [query, setQuery] = useState('');
+
+  const games = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return CATALOG.filter(
+      (g) => !q || g.title.toLowerCase().includes(q) || g.genre.toLowerCase().includes(q),
+    );
+  }, [query]);
+
+  const play = (game: GameCard) => {
+    openWindow(game.id, game.appId, game.title, game.icon);
+  };
+
+  if (isPhone) {
+    return (
+      <div className="nx-games is-phone">
+        <header className="nx-games-hero">
+          <div className="nx-games-kicker">NEX Arcade</div>
+          <h1>Juegos</h1>
+          <p>Tocá un título y a jugar.</p>
+        </header>
+        <div className="nx-games-posters">
+          {CATALOG.map((game) => {
+            const best = game.scoreKey ? Number(localStorage.getItem(game.scoreKey) || 0) : 0;
+            return (
+              <button
+                key={game.id}
+                type="button"
+                className={`nx-games-poster ${game.featured ? 'featured' : ''}`}
+                style={{ ['--g-accent' as string]: game.accent }}
+                onClick={() => play(game)}
+              >
+                <span className="nx-games-icon">{game.icon}</span>
+                <span className="nx-games-body">
+                  <span className="nx-games-meta">
+                    <h2>{game.title}</h2>
+                    <span>{game.genre}</span>
+                  </span>
+                  {game.scoreKey != null && best > 0 && (
+                    <span className="nx-games-score">Mejor {best.toLocaleString()}</span>
+                  )}
+                </span>
+                <span className="nx-games-play">
+                  <Play24Filled />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <style>{GAMES_CSS}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div className="nx-games">
+      <header className="nx-games-hero">
+        <div>
+          <div className="nx-games-kicker">NEX Arcade</div>
+          <h1>Games</h1>
+          <p>Tus juegos del sistema. Tocá Jugar y se abre en su propia ventana.</p>
+        </div>
+        <label className="nx-games-search">
+          <input
+            type="search"
+            placeholder="Buscar juegos"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+      </header>
+
+      <div className="nx-games-grid">
+        {games.map((game) => {
+          const best = game.scoreKey ? Number(localStorage.getItem(game.scoreKey) || 0) : 0;
+          return (
+            <article
+              key={game.id}
+              className={`nx-games-card ${game.featured ? 'featured' : ''}`}
+              style={{ ['--g-accent' as string]: game.accent }}
+            >
+              <div className="nx-games-icon">{game.icon}</div>
+              <div className="nx-games-body">
+                <div className="nx-games-meta">
+                  <h2>{game.title}</h2>
+                  <span>{game.genre}</span>
+                </div>
+                <p>{game.blurb}</p>
+                {game.scoreKey != null && (
+                  <div className="nx-games-score">Mejor: {best.toLocaleString()}</div>
+                )}
+              </div>
+              <button type="button" onClick={() => play(game)}>
+                <Play24Filled />
+                Jugar
+              </button>
+            </article>
+          );
+        })}
+        {games.length === 0 && <div className="nx-games-empty">No hay juegos con “{query}”</div>}
+      </div>
+      <style>{GAMES_CSS}</style>
     </div>
   );
 };

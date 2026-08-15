@@ -39,7 +39,7 @@ const MobileShade: React.FC<MobileShadeProps> = ({ onClose, onLock, onSettings, 
         initial={{ y: '-100%' }}
         animate={{ y: 0 }}
         exit={{ y: '-100%' }}
-        transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+        transition={{ type: 'spring', damping: 32, stiffness: 380, mass: 0.85 }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="nex-m-shade-handle" />

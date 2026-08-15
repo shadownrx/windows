@@ -6,11 +6,12 @@ interface MobileNavBarProps {
   onHome: () => void;
   onRecents: () => void;
   recentsOpen?: boolean;
+  overlay?: boolean;
 }
 
-const MobileNavBar: React.FC<MobileNavBarProps> = ({ onBack, onHome, onRecents, recentsOpen }) => {
+const MobileNavBar: React.FC<MobileNavBarProps> = ({ onBack, onHome, onRecents, recentsOpen, overlay }) => {
   return (
-    <nav className="nex-m-nav" aria-label="Navegación NEX">
+    <nav className={`nex-m-nav ${overlay ? 'is-overlay' : ''}`} aria-label="Navegación NEX">
       <button type="button" className="nex-m-nav-btn" onClick={onBack} aria-label="Atrás">
         <ArrowLeft24Regular />
       </button>

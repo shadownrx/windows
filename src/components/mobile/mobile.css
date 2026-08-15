@@ -15,11 +15,12 @@ html.nex-phone body {
 }
 
 html.nex-phone {
-  --nex-status-h: calc(34px + env(safe-area-inset-top, 0px));
-  --nex-nav-h: calc(52px + env(safe-area-inset-bottom, 0px));
+  --nex-status-h: calc(32px + env(safe-area-inset-top, 0px));
+  --nex-nav-h: calc(44px + env(safe-area-inset-bottom, 0px));
   --nex-dock-h: 84px;
   --nex-app-top: var(--nex-status-h);
   --nex-app-bottom: var(--nex-nav-h);
+  --nex-m-ease: cubic-bezier(0.32, 0.72, 0, 1);
   --taskbar-height: var(--nex-nav-h);
 }
 
@@ -77,8 +78,14 @@ html.nex-phone .show-desktop {
   inset: 0;
   background-size: cover;
   background-position: center;
-  transform: scale(1.04);
+  transform: scale(1.06);
   filter: saturate(1.08);
+  transition: transform 0.55s var(--nex-m-ease), filter 0.55s var(--nex-m-ease);
+}
+
+.nex-m-shell.has-app .nex-m-wallpaper {
+  transform: scale(1.12);
+  filter: saturate(1.02) brightness(0.72);
 }
 
 .nex-m-wallpaper::after {
@@ -97,7 +104,7 @@ html.nex-phone .show-desktop {
   right: 0;
   z-index: 40;
   height: var(--nex-status-h);
-  padding: env(safe-area-inset-top, 0px) 16px 0;
+  padding: env(safe-area-inset-top, 0px) 18px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -107,6 +114,14 @@ html.nex-phone .show-desktop {
   color: #fff;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
   pointer-events: auto;
+}
+
+.nex-m-shell.has-app .nex-m-status {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.42), transparent);
+}
+
+.nex-m-shell.has-app .nex-m-status-brand {
+  opacity: 0;
 }
 
 .nex-m-status-left,
@@ -169,6 +184,38 @@ html.nex-phone .show-desktop {
   display: flex;
   width: 16px;
   height: 16px;
+}
+
+/* ---------- Home stage (stays mounted under apps) ---------- */
+.nex-m-home-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  transform-origin: center 42%;
+  transition:
+    transform 0.48s var(--nex-m-ease),
+    filter 0.48s var(--nex-m-ease),
+    opacity 0.4s var(--nex-m-ease);
+  will-change: transform, filter, opacity;
+}
+
+.nex-m-home-stage[data-dimmed='1'] {
+  transform: scale(0.9);
+  filter: blur(14px) saturate(1.1);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.nex-m-app-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.nex-m-app-stage .nex-m-app {
+  pointer-events: auto;
 }
 
 /* ---------- Home ---------- */
@@ -244,6 +291,8 @@ html.nex-phone .show-desktop {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 8px;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .nex-m-grid {
@@ -263,6 +312,7 @@ html.nex-phone .show-desktop {
   padding: 0;
   min-width: 0;
   min-height: 0;
+  transition: transform 0.18s var(--nex-m-ease);
 }
 
 .nex-m-app-btn:active {
@@ -375,6 +425,15 @@ html.nex-phone .show-desktop {
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.28));
 }
 
+.nex-m-nav.is-overlay {
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.nex-m-nav.is-overlay .nex-m-home-pill {
+  width: 118px;
+  height: 4px;
+}
+
 .nex-m-nav-btn {
   width: 64px;
   height: 44px;
@@ -408,79 +467,42 @@ html.nex-phone .show-desktop {
 /* ---------- Fullscreen app ---------- */
 .nex-m-app {
   position: absolute;
-  top: var(--nex-app-top);
-  left: 0;
-  right: 0;
-  bottom: var(--nex-app-bottom);
+  inset: 0;
   z-index: 20;
   display: flex;
   flex-direction: column;
-  background: var(--win-bg, #1c1c1c);
+  background: var(--win-bg, #111214);
   overflow: hidden;
-  border-radius: 18px 18px 0 0;
-  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.4);
-}
-
-.nex-m-app-bar {
-  flex-shrink: 0;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 6px 0 4px;
-  background: rgba(0, 0, 0, 0.28);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.nex-m-app-bar button {
-  width: 44px;
-  height: 44px;
-  border: none;
-  background: transparent;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  min-width: 44px;
-  min-height: 44px;
-}
-
-.nex-m-app-bar button:active {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.nex-m-app-title {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  overflow: hidden;
-}
-
-.nex-m-app-title span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nex-m-app-title .title-icon,
-.nex-m-app-title .nex-m-app-title-icon {
-  display: flex;
-  flex-shrink: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding-top: var(--nex-app-top);
+  padding-bottom: var(--nex-app-bottom);
+  box-sizing: border-box;
 }
 
 .nex-m-app-body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   -webkit-overflow-scrolling: touch;
   position: relative;
-  background: rgba(20, 20, 20, 0.55);
+  background: var(--win-bg, #111214);
   overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+}
+
+.nex-m-app-fill {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.nex-m-app-fill > * {
+  min-height: 100%;
 }
 
 .nex-m-edge-back {
@@ -488,7 +510,7 @@ html.nex-phone .show-desktop {
   top: 0;
   left: 0;
   bottom: 0;
-  width: 18px;
+  width: 22px;
   z-index: 5;
 }
 
@@ -741,10 +763,6 @@ html.nex-phone .show-desktop {
   align-items: center;
   gap: 10px;
   padding: 0 8px 0 8px;
-}
-
-.nex-m-shell.has-app .nex-m-mini {
-  bottom: calc(var(--nex-nav-h) + 8px);
 }
 
 .nex-m-mini img {
@@ -1048,35 +1066,61 @@ html.nex-phone .show-desktop {
   }
 }
 
-/* Beat the generic mobile !important rules in index.css */
-html.nex-phone h1,
-html.nex-phone h2,
-html.nex-phone h3,
-html.nex-phone p {
-  font-size: inherit !important;
-}
-
+/* Beat leftover generic mobile rules for the phone chrome only */
 html.nex-phone .nex-m-switcher h2 {
-  font-size: 22px !important;
+  font-size: 22px;
 }
 
 html.nex-phone .nex-m-clock time,
 html.nex-phone .nex-m-lock-clock time {
-  font-size: clamp(3.4rem, 16vw, 5.2rem) !important;
+  font-size: clamp(3.4rem, 16vw, 5.2rem);
 }
 
 html.nex-phone .nex-m-lock-clock time {
-  font-size: clamp(4.2rem, 18vw, 5.6rem) !important;
+  font-size: clamp(4.2rem, 18vw, 5.6rem);
 }
 
 html.nex-phone .nex-m-key {
-  font-size: 26px !important;
+  font-size: 26px;
 }
 
 html.nex-phone .nex-m-nav-btn,
 html.nex-phone .nex-m-app-btn,
 html.nex-phone .nex-m-status,
-html.nex-phone .nex-m-app-bar button {
-  min-height: 0;
-  min-width: 0;
+html.nex-phone .nex-m-qs-btn,
+html.nex-phone .nex-m-card,
+html.nex-phone .nex-m-card-close,
+html.nex-phone .nex-m-mini button,
+html.nex-phone .nex-m-shade-actions button,
+html.nex-phone .nex-m-key {
+  min-height: 0 !important;
+  min-width: 0 !important;
+}
+
+html.nex-phone .nex-m-nav-btn,
+html.nex-phone .nex-m-app-btn,
+html.nex-phone .nex-m-qs-btn,
+html.nex-phone .nex-m-card-close,
+html.nex-phone .nex-m-mini button {
+  font-size: inherit !important;
+}
+
+html.nex-phone .nex-m-search input,
+html.nex-phone .nex-m-app input,
+html.nex-phone .nex-m-app textarea {
+  font-size: 16px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nex-m-home-stage,
+  .nex-m-wallpaper {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .nex-m-home-stage[data-dimmed='1'] {
+    filter: none;
+    opacity: 0;
+  }
 }

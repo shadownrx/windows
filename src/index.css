@@ -546,27 +546,32 @@ button:active {
     gap: 8px !important;
   }
 
-  /* Buttons and controls */
-  button {
+  /* Buttons and controls — skip NEX phone shell so apps keep their own type scale */
+  html:not(.nex-phone) button {
     min-height: 36px;
     min-width: 36px;
   }
 
-  /* Text scaling */
-  h1, h2, h3 {
+  html:not(.nex-phone) h1,
+  html:not(.nex-phone) h2,
+  html:not(.nex-phone) h3 {
     font-size: 1.25rem !important;
   }
 
-  h4, h5, h6 {
+  html:not(.nex-phone) h4,
+  html:not(.nex-phone) h5,
+  html:not(.nex-phone) h6 {
     font-size: 1rem !important;
   }
 
-  p {
+  html:not(.nex-phone) p {
     font-size: 0.875rem !important;
   }
 
-  /* Prevent double tap zoom */
-  input, button, textarea, select {
+  html:not(.nex-phone) input,
+  html:not(.nex-phone) button,
+  html:not(.nex-phone) textarea,
+  html:not(.nex-phone) select {
     font-size: 16px !important;
   }
 

@@ -1,18 +1,20 @@
 import React, { useRef } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowLeft20Regular, Dismiss20Regular } from '@fluentui/react-icons';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useWindowManager, type AppWindow } from '../../context/WindowManager';
 import { useSettings } from '../../context/SettingsContext';
 import AppRegistry from '../AppRegistry';
 import ErrorBoundary from '../system/ErrorBoundary';
+
+const IOS_EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
 
 interface MobileAppWindowProps {
   window: AppWindow;
 }
 
 const MobileAppWindow: React.FC<MobileAppWindowProps> = ({ window: appWindow }) => {
-  const { closeWindow, minimizeWindow, focusWindow } = useWindowManager();
+  const { closeWindow, focusWindow } = useWindowManager();
   const { neonTheme } = useSettings();
+  const reduceMotion = useReducedMotion();
   const startX = useRef<number | null>(null);
 
   const goBack = () => {
@@ -22,10 +24,14 @@ const MobileAppWindow: React.FC<MobileAppWindowProps> = ({ window: appWindow }) 
   return (
     <motion.div
       className={`nex-m-app ${neonTheme !== 'none' ? 'neon-border' : ''} ${neonTheme === 'cyberpunk' ? 'scanlines' : ''}`}
-      initial={{ x: '28%', opacity: 0.6 }}
-      animate={{ x: 0, opacity: 1 }}
-      exit={{ x: '18%', opacity: 0 }}
-      transition={{ type: 'spring', damping: 28, stiffness: 280, mass: 0.7 }}
+      initial={reduceMotion ? { opacity: 0 } : { scale: 0.92, y: '10%', opacity: 0.35 }}
+      animate={{ scale: 1, y: 0, opacity: 1 }}
+      exit={reduceMotion ? { opacity: 0 } : { scale: 0.94, y: '14%', opacity: 0 }}
+      transition={
+        reduceMotion
+          ? { duration: 0.12 }
+          : { duration: 0.42, ease: IOS_EASE }
+      }
       style={{ zIndex: appWindow.zIndex }}
       onPointerDown={() => focusWindow(appWindow.id)}
     >
@@ -41,22 +47,12 @@ const MobileAppWindow: React.FC<MobileAppWindowProps> = ({ window: appWindow }) 
           if (dx > 56) goBack();
         }}
       />
-      <header className="nex-m-app-bar">
-        <button type="button" onClick={goBack} aria-label="Cerrar">
-          <ArrowLeft20Regular />
-        </button>
-        <div className="nex-m-app-title">
-          <span className="nex-m-app-title-icon">{appWindow.icon}</span>
-          <span>{appWindow.title}</span>
-        </div>
-        <button type="button" onClick={() => minimizeWindow(appWindow.id)} aria-label="Inicio">
-          <Dismiss20Regular />
-        </button>
-      </header>
       <div className="nex-m-app-body">
-        <ErrorBoundary appName={appWindow.title}>
-          <AppRegistry appId={appWindow.appId} appProps={appWindow.appProps} />
-        </ErrorBoundary>
+        <div className="nex-m-app-fill">
+          <ErrorBoundary appName={appWindow.title}>
+            <AppRegistry appId={appWindow.appId} appProps={appWindow.appProps} />
+          </ErrorBoundary>
+        </div>
       </div>
     </motion.div>
   );

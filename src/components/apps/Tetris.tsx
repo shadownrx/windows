@@ -431,7 +431,7 @@ const Tetris: React.FC = () => {
         <div className="nx-tet-side">
           <span>Next</span>
           <Mini type={game.queue[0] ?? null} />
-          <Mini type={game.queue[1] ?? null} />
+          {!isPhone && <Mini type={game.queue[1] ?? null} />}
         </div>
       </div>
 
@@ -448,9 +448,6 @@ const Tetris: React.FC = () => {
         <p className="nx-tet-hint">
           ← → mover · ↑/X girar · Z antihorario · ↓ bajar · Espacio drop · C hold · P pausa
         </p>
-      )}
-      {isPhone && (
-        <p className="nx-tet-hint">Tocá para girar · deslizá para mover · swipe rápido abajo = drop</p>
       )}
 
       <style>{`
@@ -587,10 +584,41 @@ const Tetris: React.FC = () => {
           font-size: 11px;
           opacity: 0.5;
         }
-        .nx-tet.is-phone .nx-tet-bar strong { font-size: 16px; }
-        .nx-tet.is-phone .nx-tet-pad button { height: 56px; min-height: 56px; }
-        .nx-tet.is-phone .nx-tet-side { width: 56px; }
-        .nx-tet.is-phone .nx-tet-mini { width: 56px; height: 56px; }
+        .nx-tet.is-phone {
+          padding: 4px 8px 6px;
+        }
+        .nx-tet.is-phone .nx-tet-bar {
+          gap: 4px;
+          margin-bottom: 4px;
+        }
+        .nx-tet.is-phone .nx-tet-bar small { font-size: 9px; }
+        .nx-tet.is-phone .nx-tet-bar strong { font-size: 14px; }
+        .nx-tet.is-phone .nx-tet-bar button {
+          height: 28px;
+          min-height: 28px;
+          min-width: 0;
+          padding: 0 10px;
+          font-size: 12px;
+        }
+        .nx-tet.is-phone .nx-tet-play { gap: 6px; }
+        .nx-tet.is-phone .nx-tet-side { width: 44px; font-size: 10px; }
+        .nx-tet.is-phone .nx-tet-mini { width: 44px; height: 44px; padding: 3px; }
+        .nx-tet.is-phone .nx-tet-board {
+          max-width: min(100%, calc(100% - 88px));
+          border-radius: 8px;
+        }
+        .nx-tet.is-phone .nx-tet-pad {
+          gap: 6px;
+          margin-top: 6px;
+        }
+        .nx-tet.is-phone .nx-tet-pad button {
+          height: 46px;
+          min-height: 46px;
+          border-radius: 16px;
+          background: rgba(255,255,255,0.1);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+        }
         @media (orientation: landscape) and (max-height: 500px) {
           .nx-tet { padding: 6px; }
           .nx-tet-play { gap: 8px; }

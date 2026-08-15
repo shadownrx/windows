@@ -24,6 +24,8 @@ const NEX_ICONS: Record<string, React.ReactNode> = {
   defender: <ShieldCheckmark24Regular />,
   mediaplayer: <span style={{ fontSize: 18 }}>▶️</span>,
   'devcpp-2026': <Code24Regular primaryFill="#3b82f6" />,
+  tetris: <span style={{ fontSize: 16 }}>🧱</span>,
+  games: <span style={{ fontSize: 16 }}>🎮</span>,
 };
 
 type Line = { text: string; color?: string };

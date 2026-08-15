@@ -154,6 +154,15 @@ const DEFAULT_ICONS: DesktopIcon[] = [
     x: 320,
     y: 120,
   },
+  {
+    id: 'games',
+    title: 'Games',
+    icon: <Games24Regular primaryFill="#22d3ee" />,
+    type: 'system',
+    appId: 'games',
+    x: 220,
+    y: 220,
+  },
 ];
 
 function hydrateIcon(p: PersistedIcon): DesktopIcon {
@@ -180,7 +189,12 @@ function loadIcons(): DesktopIcon[] {
     if (!raw) return DEFAULT_ICONS;
     const parsed = JSON.parse(raw) as PersistedIcon[];
     if (!Array.isArray(parsed) || !parsed.length) return DEFAULT_ICONS;
-    return parsed.map(hydrateIcon);
+    const icons = parsed.map(hydrateIcon);
+    const have = new Set(icons.map((i) => i.id));
+    for (const def of DEFAULT_ICONS) {
+      if (!have.has(def.id)) icons.push(def);
+    }
+    return icons;
   } catch {
     return DEFAULT_ICONS;
   }

@@ -30,6 +30,7 @@ const VirtualDj = React.lazy(() => import('./apps/VirtualDj'));
 const VsCode = React.lazy(() => import('./apps/VsCode'));
 const HermesAgent = React.lazy(() => import('./apps/HermesAgent'));
 const NexStore = React.lazy(() => import('./apps/NexStore'));
+const Tetris = React.lazy(() => import('./apps/Tetris'));
 
 interface AppRegistryProps {
   appId: string;
@@ -78,6 +79,8 @@ const BUILTIN: Record<string, AnyLazy> = {
   'nex-store': NexStore,
   store: NexStore,
   'microsoft-store': NexStore,
+  tetris: Tetris,
+  'nex-tetris': Tetris,
 };
 
 const Fallback = () => (

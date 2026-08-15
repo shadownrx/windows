@@ -37,6 +37,7 @@ export const APP_COLORS: Record<string, string> = {
   browser: '#0078d4',
   cmd: '#37474f',
   settings: '#78909c',
+  tetris: '#22d3ee',
 };
 
 function hashId(id: string) {

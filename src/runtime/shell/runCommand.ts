@@ -4,6 +4,7 @@ import { findByPath, displayName } from '../fs/vfsBridge';
 import type { FileItem } from '../../context/FileSystemContext';
 import { resolveExecutable } from '../resolveExecutable';
 import type { GitService } from '../git/gitService';
+import { runExtraCommand } from './extraCommands';
 
 export type ShellEvent =
   | { type: 'line'; text: string; color?: string }
@@ -305,8 +306,12 @@ export async function* runShellCommand(
     case 'help': {
       yield line('Comandos disponibles:', '#60a5fa');
       yield line('');
-      yield line('  ls / dir · cd · mkdir · touch · rm · cat · echo · pwd');
-      yield line('  node · env · which · ping · clear');
+      yield line('  Archivos   ls dir cd mkdir touch rm cp mv cat head tail wc grep find tree');
+      yield line('  Sistema    pwd whoami uname date uptime hostname df du free ps top neofetch');
+      yield line('  Red        ping ipconfig traceroute nslookup curl wget');
+      yield line('  Apps       tetris calc notepad explorer paint chrome code open <app>');
+      yield line('  Fun        cowsay fortune sl cmatrix cal factor expr');
+      yield line('  Runtime    node python env which clear help');
       yield line('');
       yield line('  npm <cmd>    Gestor npm (escribe package.json en el VFS)', ok);
       yield line('  pnpm <cmd>   Gestor pnpm', '#a78bfa');
@@ -319,6 +324,15 @@ export async function* runShellCommand(
       break;
 
     default: {
+      const handled = yield* runExtraCommand(command, args, {
+        files,
+        nexFs,
+        cwd,
+        cwdId,
+        userName,
+        flavor,
+      });
+      if (handled) break;
       const exe = resolveExecutable(command, files);
       if (exe) {
         yield line(`Iniciando ${exe.title}...`, '#60a5fa');

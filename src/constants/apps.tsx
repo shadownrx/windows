@@ -81,4 +81,5 @@ export const APPS: AppItem[] = [
     label: 'NEX Store',
     isPinned: true,
   },
+  { id: 'tetris', appId: 'tetris', icon: <span style={{ fontSize: 18 }}>🧱</span>, label: 'Tetris' },
 ];

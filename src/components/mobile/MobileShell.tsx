@@ -4,6 +4,7 @@ import { Pause24Filled, Play24Filled } from '@fluentui/react-icons';
 import { useWindowManager } from '../../context/WindowManager';
 import { useSettings } from '../../context/SettingsContext';
 import { useMusicPlayer } from '../../context/MusicPlayerContext';
+import { useUI } from '../../context/UIContext';
 import { useLauncherApps } from '../../hooks/useLauncherApps';
 import type { AppItem } from '../../constants/apps';
 import MobileStatusBar from './MobileStatusBar';
@@ -12,6 +13,7 @@ import MobileNavBar from './MobileNavBar';
 import MobileShade from './MobileShade';
 import MobileAppSwitcher from './MobileAppSwitcher';
 import MobileAppWindow from './MobileAppWindow';
+import NexAssistantPanel from '../system/NexAssistantPanel';
 import './mobile.css';
 
 const DOCK_IDS = ['games', 'chrome', 'nexreproductor', 'control-panel'];
@@ -26,6 +28,7 @@ const MobileShell: React.FC<MobileShellProps> = ({ onShutdown, onRestart }) => {
     useWindowManager();
   const { wallpaper, userName, lockSystem } = useSettings();
   const { currentTrack, isPlaying, togglePlay } = useMusicPlayer();
+  const { isAssistantOpen, toggleAssistant, closeAssistant } = useUI();
   const launcherApps = useLauncherApps();
 
   const [query, setQuery] = useState('');
@@ -71,6 +74,10 @@ const MobileShell: React.FC<MobileShellProps> = ({ onShutdown, onRestart }) => {
   };
 
   const goBack = () => {
+    if (isAssistantOpen) {
+      closeAssistant();
+      return;
+    }
     if (powerOpen) {
       setPowerOpen(false);
       return;
@@ -89,7 +96,7 @@ const MobileShell: React.FC<MobileShellProps> = ({ onShutdown, onRestart }) => {
     }
   };
 
-  const intercepting = hasApp || recentsOpen || shadeOpen || powerOpen;
+  const intercepting = hasApp || recentsOpen || shadeOpen || powerOpen || isAssistantOpen;
   const goBackRef = useRef(goBack);
 
   useEffect(() => {
@@ -210,7 +217,17 @@ const MobileShell: React.FC<MobileShellProps> = ({ onShutdown, onRestart }) => {
               setShadeOpen(false);
               setPowerOpen(true);
             }}
+            onAssistant={() => {
+              setShadeOpen(false);
+              toggleAssistant();
+            }}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isAssistantOpen && (
+          <NexAssistantPanel isOpen={isAssistantOpen} onClose={closeAssistant} />
         )}
       </AnimatePresence>
 

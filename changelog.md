@@ -7,7 +7,8 @@ Historial oficial de cambios, optimizaciones y lanzamientos del sistema operativ
 ## [Season 4] — Desarrollo Actual (Junio 2026)
 
 ### ✨ Nex Assistant
-* **[Agregado] Asistente de IA con control del sistema:** Nuevo panel "Nex Assistant" (taskbar / `Ctrl+Alt+A`) impulsado por Groq con tool calling real. No solo chatea: puede abrir/cerrar apps, crear notas en Documentos, cambiar el tema neon, y ajustar volumen y brillo en base a lo que le pidas en lenguaje natural. Corre sobre `/api/groq/assistant`, la misma arquitectura serverless que ya usa NEX AI en Nex Code — la API key nunca llega al navegador. ✅
+* **[Agregado] Asistente de IA con control del sistema:** Nuevo panel "Nex Assistant" (taskbar / `Ctrl+Alt+A`) impulsado por Groq con tool calling real. No solo chatea: puede abrir/cerrar apps, crear notas en Documentos, cambiar el tema neon, y ajustar volumen y brillo en base a lo que le pidas en lenguaje natural. Corre sobre `/api/groq/chat` (`useTools:true`), la misma función serverless que ya usa NEX AI en Nex Code — sin sumar otra función al deployment y sin que la API key llegue al navegador. ✅
+* **[Agregado] Nex Assistant en el shell móvil / PWA:** El shell de celular (`MobileShell`) no montaba el panel de escritorio, así que el asistente no existía en mobile. Ahora vive como hoja inferior (bottom sheet) con gesto de swipe-down para cerrar y botón atrás nativo, con acceso desde el centro de control (deslizar desde arriba → "Preguntale a Nex Assistant"). ✅
 
 ### ⚡ Motor NEX Runtime
 * **[Agregado] Soporte de NPM & PNPM interactivos:** Implementación de un motor de ejecución simulada para inicializar proyectos (`npm init`), instalar paquetes virtuales (`npm install`/`pnpm add`), desinstalar dependencias y ejecutar scripts configurados en package.json de forma totalmente interactiva en las aplicaciones CMD y Terminal. ✅

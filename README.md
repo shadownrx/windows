@@ -25,7 +25,7 @@
 - **`@nex-os/sdk`:** API oficial para que cualquiera cree community apps (`defineApp`) — ventanas, taskbar, Start y Buscar.
 
 ### 🍱 Experiencia de Usuario (UX)
-- **✨ Nex Assistant:** Asistente de IA integrado al sistema (Groq + tool calling) que además de responder puede **operar el OS**: abre y cierra apps, crea notas, cambia el tema neon, ajusta volumen/brillo. Se invoca desde la taskbar o con `Ctrl+Alt+A`.
+- **✨ Nex Assistant:** Asistente de IA integrado al sistema (Groq + tool calling) que además de responder puede **operar el OS**: abre y cierra apps, crea notas, cambia el tema neon, ajusta volumen/brillo. Se invoca desde la taskbar o con `Ctrl+Alt+A` en escritorio; en el shell móvil/PWA vive como hoja inferior, accesible desde el centro de control (deslizar desde arriba).
 - **NEX OS 2.0 — Neon Experience:** Sistema de temas dinámicos: **Cyberpunk**, **Matrix** y **Synthwave** con bordes luminosos y efectos visuales adaptativos.
 - **Snap Layouts:** Acopiamiento de ventanas en mitades y cuadrantes (estilo Windows 11), con memoria de tamaño al restaurar.
 - **Escritorios Virtuales:** Múltiples espacios de trabajo con persistencia de estado y atajos de teclado (`Win+Ctrl+←/→`).

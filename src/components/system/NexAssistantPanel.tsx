@@ -6,6 +6,7 @@ import { useFileSystem } from '../../context/FileSystemContext';
 import { useSettings } from '../../context/SettingsContext';
 import { resolveAppMeta } from '../../utils/resolveAppMeta';
 import { APPS } from '../../constants/apps';
+import { useIsPhone } from '../../hooks/useMobileAppShell';
 
 interface NexAssistantPanelProps {
   isOpen: boolean;
@@ -59,6 +60,7 @@ const NexAssistantPanel: React.FC<NexAssistantPanelProps> = ({ isOpen, onClose }
   const { windows, openWindow, closeWindow, minimizeAllWindows } = useWindowManager();
   const { createFile, updateFileContent } = useFileSystem();
   const { setNeonTheme, setVolume, setBrightness } = useSettings();
+  const isPhone = useIsPhone();
 
   const windowsRef = useRef(windows);
   windowsRef.current = windows;
@@ -213,80 +215,97 @@ const NexAssistantPanel: React.FC<NexAssistantPanelProps> = ({ isOpen, onClose }
   if (!isOpen) return null;
 
   return (
-    <motion.div
-      initial={{ x: 400, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      exit={{ x: 400, opacity: 0 }}
-      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="nex-assistant-panel mica-strong premium-shadow"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="nap-header">
-        <div className="nap-header-title">
-          <Sparkle24Regular />
-          <span>Nex Assistant</span>
-          {backendOnline !== null && (
-            <span className={`nap-status-dot ${backendOnline ? 'online' : 'offline'}`} title={backendOnline ? 'Groq conectado' : 'Falta GROQ_API_KEY'} />
+    <>
+      {isPhone && <div className="nap-backdrop" onClick={onClose} />}
+      <motion.div
+        initial={isPhone ? { y: '100%', opacity: 1 } : { x: 400, opacity: 0 }}
+        animate={{ x: 0, y: 0, opacity: 1 }}
+        exit={isPhone ? { y: '100%', opacity: 1 } : { x: 400, opacity: 0 }}
+        transition={isPhone ? { type: 'spring', damping: 32, stiffness: 380, mass: 0.85 } : { type: 'spring', damping: 25, stiffness: 200 }}
+        className={`nex-assistant-panel mica-strong premium-shadow ${isPhone ? 'nap-mobile' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {isPhone && <div className="nap-handle" />}
+        <div className="nap-header">
+          <div className="nap-header-title">
+            <Sparkle24Regular />
+            <span>Nex Assistant</span>
+            {backendOnline !== null && (
+              <span className={`nap-status-dot ${backendOnline ? 'online' : 'offline'}`} title={backendOnline ? 'Groq conectado' : 'Falta GROQ_API_KEY'} />
+            )}
+          </div>
+          <button className="nap-close-btn" onClick={onClose}><Dismiss24Regular /></button>
+        </div>
+
+        <div className="nap-scroll" ref={scrollRef}>
+          {transcript.length === 0 && (
+            <div className="nap-empty">
+              <p>Puedo operar NEX OS por vos: abrir y cerrar apps, crear notas, cambiar el tema, ajustar volumen y brillo.</p>
+              <div className="nap-suggestions">
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} className="nap-chip" onClick={() => send(s)} disabled={busy}>{s}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {transcript.map((entry) => {
+            if (entry.kind === 'activity') {
+              return <div key={entry.id} className="nap-activity">⚡ {entry.text}</div>;
+            }
+            if (entry.kind === 'error') {
+              return <div key={entry.id} className="nap-activity nap-error">⚠️ {entry.text}</div>;
+            }
+            return (
+              <div key={entry.id} className={`nap-bubble ${entry.kind === 'user' ? 'nap-bubble-user' : 'nap-bubble-assistant'}`}>
+                {entry.text}
+              </div>
+            );
+          })}
+
+          {busy && (
+            <div className="nap-bubble nap-bubble-assistant nap-typing">
+              <span />
+              <span />
+              <span />
+            </div>
           )}
         </div>
-        <button className="nap-close-btn" onClick={onClose}><Dismiss24Regular /></button>
-      </div>
 
-      <div className="nap-scroll" ref={scrollRef}>
-        {transcript.length === 0 && (
-          <div className="nap-empty">
-            <p>Puedo operar NEX OS por vos: abrir y cerrar apps, crear notas, cambiar el tema, ajustar volumen y brillo.</p>
-            <div className="nap-suggestions">
-              {SUGGESTIONS.map((s) => (
-                <button key={s} className="nap-chip" onClick={() => send(s)} disabled={busy}>{s}</button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {transcript.map((entry) => {
-          if (entry.kind === 'activity') {
-            return <div key={entry.id} className="nap-activity">⚡ {entry.text}</div>;
-          }
-          if (entry.kind === 'error') {
-            return <div key={entry.id} className="nap-activity nap-error">⚠️ {entry.text}</div>;
-          }
-          return (
-            <div key={entry.id} className={`nap-bubble ${entry.kind === 'user' ? 'nap-bubble-user' : 'nap-bubble-assistant'}`}>
-              {entry.text}
-            </div>
-          );
-        })}
-
-        {busy && (
-          <div className="nap-bubble nap-bubble-assistant nap-typing">
-            <span />
-            <span />
-            <span />
-          </div>
-        )}
-      </div>
-
-      <div className="nap-input-row">
-        <textarea
-          className="nap-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              send(input);
-            }
-          }}
-          placeholder={backendOnline === false ? 'Falta GROQ_API_KEY en el backend…' : 'Pedile algo a Nex Assistant…'}
-          rows={1}
-        />
-        <button className="nap-send-btn" onClick={() => send(input)} disabled={busy || !input.trim()}>
-          <Send24Regular />
-        </button>
-      </div>
+        <div className="nap-input-row">
+          <textarea
+            className="nap-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send(input);
+              }
+            }}
+            placeholder={backendOnline === false ? 'Falta GROQ_API_KEY en el backend…' : 'Pedile algo a Nex Assistant…'}
+            rows={1}
+          />
+          <button className="nap-send-btn" onClick={() => send(input)} disabled={busy || !input.trim()}>
+            <Send24Regular />
+          </button>
+        </div>
 
       <style>{`
+        .nap-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.45);
+          z-index: 1499;
+        }
+        .nap-handle {
+          width: 40px;
+          height: 4px;
+          border-radius: 99px;
+          background: rgba(255, 255, 255, 0.28);
+          margin: 0 auto 10px;
+          flex-shrink: 0;
+        }
         .nex-assistant-panel {
           position: fixed;
           top: 0;
@@ -303,6 +322,20 @@ const NexAssistantPanel: React.FC<NexAssistantPanelProps> = ({ isOpen, onClose }
           flex-direction: column;
           gap: 14px;
           box-shadow: -20px 0 60px rgba(0,0,0,0.4);
+        }
+
+        .nex-assistant-panel.nap-mobile {
+          top: auto;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          width: 100%;
+          height: min(86dvh, 720px);
+          border-left: none;
+          border-top: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 24px 24px 0 0;
+          padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+          box-shadow: 0 -20px 60px rgba(0,0,0,0.5);
         }
 
         .nap-header { display: flex; align-items: center; justify-content: space-between; }
@@ -372,7 +405,8 @@ const NexAssistantPanel: React.FC<NexAssistantPanelProps> = ({ isOpen, onClose }
         }
         .nap-send-btn:disabled { opacity: 0.4; cursor: default; }
       `}</style>
-    </motion.div>
+      </motion.div>
+    </>
   );
 };
 

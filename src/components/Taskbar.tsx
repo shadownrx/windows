@@ -16,6 +16,7 @@ import {
   Pin24Regular,
   Dismiss24Regular,
   SquareMultiple24Regular,
+  Sparkle24Regular,
 } from '@fluentui/react-icons';
 import { useWindowManager } from '../context/WindowManager';
 import { useUI } from '../context/UIContext';
@@ -77,7 +78,7 @@ const Taskbar: React.FC<TaskbarProps> = ({
   onSearchClick,
 }) => {
   const { openWindow, windows, minimizeWindow, focusedWindowId, minimizeAllWindows, restoreWindow, closeWindow } = useWindowManager();
-  const { isWidgetsOpen, toggleWidgets } = useUI();
+  const { isWidgetsOpen, toggleWidgets, isAssistantOpen, toggleAssistant } = useUI();
   const { isWifiEnabled, volume, isTaskViewOpen, setIsTaskViewOpen, notifications } = useSettings();
   const { currentTrack, isPlaying, togglePlay, nextTrack, prevTrack, isGlobalMiniPlayerVisible, toggleGlobalMiniPlayer } = useMusicPlayer();
   const launcherApps = useLauncherApps();
@@ -184,13 +185,22 @@ const Taskbar: React.FC<TaskbarProps> = ({
       >
         <footer className={`taskbar-container mica gpu-accelerated ${isVisible ? 'visible' : ''}`}>
       <div className="taskbar-left">
-        <button 
+        <button
           className={`taskbar-icon ${isWidgetsOpen ? 'active' : ''}`}
           onClick={(e) => { e.stopPropagation(); toggleWidgets(); }}
         >
           <Grid24Filled />
         </button>
-        
+
+        {/* Nex Assistant — asistente de IA que puede operar el sistema */}
+        <button
+          className={`taskbar-icon ${isAssistantOpen ? 'active' : ''}`}
+          onClick={(e) => { e.stopPropagation(); toggleAssistant(); }}
+          title="Nex Assistant · Ctrl+Alt+A"
+        >
+          <Sparkle24Regular />
+        </button>
+
         {/* Miniplayer Toggle Button */}
         {currentTrack && (
           <button 

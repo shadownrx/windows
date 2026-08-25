@@ -6,6 +6,9 @@ Historial oficial de cambios, optimizaciones y lanzamientos del sistema operativ
 
 ## [Season 4] — Desarrollo Actual (Junio 2026)
 
+### ✨ Nex Assistant
+* **[Agregado] Asistente de IA con control del sistema:** Nuevo panel "Nex Assistant" (taskbar / `Ctrl+Alt+A`) impulsado por Groq con tool calling real. No solo chatea: puede abrir/cerrar apps, crear notas en Documentos, cambiar el tema neon, y ajustar volumen y brillo en base a lo que le pidas en lenguaje natural. Corre sobre `/api/groq/assistant`, la misma arquitectura serverless que ya usa NEX AI en Nex Code — la API key nunca llega al navegador. ✅
+
 ### ⚡ Motor NEX Runtime
 * **[Agregado] Soporte de NPM & PNPM interactivos:** Implementación de un motor de ejecución simulada para inicializar proyectos (`npm init`), instalar paquetes virtuales (`npm install`/`pnpm add`), desinstalar dependencias y ejecutar scripts configurados en package.json de forma totalmente interactiva en las aplicaciones CMD y Terminal. ✅
 * **[Agregado] Ejecución nativa de binarios `.nex`:** Creación del sistema de lanzadores `.nex` (análogos a `.exe` en Windows). El Explorador de Archivos (doble clic), el diálogo Ejecutar (`Win + R`) y la consola pueden lanzar programas del sistema directamente desde archivos ejecutables `.nex`. ✅

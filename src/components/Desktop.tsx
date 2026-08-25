@@ -8,6 +8,7 @@ import NotificationsMenu from './NotificationsMenu';
 import CalendarMenu from './CalendarMenu';
 import SearchPane from './SearchPane';
 import WidgetsPanel from './system/WidgetsPanel';
+import NexAssistantPanel from './system/NexAssistantPanel';
 import TaskView from './system/TaskView';
 import AltTabSwitcher from './system/AltTabSwitcher';
 import Window from './Window';
@@ -72,7 +73,7 @@ interface DesktopProps {
 const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
   const { windows, openWindow, closeFocusedWindow, minimizeAllWindows } = useWindowManager();
   const { desktopIcons, addDesktopIcon, updateDesktopIcon, removeDesktopIcon, sortDesktopIcons, currentDesktopId, virtualDesktops, switchDesktop, addDesktop } = useDesktop();
-  const { isStartOpen, toggleStart, closeStart, isWidgetsOpen, toggleWidgets, closeWidgets, isDesktopSwitcherOpen } = useUI();
+  const { isStartOpen, toggleStart, closeStart, isWidgetsOpen, toggleWidgets, closeWidgets, isDesktopSwitcherOpen, isAssistantOpen, toggleAssistant, closeAssistant } = useUI();
   const { createFile, clipboard, pasteItem, files, copyItem, cutItem } = useFileSystem();
   const { resolveNex } = useNexRuntime();
 
@@ -298,6 +299,10 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
         e.preventDefault();
         setIsTaskViewOpen(!isTaskViewOpen);
       }
+      if (nexMod && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        toggleAssistant();
+      }
       if (e.key === 'Escape' && isTaskViewOpen) {
         setIsTaskViewOpen(false);
       }
@@ -341,7 +346,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeFocusedWindow, minimizeAllWindows, openWindow, runDialogOpen, currentDesktopId, switchDesktop, virtualDesktops, isTaskViewOpen, setIsTaskViewOpen, selectedIconId, desktopIcons, files, copyItem, cutItem, isSearchOpen, clipboard]);
+  }, [closeFocusedWindow, minimizeAllWindows, openWindow, runDialogOpen, currentDesktopId, switchDesktop, virtualDesktops, isTaskViewOpen, setIsTaskViewOpen, selectedIconId, desktopIcons, files, copyItem, cutItem, isSearchOpen, clipboard, toggleAssistant]);
 
   const toggleNotifications = () => {
     setIsNotificationsOpen(!isNotificationsOpen);
@@ -460,9 +465,17 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
           )}
           <AnimatePresence>
             {isWidgetsOpen && (
-              <WidgetsPanel 
-                isOpen={isWidgetsOpen} 
-                onClose={closeWidgets} 
+              <WidgetsPanel
+                isOpen={isWidgetsOpen}
+                onClose={closeWidgets}
+              />
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
+            {isAssistantOpen && (
+              <NexAssistantPanel
+                isOpen={isAssistantOpen}
+                onClose={closeAssistant}
               />
             )}
           </AnimatePresence>

@@ -12,6 +12,10 @@ interface UIContextType {
   isDesktopSwitcherOpen: boolean;
   toggleDesktopSwitcher: () => void;
   closeDesktopSwitcher: () => void;
+
+  isAssistantOpen: boolean;
+  toggleAssistant: () => void;
+  closeAssistant: () => void;
 }
 
 const UIContext = createContext<UIContextType | undefined>(undefined);
@@ -20,12 +24,14 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [isWidgetsOpen, setIsWidgetsOpen] = useState(false);
   const [isDesktopSwitcherOpen, setIsDesktopSwitcherOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
 
   const toggleStart = () => {
     setIsStartOpen(prev => !prev);
     if (!isStartOpen) {
       setIsWidgetsOpen(false);
       setIsDesktopSwitcherOpen(false);
+      setIsAssistantOpen(false);
     }
   };
   const closeStart = () => setIsStartOpen(false);
@@ -35,6 +41,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     if (!isWidgetsOpen) {
       setIsStartOpen(false);
       setIsDesktopSwitcherOpen(false);
+      setIsAssistantOpen(false);
     }
   };
   const closeWidgets = () => setIsWidgetsOpen(false);
@@ -44,15 +51,27 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     if (!isDesktopSwitcherOpen) {
       setIsStartOpen(false);
       setIsWidgetsOpen(false);
+      setIsAssistantOpen(false);
     }
   };
   const closeDesktopSwitcher = () => setIsDesktopSwitcherOpen(false);
+
+  const toggleAssistant = () => {
+    setIsAssistantOpen(prev => !prev);
+    if (!isAssistantOpen) {
+      setIsStartOpen(false);
+      setIsWidgetsOpen(false);
+      setIsDesktopSwitcherOpen(false);
+    }
+  };
+  const closeAssistant = () => setIsAssistantOpen(false);
 
   return (
     <UIContext.Provider value={{
       isStartOpen, toggleStart, closeStart,
       isWidgetsOpen, toggleWidgets, closeWidgets,
-      isDesktopSwitcherOpen, toggleDesktopSwitcher, closeDesktopSwitcher
+      isDesktopSwitcherOpen, toggleDesktopSwitcher, closeDesktopSwitcher,
+      isAssistantOpen, toggleAssistant, closeAssistant
     }}>
       {children}
     </UIContext.Provider>

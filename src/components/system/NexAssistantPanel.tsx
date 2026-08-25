@@ -42,10 +42,13 @@ function genId() {
 }
 
 async function callAssistant(messages: ApiMessage[]): Promise<ApiMessage> {
-  const res = await fetch(`${API_BASE}/api/groq/assistant`, {
+  // Reutiliza /api/groq/chat (el mismo endpoint de NEX AI en Nex Code) con
+  // useTools:true — así no sumamos una función serverless más al deployment
+  // de Vercel (Hobby limita a 12 por deployment).
+  const res = await fetch(`${API_BASE}/api/groq/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, useTools: true }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Error ${res.status} del backend`);

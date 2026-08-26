@@ -9,6 +9,8 @@ import {
   LockClosed24Regular,
   Settings24Regular,
   Power24Regular,
+  Sparkle24Regular,
+  ChevronRight24Regular,
 } from '@fluentui/react-icons';
 import { motion } from 'framer-motion';
 import { useSettings } from '../../context/SettingsContext';
@@ -18,9 +20,10 @@ interface MobileShadeProps {
   onLock: () => void;
   onSettings: () => void;
   onPower: () => void;
+  onAssistant: () => void;
 }
 
-const MobileShade: React.FC<MobileShadeProps> = ({ onClose, onLock, onSettings, onPower }) => {
+const MobileShade: React.FC<MobileShadeProps> = ({ onClose, onLock, onSettings, onPower, onAssistant }) => {
   const {
     isWifiEnabled, setIsWifiEnabled,
     isBluetoothEnabled, setIsBluetoothEnabled,
@@ -43,6 +46,13 @@ const MobileShade: React.FC<MobileShadeProps> = ({ onClose, onLock, onSettings, 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="nex-m-shade-handle" />
+
+        <button type="button" className="nex-m-assistant-banner" onClick={onAssistant}>
+          <Sparkle24Regular />
+          <span>Preguntale a Nex Assistant</span>
+          <ChevronRight24Regular />
+        </button>
+
         <div className="nex-m-qs">
           <button
             type="button"

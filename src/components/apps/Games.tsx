@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Games24Regular, Play24Filled } from '@fluentui/react-icons';
+import { Games24Regular, Play24Filled, Sparkle24Regular } from '@fluentui/react-icons';
 import { useWindowManager } from '../../context/WindowManager';
 import { useIsPhone } from '../../hooks/useMobileAppShell';
 
@@ -200,6 +200,24 @@ const GAMES_CSS = `
           place-items: center;
           flex-shrink: 0;
         }
+        .nx-games-more {
+          flex: 1;
+          min-height: 96px;
+          margin-top: 20px;
+          border-radius: 22px;
+          border: 1px dashed rgba(255, 255, 255, 0.14);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          text-align: center;
+          padding: 24px 20px;
+          color: rgba(255, 255, 255, 0.55);
+        }
+        .nx-games-more svg { opacity: 0.6; }
+        .nx-games-more strong { font-size: 14px; font-weight: 650; color: rgba(255, 255, 255, 0.75); }
+        .nx-games-more span { font-size: 12px; max-width: 240px; }
 `;
 
 const Games: React.FC = () => {
@@ -253,6 +271,12 @@ const Games: React.FC = () => {
               </button>
             );
           })}
+        </div>
+
+        <div className="nx-games-more">
+          <Sparkle24Regular />
+          <strong>Más juegos en camino</strong>
+          <span>Estamos sumando títulos al catálogo de NEX Arcade. Volvé pronto.</span>
         </div>
         <style>{GAMES_CSS}</style>
       </div>

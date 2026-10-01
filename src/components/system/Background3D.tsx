@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useSettings } from '../../context/SettingsContext';
 import CyberpunkBG from './3d/CyberpunkBG';
@@ -6,17 +6,19 @@ import MatrixBG from './3d/MatrixBG';
 import SynthwaveBG from './3d/SynthwaveBG';
 
 const Background3D: React.FC = () => {
-  const { neonTheme } = useSettings();
+  const { neonTheme, isPerformanceMode } = useSettings();
 
   // Respeta `prefers-reduced-motion` y desactiva el WebGL en dispositivos
   // de baja potencia para evitar lag en móviles antiguos.
-  const [shouldRender3D, setShouldRender3D] = useState(true);
-  useEffect(() => {
+  // El modo rendimiento del sistema también fuerza el fondo estático.
+  // El chequeo de entorno se evalúa una vez (init); el modo eco, por render.
+  const [envAllows3D] = useState(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const lowEnd = (navigator.hardwareConcurrency ?? 4) <= 2;
     const phone = window.matchMedia('(max-width: 768px)').matches;
-    setShouldRender3D(!reduced && !lowEnd && !phone);
-  }, []);
+    return !reduced && !lowEnd && !phone;
+  });
+  const shouldRender3D = envAllows3D && !isPerformanceMode;
 
   // No renderizar nada si no hay tema neon activo para ahorrar recursos
   if (neonTheme === 'none') return null;

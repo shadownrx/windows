@@ -45,6 +45,11 @@ interface SettingsContextType {
   notifications: Notification[];
   addNotification: (title: string, message: string, icon?: React.ReactNode) => void;
   removeNotification: (id: string) => void;
+  clearNotifications: () => void;
+  isDoNotDisturb: boolean;
+  setIsDoNotDisturb: (val: boolean) => void;
+  isPerformanceMode: boolean;
+  setIsPerformanceMode: (val: boolean) => void;
   isTaskViewOpen: boolean;
   setIsTaskViewOpen: (val: boolean) => void;
   playSound: (type: 'startup' | 'notif' | 'error' | 'beep') => void;
@@ -106,6 +111,18 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   });
   const [isTaskViewOpen, setIsTaskViewOpen] = useState(false);
+  const [isDoNotDisturb, setIsDoNotDisturb] = useState(() =>
+    localStorage.getItem('win11_dnd') === 'true'
+  );
+  const [isPerformanceMode, setIsPerformanceMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('win11_perf_mode');
+      if (saved !== null) return saved === 'true';
+      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch {
+      return false;
+    }
+  });
 
   // Multi-User States
   const [users, setUsers] = useState<UserProfile[]>(() => {
@@ -238,17 +255,33 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('win11_osType', osType);
   }, [osType]);
 
+  useEffect(() => {
+    localStorage.setItem('win11_dnd', isDoNotDisturb.toString());
+  }, [isDoNotDisturb]);
+
+  useEffect(() => {
+    localStorage.setItem('win11_perf_mode', isPerformanceMode.toString());
+    document.documentElement.setAttribute('data-perf', isPerformanceMode ? 'eco' : 'full');
+    document.documentElement.classList.toggle('nex-perf', isPerformanceMode);
+  }, [isPerformanceMode]);
+
   // Forward-declared by ref so addNotification can call playSound without
   // forming a stale closure on `volume`.
   const playSoundRef = useRef<(t: 'startup' | 'notif' | 'error' | 'beep') => void>(() => {});
   const addNotification = useCallback((title: string, message: string, icon?: React.ReactNode) => {
     const newNotif: Notification = { id: genId(), title, message, icon, timestamp: new Date() };
-    setNotifications(prev => [newNotif, ...prev].slice(0, 5));
-    playSoundRef.current('notif');
+    setNotifications(prev => [newNotif, ...prev].slice(0, 20));
+    if (localStorage.getItem('win11_dnd') !== 'true') {
+      playSoundRef.current('notif');
+    }
   }, []);
 
   const removeNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
   }, []);
 
   // Cache audio elements to avoid creating new instances on every play call.
@@ -294,7 +327,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       osType, setOsType,
       updateStatus, setUpdateStatus,
       lockSystem,
-      notifications, addNotification, removeNotification,
+      notifications, addNotification, removeNotification, clearNotifications,
+      isDoNotDisturb, setIsDoNotDisturb,
+      isPerformanceMode, setIsPerformanceMode,
       isTaskViewOpen, setIsTaskViewOpen,
       playSound,
       users, currentUserId, setCurrentUserId, addUser,
@@ -307,7 +342,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }),
     [
       brightness, volume, isWifiEnabled, isBluetoothEnabled, systemState, osType,
-      updateStatus, lockSystem, notifications, addNotification, removeNotification,
+      updateStatus, lockSystem, notifications, addNotification, removeNotification, clearNotifications,
+      isDoNotDisturb, setIsDoNotDisturb, isPerformanceMode, setIsPerformanceMode,
       isTaskViewOpen, playSound, users, currentUserId, addUser, userName, setUserName,
       accentColor, setAccentColor, isNightLightEnabled, setIsNightLightEnabled,
       theme, toggleTheme, neonTheme, setNeonTheme, wallpaper, setWallpaper,

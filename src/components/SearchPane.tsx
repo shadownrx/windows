@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Search24Regular, 
-  Apps24Filled, 
-  History24Regular, 
-  Document24Regular, 
+import {
+  Search24Regular,
+  Apps24Filled,
+  History24Regular,
+  Document24Regular,
+  Folder24Regular,
   Globe24Regular,
   ChevronRight24Regular,
   Grid24Filled,
@@ -12,6 +13,9 @@ import {
 import { type AppItem } from '../constants/apps';
 import { useLauncherApps } from '../hooks/useLauncherApps';
 import { useWindowManager } from '../context/WindowManager';
+import { useFileSystem } from '../context/FileSystemContext';
+import { recentAppsWithIcons } from '../utils/recentApps';
+import { resolveDefaultOpen } from '../utils/fileAssociations';
 
 interface SearchPaneProps {
   isOpen: boolean;
@@ -20,15 +24,76 @@ interface SearchPaneProps {
 
 const SearchPane: React.FC<SearchPaneProps> = ({ isOpen, onClose }) => {
   const [query, setQuery] = useState('');
+  const [active, setActive] = useState(0);
   const { openWindow } = useWindowManager();
+  const { files } = useFileSystem();
   const apps = useLauncherApps();
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const q = query.trim().toLowerCase();
 
   const filteredApps = useMemo(() => {
-    if (!query) return [];
-    return apps.filter(app => 
-      app.label.toLowerCase().includes(query.toLowerCase())
+    if (!q) return [];
+    return apps.filter(app =>
+      app.label.toLowerCase().includes(q) || app.id.toLowerCase().includes(q)
     ).slice(0, 5);
-  }, [query, apps]);
+  }, [q, apps]);
+
+  const filteredFiles = useMemo(() => {
+    if (!q) return [];
+    return files.filter(f =>
+      (f.type === 'file' || f.type === 'folder') &&
+      f.name.toLowerCase().includes(q)
+    ).slice(0, 4);
+  }, [q, files]);
+
+  const recents = useMemo(() => (isOpen ? recentAppsWithIcons().slice(0, 4) : []), [isOpen]);
+
+  const openApp = (app: AppItem) => {
+    openWindow(app.id, app.appId, app.label, app.icon);
+    onClose();
+  };
+
+  const openFile = (id: string) => {
+    const f = files.find((x) => x.id === id);
+    if (!f) return;
+    if (f.type === 'folder' || f.type === 'drive') {
+      openWindow('file-explorer', 'file-explorer', 'Explorador de archivos', <Folder24Regular />);
+    } else if (f.ext === 'nex' && f.nexPayload) {
+      openWindow(f.nexPayload.appId, f.nexPayload.appId, f.nexPayload.title, f.nexPayload.appId);
+    } else {
+      const target = resolveDefaultOpen({ id: f.id, name: f.name, ext: f.ext, imageUrl: f.imageUrl });
+      if (target) openWindow(target.windowId, target.appId, target.title, target.icon, target.appProps);
+    }
+    onClose();
+  };
+
+  const flatCount = filteredApps.length + filteredFiles.length;
+
+  const updateQuery = (v: string) => {
+    setQuery(v);
+    setActive(0);
+  };
+
+  useEffect(() => {
+    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
+
+  const onInputKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown' && flatCount > 0) {
+      e.preventDefault();
+      setActive((a) => Math.min(a + 1, flatCount - 1));
+    } else if (e.key === 'ArrowUp' && flatCount > 0) {
+      e.preventDefault();
+      setActive((a) => Math.max(a - 1, 0));
+    } else if (e.key === 'Enter' && flatCount > 0) {
+      e.preventDefault();
+      if (active < filteredApps.length) openApp(filteredApps[active]);
+      else openFile(filteredFiles[active - filteredApps.length].id);
+    } else if (e.key === 'Escape') {
+      onClose();
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -45,17 +110,18 @@ const SearchPane: React.FC<SearchPaneProps> = ({ isOpen, onClose }) => {
         {/* SEARCH HEADER */}
         <div className="search-header">
           <Search24Regular className="search-icon-header" />
-          <input 
+          <input
             autoFocus
-            type="text" 
-            placeholder="Escribe aquí para buscar" 
+            type="text"
+            placeholder="Escribe aquí para buscar"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => updateQuery(e.target.value)}
+            onKeyDown={onInputKey}
             className="search-input-main"
           />
         </div>
 
-        <div className="search-body custom-scrollbar">
+        <div className="search-body custom-scrollbar" ref={listRef}>
           {!query ? (
             <>
               {/* TOP APPS */}
@@ -71,19 +137,29 @@ const SearchPane: React.FC<SearchPaneProps> = ({ isOpen, onClose }) => {
                 </div>
               </div>
 
-              {/* RECENT / QUICK SEARCHES */}
+              {/* RECENT APPS (reales) */}
+              {recents.length > 0 && (
+                <div className="search-section">
+                  <div className="section-title">Recientes</div>
+                  <div className="quick-search-list">
+                    {recents.map((r) => (
+                      <div key={r.id + r.appId} className="quick-item" onClick={() => { openWindow(r.id, r.appId, r.title, r.icon); onClose(); }}>
+                        <span className="quick-icon">{r.icon}</span>
+                        <span>{r.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* QUICK SEARCHES */}
               <div className="search-section">
                 <div className="section-title">Búsquedas rápidas</div>
                 <div className="quick-search-list">
-                  <div className="quick-item">
+                  <div className="quick-item" onClick={() => { openWindow('control-panel', 'control-panel', 'Configuración', <Apps24Filled />); onClose(); }}>
                     <History24Regular className="quick-icon" />
                     <span>Configuración de pantalla</span>
                   </div>
-                  <div className="quick-item">
-                    <History24Regular className="quick-icon" />
-                    <span>Actualizaciones de Windows</span>
-                  </div>
-                  <div className="quick-item">
+                  <div className="quick-item" onClick={() => updateQuery('fondo')}>
                     <History24Regular className="quick-icon" />
                     <span>Fondo de pantalla</span>
                   </div>
@@ -93,19 +169,50 @@ const SearchPane: React.FC<SearchPaneProps> = ({ isOpen, onClose }) => {
           ) : (
             <div className="search-results">
               <div className="section-title">Mejor coincidencia</div>
-              {filteredApps.length > 0 ? (
-                filteredApps.map((app: AppItem) => (
-                  <div key={app.id} className="result-item" onClick={() => { openWindow(app.id, app.appId, app.label, app.icon); onClose(); }}>
-                    <div className="result-left">
-                       <div className="result-icon">{app.icon}</div>
-                       <div className="result-info">
-                         <div className="result-name">{app.label}</div>
-                         <div className="result-type">Aplicación</div>
-                       </div>
+              {flatCount > 0 ? (
+                <>
+                  {filteredApps.map((app: AppItem, i) => (
+                    <div
+                      key={app.id}
+                      data-active={i === active}
+                      className={`result-item${i === active ? ' result-active' : ''}`}
+                      onMouseEnter={() => setActive(i)}
+                      onClick={() => openApp(app)}
+                    >
+                      <div className="result-left">
+                         <div className="result-icon">{app.icon}</div>
+                         <div className="result-info">
+                           <div className="result-name">{app.label}</div>
+                           <div className="result-type">Aplicación</div>
+                         </div>
+                      </div>
+                      <ChevronRight24Regular className="result-arrow" />
                     </div>
-                    <ChevronRight24Regular className="result-arrow" />
-                  </div>
-                ))
+                  ))}
+                  {filteredFiles.length > 0 && <div className="section-title" style={{ marginTop: 16 }}>Archivos</div>}
+                  {filteredFiles.map((f, j) => {
+                    const idx = filteredApps.length + j;
+                    const isFolder = f.type === 'folder' || f.type === 'drive';
+                    return (
+                      <div
+                        key={f.id}
+                        data-active={idx === active}
+                        className={`result-item${idx === active ? ' result-active' : ''}`}
+                        onMouseEnter={() => setActive(idx)}
+                        onClick={() => openFile(f.id)}
+                      >
+                        <div className="result-left">
+                           <div className="result-icon">{isFolder ? <Folder24Regular /> : <Document24Regular />}</div>
+                           <div className="result-info">
+                             <div className="result-name">{f.name}</div>
+                             <div className="result-type">{isFolder ? 'Carpeta' : `Archivo${f.ext ? ` · ${f.ext}` : ''}`}</div>
+                           </div>
+                        </div>
+                        <ChevronRight24Regular className="result-arrow" />
+                      </div>
+                    );
+                  })}
+                </>
               ) : (
                 <div className="no-results">
                   <Globe24Regular style={{ fontSize: 40, marginBottom: 12, opacity: 0.5 }} />
@@ -213,8 +320,9 @@ const SearchPane: React.FC<SearchPaneProps> = ({ isOpen, onClose }) => {
           font-size: 13px;
         }
         .quick-item:hover { background: var(--hover-bg); }
-        .quick-icon { opacity: 0.6; }
+        .quick-icon { opacity: 0.6; display: inline-flex; font-size: 18px; }
 
+        .search-results { display: flex; flex-direction: column; gap: 8px; }
         .result-item {
           display: flex;
           justify-content: space-between;
@@ -227,6 +335,7 @@ const SearchPane: React.FC<SearchPaneProps> = ({ isOpen, onClose }) => {
           transition: transform 0.1s;
         }
         .result-item:hover { background: var(--hover-bg); transform: scale(1.01); }
+        .result-item.result-active { background: var(--hover-bg); outline: 1px solid var(--win-accent); }
         .result-left { display: flex; align-items: center; gap: 16px; }
         .result-icon { font-size: 28px; }
         .result-name { font-size: 14px; font-weight: 500; }

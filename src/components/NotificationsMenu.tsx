@@ -1,15 +1,16 @@
 import React from 'react';
-import { 
-  Wifi124Regular, 
-  Bluetooth24Regular, 
-  Airplane24Regular, 
-  WeatherMoon24Regular, 
+import {
+  Wifi124Regular,
+  Bluetooth24Regular,
+  WeatherMoon24Regular,
   WeatherSunny24Regular,
   Settings24Regular,
   Speaker224Regular,
   BrightnessHigh24Regular,
   Battery124Regular,
   Edit24Regular,
+  Alert24Regular,
+  Flash24Regular,
 } from '@fluentui/react-icons';
 import { useSettings } from '../context/SettingsContext';
 
@@ -19,14 +20,16 @@ interface NotificationsMenuProps {
 }
 
 const NotificationsMenu: React.FC<NotificationsMenuProps> = ({ isOpen, onClose }) => {
-  const { 
+  const {
     isWifiEnabled, setIsWifiEnabled,
     isBluetoothEnabled, setIsBluetoothEnabled,
     isNightLightEnabled, setIsNightLightEnabled,
     brightness, setBrightness,
     volume, setVolume,
     accentColor,
-    theme, toggleTheme
+    theme, toggleTheme,
+    isDoNotDisturb, setIsDoNotDisturb,
+    isPerformanceMode, setIsPerformanceMode,
   } = useSettings();
 
   if (!isOpen) return null;
@@ -52,11 +55,11 @@ const NotificationsMenu: React.FC<NotificationsMenuProps> = ({ isOpen, onClose }
           onClick={() => setIsBluetoothEnabled(!isBluetoothEnabled)} 
           accentColor={accentColor}
         />
-        <QuickSetting 
-          label="Avión" 
-          icon={<Airplane24Regular />} 
-          active={false} 
-          onClick={() => {}} 
+        <QuickSetting
+          label="No molestar"
+          icon={<Alert24Regular />}
+          active={isDoNotDisturb}
+          onClick={() => setIsDoNotDisturb(!isDoNotDisturb)}
           accentColor={accentColor}
         />
         <QuickSetting 
@@ -66,11 +69,11 @@ const NotificationsMenu: React.FC<NotificationsMenuProps> = ({ isOpen, onClose }
           onClick={() => setIsNightLightEnabled(!isNightLightEnabled)} 
           accentColor={accentColor}
         />
-        <QuickSetting 
-          label="Ahorro batería" 
-          icon={<Battery124Regular />} 
-          active={false} 
-          onClick={() => {}} 
+        <QuickSetting
+          label="Rendimiento"
+          icon={<Flash24Regular />}
+          active={isPerformanceMode}
+          onClick={() => setIsPerformanceMode(!isPerformanceMode)}
           accentColor={accentColor}
         />
         <QuickSetting 

@@ -851,6 +851,19 @@ button:active {
   }
 }
 
+/* Modo rendimiento (NEX OS): apaga animaciones y efectos caros.
+   Se activa con .nex-perf en <html> desde SettingsContext. */
+.nex-perf *,
+.nex-perf *::before,
+.nex-perf *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+.nex-perf .brightness-overlay {
+  display: none !important;
+}
+
 /* Accessibility: High Contrast */
 @media (prefers-contrast: more) {
   .mica {

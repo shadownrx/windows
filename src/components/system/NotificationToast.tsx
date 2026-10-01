@@ -4,16 +4,21 @@ import { Dismiss16Regular } from '@fluentui/react-icons';
 import { useSettings, type Notification } from '../../context/SettingsContext';
 
 const NotificationContainer: React.FC = () => {
-  const { notifications, removeNotification } = useSettings();
+  const { notifications, removeNotification, isDoNotDisturb, isPerformanceMode } = useSettings();
+
+  // En "No molestar" no se muestran popups (el historial vive en el centro).
+  // En modo rendimiento se muestran sin animación de muelle.
+  if (isDoNotDisturb) return null;
 
   return (
     <div className="notification-container">
       <AnimatePresence>
         {notifications.map((notif) => (
-          <NotificationToast 
-            key={notif.id} 
-            notification={notif} 
-            onClose={() => removeNotification(notif.id)} 
+          <NotificationToast
+            key={notif.id}
+            notification={notif}
+            instant={isPerformanceMode}
+            onClose={() => removeNotification(notif.id)}
           />
         ))}
       </AnimatePresence>
@@ -34,7 +39,7 @@ const NotificationContainer: React.FC = () => {
   );
 };
 
-const NotificationToast: React.FC<{ notification: Notification, onClose: () => void }> = ({ notification, onClose }) => {
+const NotificationToast: React.FC<{ notification: Notification, onClose: () => void, instant?: boolean }> = ({ notification, onClose, instant }) => {
   useEffect(() => {
     const timer = setTimeout(onClose, 6000);
     return () => clearTimeout(timer);
@@ -42,11 +47,11 @@ const NotificationToast: React.FC<{ notification: Notification, onClose: () => v
 
   return (
     <motion.div
-      layout
-      initial={{ x: 400, y: -24, opacity: 0 }}
-      animate={{ x: 0, y: 0, opacity: 1 }}
-      exit={{ x: 400, opacity: 0, scale: 0.8 }}
-      transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+      layout={!instant}
+      initial={instant ? { opacity: 0 } : { x: 400, y: -24, opacity: 0 }}
+      animate={instant ? { opacity: 1 } : { x: 0, y: 0, opacity: 1 }}
+      exit={instant ? { opacity: 0 } : { x: 400, opacity: 0, scale: 0.8 }}
+      transition={instant ? { duration: 0.05 } : { type: 'spring', damping: 20, stiffness: 200 }}
       className="notification-toast mica-strong"
     >
       <div className="notif-header">

@@ -13,6 +13,9 @@ import TaskView from './system/TaskView';
 import AltTabSwitcher from './system/AltTabSwitcher';
 import Window from './Window';
 import ContextMenu from './ContextMenu';
+import CommandPalette from './system/CommandPalette';
+import NotificationCenter from './system/NotificationCenter';
+import ShortcutsHelp from './system/ShortcutsHelp';
 import { useWindowManager } from '../context/WindowManager';
 import { useDesktop, type DesktopIcon } from '../context/DesktopContext';
 import { useFileSystem } from '../context/FileSystemContext';
@@ -40,6 +43,8 @@ import {
   Delete20Regular,
   ShieldCheckmark24Regular,
   Globe24Regular,
+  Alert24Regular,
+  Search24Regular,
 } from '@fluentui/react-icons';
 import { Code24Regular, Person24Regular } from '@fluentui/react-icons';
 import { useIsPhone } from '../hooks/useMobileAppShell';
@@ -71,7 +76,7 @@ interface DesktopProps {
 }
 
 const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
-  const { windows, openWindow, closeFocusedWindow, minimizeAllWindows } = useWindowManager();
+  const { windows, openWindow, closeFocusedWindow, minimizeAllWindows, focusedWindowId, snapWindow, maximizeWindow } = useWindowManager();
   const { desktopIcons, addDesktopIcon, updateDesktopIcon, removeDesktopIcon, sortDesktopIcons, currentDesktopId, virtualDesktops, switchDesktop, addDesktop } = useDesktop();
   const { isStartOpen, toggleStart, closeStart, isWidgetsOpen, toggleWidgets, closeWidgets, isDesktopSwitcherOpen, isAssistantOpen, toggleAssistant, closeAssistant } = useUI();
   const { createFile, clipboard, pasteItem, files, copyItem, cutItem } = useFileSystem();
@@ -92,6 +97,9 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
   const [runError, setRunError] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isCenterOpen, setIsCenterOpen] = useState(false);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -268,6 +276,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
     closeWidgets();
     setContextMenu(null);
     setIsNotificationsOpen(false);
+    setIsCenterOpen(false);
     setIsSearchOpen(false);
     setSelectedIconId(null);
   };
@@ -302,6 +311,54 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
       if (nexMod && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         toggleAssistant();
+      }
+      // Paleta de comandos: Ctrl+K (universal) + Ctrl+Alt+K (forzado).
+      // Ctrl+K se cede a la app enfocada cuando edita texto (inputs,
+      // Monaco/NEX Code) para no romper sus atajos internos.
+      const target = e.target as HTMLElement | null;
+      const inEditable = !!target && (
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes((target.tagName || '').toUpperCase()) ||
+        target.isContentEditable ||
+        !!target.closest?.('.monaco-editor')
+      );
+      const focusedAppId = windows.find((w) => w.id === focusedWindowId)?.appId;
+      const appOwnsCtrlK = focusedAppId === 'vscode' || focusedAppId === 'nex-code';
+      if (e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'k') {
+        if (isPaletteOpen || (!inEditable && !appOwnsCtrlK)) {
+          e.preventDefault();
+          setIsPaletteOpen((v) => !v);
+        }
+      }
+      if (nexMod && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsPaletteOpen((v) => !v);
+      }
+      // Ayuda de atajos + centro de notificaciones
+      if (nexMod && (e.key === '/' || e.key === '?' || e.code === 'Slash')) {
+        e.preventDefault();
+        setIsShortcutsOpen((v) => !v);
+      }
+      if (nexMod && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        setIsCenterOpen((v) => !v);
+      }
+      // Snap por teclado: Win+←/→ (donde el navegador lo entrega) y Ctrl+Alt+←/→.
+      // (Ctrl+Alt+←→ puede rotar pantalla con drivers Intel viejos; Win+←/→ es preferido.)
+      // Se ceden a los campos de texto (Win+←/→ mueve el cursor ahí).
+      const snapMod = (e.metaKey && !e.ctrlKey && !e.altKey) || nexMod;
+      if (!inEditable && focusedWindowId) {
+        if (snapMod && e.key === 'ArrowLeft') {
+          e.preventDefault();
+          snapWindow(focusedWindowId, 'left');
+        }
+        if (snapMod && e.key === 'ArrowRight') {
+          e.preventDefault();
+          snapWindow(focusedWindowId, 'right');
+        }
+        if (nexMod && e.key.toLowerCase() === 'm') {
+          e.preventDefault();
+          maximizeWindow(focusedWindowId);
+        }
       }
       if (e.key === 'Escape' && isTaskViewOpen) {
         setIsTaskViewOpen(false);
@@ -346,7 +403,7 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeFocusedWindow, minimizeAllWindows, openWindow, runDialogOpen, currentDesktopId, switchDesktop, virtualDesktops, isTaskViewOpen, setIsTaskViewOpen, selectedIconId, desktopIcons, files, copyItem, cutItem, isSearchOpen, clipboard, toggleAssistant]);
+  }, [closeFocusedWindow, minimizeAllWindows, openWindow, runDialogOpen, currentDesktopId, switchDesktop, virtualDesktops, isTaskViewOpen, setIsTaskViewOpen, selectedIconId, desktopIcons, files, copyItem, cutItem, isSearchOpen, clipboard, toggleAssistant, focusedWindowId, windows, snapWindow, maximizeWindow, isPaletteOpen]);
 
   const toggleNotifications = () => {
     setIsNotificationsOpen(!isNotificationsOpen);
@@ -553,6 +610,17 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
           )}
         </AnimatePresence>
 
+        {isPaletteOpen && (
+          <CommandPalette
+            isOpen={isPaletteOpen}
+            onClose={() => setIsPaletteOpen(false)}
+            onShutdown={onShutdown}
+            onRestart={onRestart}
+          />
+        )}
+        <NotificationCenter isOpen={isCenterOpen} onClose={() => setIsCenterOpen(false)} />
+        <ShortcutsHelp isOpen={isShortcutsOpen} onClose={() => setIsShortcutsOpen(false)} />
+
         <CalendarMenu isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} />
         <NotificationsMenu isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
         <AnimatePresence>
@@ -609,6 +677,8 @@ const Desktop: React.FC<DesktopProps> = ({ onShutdown, onRestart }) => {
               ]
             },
             { label: 'Actualizar', icon: <ArrowClockwise24Regular />, onClick: () => window.location.reload(), divider: true },
+            { label: 'Centro de notificaciones', icon: <Alert24Regular />, onClick: () => { setIsCenterOpen(true); setContextMenu(null); }, shortcut: 'Ctrl+Alt+N' },
+            { label: 'Paleta de comandos', icon: <Search24Regular />, onClick: () => { setIsPaletteOpen(true); setContextMenu(null); }, shortcut: 'Ctrl+K' },
             { label: 'Pegar', icon: <ClipboardPaste24Regular />, onClick: handlePaste, shortcut: 'Ctrl+V', disabled: !clipboard },
             { label: 'Pegar acceso directo', icon: <ImageArrowBack24Regular />, onClick: handlePaste, disabled: !clipboard, divider: true },
             {
